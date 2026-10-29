@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WFC Claim Builder</title>
+<meta name="theme-color" content="#1f4ad8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f4ad8'/%3E%3Cpath d='M8 11l3 11 5-8 5 8 3-11' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css?v=10">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><img id="brandLogo" alt="WFC Systems"><span>Claim Builder</span></div>
+    <button class="ghost" id="btnSettings" type="button">Settings</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab on" id="tabClaim" type="button" role="tab" aria-selected="true">Expense claim</button>
+    <button class="tab" id="tabLeave" type="button" role="tab" aria-selected="false">Leave application</button>
+  </div>
+
+  <div class="view" id="viewClaim">
+    <section class="card">
+      <h2><span class="step">1</span>Claim details</h2>
+      <div class="grid">
+        <label class="f">Claimant name<input type="text" id="claimant" autocomplete="name" placeholder="Full name, as on your IC"></label>
+        <label class="f">Signed as<input type="text" id="signature" placeholder="Leave blank to use the claimant name"></label>
+        <label class="f">Claim month<input type="month" id="month"></label>
+        <label class="f">Days off (leave)<input type="text" id="daysOff" placeholder="e.g. 27/08-28/08, 05/08"></label>
+      </div>
+      <p class="hint">Toll on every work day counts, anywhere in Malaysia. Weekends, public holidays and days off (leave) are not claimed &mdash; enter your leave days above.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">2</span>Add your files</h2>
+      <label class="drop" id="dropAll">
+        <b>Drop all your files here, or paste them</b>
+        <small>TNG statement, petrol receipt photos, invoices, hotel bills &mdash; any mix. They are sorted automatically.</small>
+        <span class="keys"><kbd>Ctrl</kbd> + <kbd>V</kbd> to paste &middot; or click to browse</span>
+        <span class="st" id="stAll"></span>
+        <input type="file" id="fileAll" accept="image/*,application/pdf,.pdf" multiple>
+      </label>
+      <label class="opts" style="margin-top:14px"><input type="checkbox" id="ocrOn" checked> Read petrol receipt photos automatically (slower the first time &mdash; always check the amber fields)</label>
+      <p class="hint">Everything is processed on this device &mdash; nothing is uploaded.</p>
+      <div class="notes" id="fileNotes"></div>
+      <div class="notes" id="rejects"></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">3</span>Check the claim</h2>
+      <div class="lines" id="lines"></div>
+      <div class="total"><span>Total claim</span><b id="total">RM 0.00</b></div>
+      <div class="notes" id="notes"></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">4</span>Build and email</h2>
+      <div class="mail">
+        <label class="f">From (your work email)<input type="email" id="fromEmail" placeholder="you@yourcompany.com"></label>
+        <label class="f">To (accountant)<input type="email" id="toEmail" placeholder="accountant@yourcompany.com"></label>
+        <label class="f wide">Subject<input type="text" id="subject"></label>
+        <label class="f wide">Message<textarea id="body" rows="8"></textarea></label>
+      </div>
+      <div class="loc"></div>
+      <div class="actions">
+        <button class="primary" id="btnBuild" type="button">Build claim pack</button>
+        <label class="opts"><input type="checkbox" id="shrink" checked> Shrink photos so the email stays small</label>
+      </div>
+      <div class="notes" id="buildNotes"></div>
+      <div class="pack" id="pack" hidden></div>
+    </section>
+  </div>
+
+  <div class="view" id="viewLeave" hidden>
+    <section class="card">
+      <h2><span class="step">1</span>Leave details</h2>
+      <div class="grid">
+        <label class="f">Employee name<input type="text" id="lName" autocomplete="name" placeholder="Full name, as on your IC"></label>
+        <label class="f">Type of leave
+          <select id="lType">
+            <option value="annual">Annual leave</option><option value="sick">Sick</option><option value="unpaid">Unpaid leave</option>
+            <option value="personal">Personal leave</option><option value="other">Other</option>
+          </select></label>
+        <label class="f">Leave from<input type="date" id="lFrom"></label>
+        <label class="f">Leave to<input type="date" id="lTo"></label>
+        <label class="f span2">Reason for request leave<input type="text" id="lReason" placeholder="e.g. Hometown visit"></label>
+        <label class="f">Signed as<input type="text" id="lSign" placeholder="Leave blank to use the name"></label>
+        <label class="f">Date signed<input type="date" id="lSignDate"></label>
+      </div>
+      <label class="drop slim" id="dropMc">
+        <b>Medical certificate (MC) &mdash; optional</b>
+        <small>Drop, paste (Ctrl+V) or click. The dates and &ldquo;Sick&rdquo; are filled in for you, and the MC goes in the leave pack.</small>
+        <input type="file" id="fileMc" accept="image/*,application/pdf" multiple>
+      </label>
+      <div class="files" id="mcFiles"></div>
+      <div class="notes" id="mcNotes"></div>
+      <label class="opts" style="margin-top:12px"><input type="checkbox" id="lDaysOff" checked> Also skip toll on these days in my expense claim</label>
+      <p class="hint">The leave balance boxes (b/f, entitled, taken, c/f) are left blank for the office to fill in.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">2</span>Build and email</h2>
+      <div class="mail">
+        <label class="f">From (your work email)<input type="email" id="lFromEmail" placeholder="you@yourcompany.com"></label>
+        <label class="f">To<input type="email" id="lToEmail" placeholder="who receives leave forms"></label>
+        <label class="f wide">Subject<input type="text" id="lSubject"></label>
+        <label class="f wide">Message<textarea id="lBody" rows="7"></textarea></label>
+      </div>
+      <div class="loc"></div>
+      <div class="actions">
+        <button class="primary" id="lBuild" type="button">Build leave form</button>
+      </div>
+      <div class="notes" id="lNotes"></div>
+      <div class="pack" id="lPack" hidden></div>
+    </section>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="dlgForm">
+    <h2>Settings</h2>
+    <div class="sec">
+      <span class="lbl">Save location</span>
+      <div class="locrow"><b id="sLocName">&hellip;</b>
+        <button class="ghost" type="button" id="sLocChange">Change folder</button>
+        <button class="ghost" type="button" id="sLocForget">Forget</button></div>
+      <p class="hint">Each month is saved as a folder under it (for example <i>September 2026</i>), and leave forms go in a <i>Leave form</i> folder. This choice is remembered on this PC only, so everyone can use their own folder.</p>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <label class="f">Recipient's first name (for the greeting)<input type="text" id="sToName" placeholder="e.g. Sarah"></label>
+      <label class="f">Your name in the email sign-off<input type="text" id="sSignoff" placeholder="Defaults to the signature name"></label>
+    </div>
+    <div class="sec"><label class="f">Public holidays (one per line: YYYY-MM-DD name)<textarea id="sHol" spellcheck="false"></textarea></label>
+      <p class="hint">Best-effort list for 2026 &mdash; check the Islamic holiday dates against the official gazette and add Selangor / one-off holidays. Add next year's dates here too.</p></div>
+    <div class="foot">
+      <button class="ghost" type="button" id="sReset">Reset lists to defaults</button>
+      <button class="primary" value="save" id="sSave">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="assets/claim-base.js"></script>
+<script src="assets/leave-base.js"></script>
+<script src="assets/logo.js"></script>
+<script src="js/tng.js?v=10"></script>
+<script src="js/xlsx.js?v=10"></script>
+<script src="js/pdf.js?v=10"></script>
+<script src="js/receipts.js?v=10"></script>
+<script src="js/mail.js?v=10"></script>
+<script src="js/folder.js?v=10"></script>
+<script src="js/petrol.js?v=10"></script>
+<script src="js/validate.js?v=10"></script>
+<script src="js/ocr.js?v=10"></script>
+<script src="js/app.js?v=10"></script>
+</body>
+</html>
