@@ -38,12 +38,13 @@
     const d = img.data, hist = new Uint32Array(256);
     for (let i = 0; i < d.length; i += 4) { const g = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0; d[i] = g; hist[g]++; }
     const total = c.width * c.height;
-    // black point = the darkest 0.3% (ink is only a sliver of the picture); white point = the middle of the picture,
-    // which is paper or table. Using a high percentile for "white" and a high one for "black" turned a photo that is
-    // all paper into a black page.
+    // black point = the darkest 2%, white point = the brightest 20%. If the ink is only a sliver of the picture (a close-up
+    // where the paper fills the frame) those two land on the same grey and the page goes black, so then take the black
+    // point from the darkest 0.3% instead.
     const at = (frac) => { let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * frac) return v; } return 255; };
-    let lo = at(0.003);
-    const hi = at(0.55);
+    let lo = at(0.02);
+    const hi = at(0.8);
+    if (hi - lo < 50) lo = at(0.003);
     if (hi - lo < 50) lo = Math.max(0, hi - 50);
     const span = Math.max(50, hi - lo);
     for (let i = 0; i < d.length; i += 4) {
