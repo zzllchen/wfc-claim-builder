@@ -93,22 +93,27 @@
       });
       return found;
     };
-    for (const re of [/\b(grand\s*total|total|jumlah)\b/i, /\b(amount|amt|nett?|payable|bayar|sale)\b/i]) {
-      const f = pick(re);
-      if (f.length) return Math.max.apply(null, f);
-    }
-    const spelled = inWords(text);                  // clinic receipts: "RM SEVENTY FIVE ONLY"
-    if (spelled != null) return spelled;
-    // total line unreadable: cash given minus change is the total
+    // cash given minus change is the total: a cross-check on the TOTAL line, and the answer when that line is unreadable
     const cashes = [], changes = [];
     lines.forEach((ln) => {
       if (/\b(change|baki)\b/i.test(ln)) changes.push.apply(changes, moneyIn(ln));
       else if (/\b(cash|tunai|tender|tendered|received|diterima)\b/i.test(ln)) cashes.push.apply(cashes, moneyIn(ln));
     });
+    let paid = null;
     if (cashes.length && changes.length) {
       const t = Math.round((Math.max.apply(null, cashes) - Math.min.apply(null, changes)) * 100) / 100;
-      if (t >= 1) return t;
+      if (t >= 1) paid = t;
     }
+    for (const re of [/\b(grand\s*total|total|jumlah)\b/i, /\b(amount|amt|nett?|payable|bayar|sale)\b/i]) {
+      const f = pick(re);
+      if (f.length) {
+        const labelled = Math.max.apply(null, f);
+        return paid != null && Math.abs(paid - labelled) > 0.05 ? paid : labelled;   // "60.46" misread as "0.46"
+      }
+    }
+    const spelled = inWords(text);                  // clinic receipts: "RM SEVENTY FIVE ONLY"
+    if (spelled != null) return spelled;
+    if (paid != null) return paid;
     // no label: only trust an amount on a plain line (never cash / change) that appears more than once
     const all = lines.filter((ln) => !skip.test(ln)).reduce((acc, ln) => acc.concat(moneyIn(ln)), []).filter((v) => v >= 5);
     const counts = new Map();

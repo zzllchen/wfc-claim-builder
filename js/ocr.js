@@ -38,11 +38,14 @@
     const d = img.data, hist = new Uint32Array(256);
     for (let i = 0; i < d.length; i += 4) { const g = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0; d[i] = g; hist[g]++; }
     const total = c.width * c.height;
-    let lo = 0, hi = 255, acc = 0;
-    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * 0.02) { lo = v; break; } }
-    acc = 0;
-    for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= total * 0.2) { hi = v; break; } }
-    const span = Math.max(40, hi - lo);
+    // black point = the darkest 0.3% (ink is only a sliver of the picture); white point = the middle of the picture,
+    // which is paper or table. Using a high percentile for "white" and a high one for "black" turned a photo that is
+    // all paper into a black page.
+    const at = (frac) => { let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * frac) return v; } return 255; };
+    let lo = at(0.003);
+    const hi = at(0.55);
+    if (hi - lo < 50) lo = Math.max(0, hi - 50);
+    const span = Math.max(50, hi - lo);
     for (let i = 0; i < d.length; i += 4) {
       const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
       d[i] = d[i + 1] = d[i + 2] = v;
