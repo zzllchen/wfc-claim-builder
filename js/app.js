@@ -47,7 +47,7 @@
   const saveCfg = () => store.set('wfc-claim-cfg', cfg);
 
   const S = {
-    tng: null, overrides: new Map(), other: [],
+    tng: null, overrides: new Map(), other: [], edits: { toll: {}, parking: {} },     // edits = values typed over the calculated toll / parking line
     showTrips: false, showErrors: false, packs: { claim: null, leave: null }, inputs: [],
     touched: { subject: false, body: false, month: false, lName: false, lSign: false, lTo: false, lSubject: false, lBody: false },
   };
@@ -85,8 +85,9 @@
     const lines = [];
     const rankOf = (cat) => (/petrol|fuel/i.test(cat) ? 0 : /accommodation|hotel/i.test(cat) ? 1 : 2);
     S.other.forEach((o) => lines.push({ rank: rankOf(o.category), kind: 'other', src: o, category: o.category, date: o.date, name: o.name, receiptNo: o.receiptNo, amount: o.amount, files: o.files.map((x) => x.file) }));
-    if (tv && tv.toll > 0 && mp) lines.push({ rank: 3, kind: 'toll', category: 'Toll', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.toll, files: [S.tng.file] });
-    if (tv && tv.parking > 0 && mp) lines.push({ rank: 4, kind: 'parking', category: 'Parking', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.parking, files: [S.tng.file] });
+    // toll / parking are calculated from the ticked trips, but every field can be typed over (S.edits)
+    if (tv && tv.toll > 0 && mp) lines.push(Object.assign({ rank: 3, kind: 'toll', category: 'Toll', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.toll, calc: tv.toll, files: [S.tng.file] }, S.edits.toll));
+    if (tv && tv.parking > 0 && mp) lines.push(Object.assign({ rank: 4, kind: 'parking', category: 'Parking', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.parking, calc: tv.parking, files: [S.tng.file] }, S.edits.parking));
     return { lines, tv };
   }
   const sortedForBuild = (lines) => lines.slice().sort((a, b) => a.rank - b.rank || (a.date || '').localeCompare(b.date || ''));
@@ -142,7 +143,7 @@
     if (S.other.length > 1) {
       const sel = h('select', { onchange: (e) => { const t = S.other.find((x) => x.id === e.target.value); if (t) mergeInto(o, t); } },
         h('option', { value: '', text: 'separate line' }),
-        S.other.filter((x) => x !== o).map((x) => h('option', { value: x.id, text: `${x.category || 'Line'} · ${x.name || x.files[0].file.name}`.slice(0, 48) })));
+        S.other.filter((x) => x !== o).map((x) => h('option', { value: x.id, text: `${x.category || 'Line'} · ${x.name || (x.files[0] && x.files[0].file.name) || 'typed line'}`.slice(0, 48) })));
       files.append(h('label', { class: 'merge' }, 'Attach to', sel));
     }
     return h('div', { class: 'line' }, row, files);
@@ -152,12 +153,18 @@
     const isToll = l.kind === 'toll';
     const rows = tv.rows.filter((r) => r.type === (isToll ? 'TOLL' : 'PARKING'));
     const counted = rows.filter((r) => r.include).length;
-    const ro = (v) => h('input', { type: 'text', value: v, disabled: true });
+    // every field can be typed over; what is typed is kept in S.edits and wins over the calculated value
+    const edits = S.edits[l.kind];
+    const view = new Proxy(Object.assign({}, l), { set(t, k, v) { t[k] = v; edits[k] = v; return true; } });
     const row = h('div', { class: 'row' },
-      field('Category', 'cat', ro(l.category)), field('Date', 'dt', ro(ClaimPdf.fmtDate(l.date))), field('Name', 'nm', ro(l.name)),
-      field('Receipt no.', 'rn', ro(l.receiptNo)), field('Amount (RM)', 'am', ro(money(l.amount))), h('span'));
+      field('Category', 'cat', bound(view, 'category', 'text', { list: 'cats' })), field('Date', 'dt', bound(view, 'date', 'date')),
+      field('Name', 'nm', bound(view, 'name', 'text')), field('Receipt no.', 'rn', bound(view, 'receiptNo', 'text')),
+      field('Amount (RM)', 'am', bound(view, 'amount', 'number', { step: '0.01', min: '0', inputmode: 'decimal' })), h('span'));
+    const adjusted = Object.keys(edits).length > 0;
     const files = h('div', { class: 'files' }, chip(S.tng.file, S.tng.url),
       h('span', { class: 'tag', text: `${counted} of ${rows.length} ${isToll ? 'toll trips' : 'parking rows'} counted` }),
+      adjusted ? h('span', { class: 'tag hint', text: `Adjusted by hand · calculated RM ${money(l.calc)}` }) : null,
+      adjusted ? h('button', { class: 'link', type: 'button', text: 'Use calculated', onclick: () => { S.edits[l.kind] = {}; renderLines(); } }) : null,
       isToll ? h('button', { class: 'link', type: 'button', text: S.showTrips ? 'Hide trips' : 'Review trips', onclick: () => { S.showTrips = !S.showTrips; renderLines(); } }) : null);
     const wrap = h('div', { class: 'line auto' }, row, files);
     if (isToll) wrap.append(tripsPanel(tv));
@@ -253,6 +260,8 @@
     }
     const noRn = lines.filter((l) => l.kind === 'other' && !String(l.receiptNo || '').trim());
     if (noRn.length) warn.push(`${noRn.length} line${noRn.length > 1 ? 's have' : ' has'} no receipt number.`);
+    const noFile = lines.filter((l) => l.kind === 'other' && !l.files.length);
+    if (noFile.length) warn.push(`${noFile.length} typed line${noFile.length > 1 ? 's have' : ' has'} no receipt attached – drop the file on the line's "Attach to" or add it above.`);
     if (tv) {
       const hdr = S.tng.header;
       if (mp && hdr.from && hdr.to && !(hdr.from.slice(0, 7) === mp.key || hdr.to.slice(0, 7) === mp.key)) warn.push(`This statement covers ${hdr.from} to ${hdr.to}, not ${monthLabel(mp)}.`);
@@ -329,7 +338,7 @@
       const parsed = await TNG.extract(buf.slice(0));
       if (S.tng) URL.revokeObjectURL(S.tng.url);
       S.tng = { file, buf, url: URL.createObjectURL(file), header: parsed.header, rows: parsed.rows };
-      S.overrides.clear();
+      S.overrides.clear(); S.edits = { toll: {}, parking: {} };
       const hd = parsed.header;
       if (!S.touched.month && hd.from && hd.to && hd.from.slice(0, 7) === hd.to.slice(0, 7)) $('#month').value = hd.from.slice(0, 7);
       if (!$('#claimant').value.trim() && hd.name) { $('#claimant').value = titleCase(hd.name); cfg.claimant = $('#claimant').value; saveCfg(); }
@@ -627,7 +636,9 @@
         add(safe(S.tng.file.name), S.tng.buf);
         add('TNG toll check list.pdf', ClaimPdf.tollBreakdown({
           claimant, monthLabel: monthLabel(mp), serial: S.tng.header.serial, period: S.tng.header.periodText,
-          rows: tv.rows.map((r) => Object.assign({}, r, { why: tripWhy(r) })), total: tv.toll, parkingTotal: tv.parking,
+          rows: tv.rows.map((r) => Object.assign({}, r, { why: tripWhy(r) })),
+          total: num((raw.find((l) => l.kind === 'toll') || {}).amount), calculatedToll: tv.toll,          // what is claimed (may be typed over) vs what the ticks add up to
+          parkingTotal: num((raw.find((l) => l.kind === 'parking') || {}).amount), calculatedParking: tv.parking,
         }));
       }
 
@@ -938,6 +949,12 @@
     $('#ocrOn').checked = !!cfg.ocr;
     $('#ocrOn').addEventListener('change', () => { cfg.ocr = $('#ocrOn').checked; saveCfg(); });
 
+    $('#btnAddLine').addEventListener('click', () => {      // a line typed by hand: no file needed
+      const item = { id: uid(), kind: 'other', files: [], category: '', name: '', date: '', receiptNo: '', amount: '', auto: {} };
+      S.other.push(item); renderLines();
+      const first = S.inputs.find((i) => i._obj === item && i._key === 'category');
+      if (first) { first.focus(); first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    });
     $('#btnBuild').addEventListener('click', buildPack);
     $('#btnSettings').addEventListener('click', openSettings);
     $('#sLocChange').addEventListener('click', changeFolder);

@@ -204,8 +204,17 @@
     y += 3;
     doc.setDrawColor(0); doc.setLineWidth(0.3); doc.line(L, y - 3.5, R, y - 3.5);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    const note = (label, calc) => {       // the claimed amount was typed over by hand: say what the ticks add up to
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120);
+      y += 4.4; doc.text(ascii(`${label} adjusted by hand - the ticked trips add up to RM ${money(calc)}`), cols.plaza, y);
+      doc.setTextColor(0); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    };
     doc.text('Toll claimed', cols.plaza, y); doc.text(money(info.total), cols.amt, y, { align: 'right' });
-    if (info.parkingTotal > 0) { y += 5.5; doc.text('Parking claimed', cols.plaza, y); doc.text(money(info.parkingTotal), cols.amt, y, { align: 'right' }); }
+    if (info.calculatedToll != null && Math.abs(info.total - info.calculatedToll) > 0.004) note('Toll', info.calculatedToll);
+    if (info.parkingTotal > 0 || (info.calculatedParking != null && info.calculatedParking > 0)) {
+      y += 5.5; doc.text('Parking claimed', cols.plaza, y); doc.text(money(info.parkingTotal || 0), cols.amt, y, { align: 'right' });
+      if (info.calculatedParking != null && Math.abs((info.parkingTotal || 0) - info.calculatedParking) > 0.004) note('Parking', info.calculatedParking);
+    }
 
     // why the unticked rows were left out
     const groups = new Map();
