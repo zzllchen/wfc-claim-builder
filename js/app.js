@@ -83,11 +83,14 @@
     const tv = tollView();
     const mp = monthParts();
     const lines = [];
-    const rankOf = (cat) => (/petrol|fuel/i.test(cat) ? 0 : /accommodation|hotel/i.test(cat) ? 1 : 2);
+    // order on the claim form and its PDF: fuel, toll, parking, then medical, AI tools, accommodation, everything else
+    const rankOf = (cat) => (/petrol|fuel/i.test(cat) ? 0 : /toll/i.test(cat) ? 1 : /parking/i.test(cat) ? 2
+      : /medical|klinik|clinic|pharmac|farmasi/i.test(cat) ? 3 : /\bai\b|software|subscription|saas/i.test(cat) ? 4
+        : /accommodation|hotel/i.test(cat) ? 5 : 6);
     S.other.forEach((o) => lines.push({ rank: rankOf(o.category), kind: 'other', src: o, category: o.category, date: o.date, name: o.name, receiptNo: o.receiptNo, amount: o.amount, files: o.files.map((x) => x.file) }));
     // toll / parking are calculated from the ticked trips, but every field can be typed over (S.edits)
-    if (tv && tv.toll > 0 && mp) lines.push(Object.assign({ rank: 3, kind: 'toll', category: 'Toll', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.toll, calc: tv.toll, files: [S.tng.file] }, S.edits.toll));
-    if (tv && tv.parking > 0 && mp) lines.push(Object.assign({ rank: 4, kind: 'parking', category: 'Parking', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.parking, calc: tv.parking, files: [S.tng.file] }, S.edits.parking));
+    if (tv && tv.toll > 0 && mp) lines.push(Object.assign({ rank: 1, kind: 'toll', category: 'Toll', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.toll, calc: tv.toll, files: [S.tng.file] }, S.edits.toll));
+    if (tv && tv.parking > 0 && mp) lines.push(Object.assign({ rank: 2, kind: 'parking', category: 'Parking', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.parking, calc: tv.parking, files: [S.tng.file] }, S.edits.parking));
     return { lines, tv };
   }
   const sortedForBuild = (lines) => lines.slice().sort((a, b) => a.rank - b.rank || (a.date || '').localeCompare(b.date || ''));
@@ -139,7 +142,8 @@
       h('button', { class: 'icon', type: 'button', title: 'Remove', 'aria-label': 'Remove line', text: '×', onclick: () => removeOther(o) }));
     const files = h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url)),
       o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: OCR_LABEL[o.ocr] || '', hidden: !OCR_LABEL[o.ocr] }) : null,
-      o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null);
+      o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
+      o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null);       // gone once the amount is typed over
     if (S.other.length > 1) {
       const sel = h('select', { onchange: (e) => { const t = S.other.find((x) => x.id === e.target.value); if (t) mergeInto(o, t); } },
         h('option', { value: '', text: 'separate line' }),
@@ -423,13 +427,21 @@
       const opts = { month: mp && mp.key, stations: stations() };
       const text = await OCR.read(file, {
         onStart: () => setOcr(item, 'reading'),
-        good: (t) => { const p = Petrol.parse(t, opts); return !!(p.amount && p.date); },
+        good: (t) => { const p = Petrol.parse(t, opts); return !!((p.amount || p.foreign) && p.date); },
       });
       if (!S.other.includes(item)) return;              // removed while waiting
       const verdict = Validate.judge(text, 'photo');
       if (verdict.status !== 'ok') { dropItem(item); reject(file, verdict.reason, verdict.force, verdict.mc); return; }
-      applyOcr(item, Petrol.parse(text, opts));
+      const r = Petrol.parse(text, opts);
+      if (!r.amount && r.foreign) {                     // a receipt in another currency is claimed in ringgit
+        const c = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
+        if (c) { r.amount = c.myr.toFixed(2); item.fx = c; }
+        else item.hint = `Receipt is in ${r.foreign.code} ${r.foreign.amount.toFixed(2)} – type the MYR amount from your card statement`;
+        if (!S.other.includes(item)) return;
+      }
+      applyOcr(item, r);
       setOcr(item, 'done');
+      if (item.fx || item.hint) renderLines();
     } catch (e) {
       console.warn('OCR failed', e);
       if (!S.other.includes(item)) return;
@@ -470,12 +482,22 @@
           if (target) {                                   // the other half of an invoice + receipt pair: same claim line
             target.files.push(mk());
             if (info.isReceipt && info.date) target.date = info.date;
-            if (info.amount != null) { target.amount = info.amount.toFixed(2); delete target.hint; }
+            if (info.amount != null) {                    // the receipt's ringgit charge replaces any converted estimate
+              target.amount = info.amount.toFixed(2); delete target.hint; delete target.fx;
+              if (target.auto) delete target.auto.amount;
+            }
             if (!target.name && info.merchant) target.name = info.merchant;
           } else {
+            let amount = info.amount, fx = null, hint = '';
+            if (amount == null) {                         // invoice only, in USD etc.: convert to ringgit until the receipt is added
+              const f = Petrol.foreignTotal(s.text);
+              const c = f && await Fx.toMyr(f.code, f.amount, info.date);
+              if (c) { amount = c.myr; fx = c; }
+              else hint = f ? `Invoice is in ${f.code} ${f.amount.toFixed(2)} – attach the receipt PDF, or type the MYR amount from your card statement`
+                : 'Invoice only – attach the receipt PDF too so the MYR amount can be filled in';
+            }
             blank({ invoiceNo: info.invoiceNo, category: 'AI tools', name: info.merchant, date: info.date, receiptNo: info.invoiceNo.replace(/-/g, ''),
-              amount: info.amount != null ? info.amount.toFixed(2) : '',
-              hint: info.amount != null ? '' : 'Invoice only – attach the receipt PDF too so the MYR amount can be filled in' });
+              amount: amount != null ? amount.toFixed(2) : '', hint, fx, auto: fx ? { amount: true } : {} });
           }
           added.invoices++;
         } else if (s.hotel) {                             // Agoda receipt
@@ -492,10 +514,16 @@
           const target = p.receiptNo && S.other.find((o) => o.receiptNo === p.receiptNo && !o.invoiceNo);
           if (target) { target.files.push(mk()); }       // same document number: group with the other copy
           else {
+            let fx = null, hint = '';
+            if (!p.amount && p.foreign) {                // in USD etc.: claimed in ringgit
+              const c = await Fx.toMyr(p.foreign.code, p.foreign.amount, p.date);
+              if (c) { p.amount = c.myr.toFixed(2); fx = c; }
+              else hint = `Receipt is in ${p.foreign.code} ${p.foreign.amount.toFixed(2)} – type the MYR amount from your card statement`;
+            }
             const auto = {};
             ['date', 'amount', 'receiptNo'].forEach((k) => { if (p[k]) auto[k] = true; });
             if (p.station) auto.name = true;
-            blank({ category: guessCategory(text), name: p.station, date: p.date, amount: p.amount, receiptNo: p.receiptNo, auto });
+            blank({ category: guessCategory(text), name: p.station, date: p.date, amount: p.amount, receiptNo: p.receiptNo, auto, fx, hint });
           }
           added.invoices++;
         }

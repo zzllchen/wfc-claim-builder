@@ -43,8 +43,8 @@
     return out.sort((a, b) => a.at - b.at).map((x) => x.d);
   }
 
-  // 12.34 but not litres ("20.12L"), which sit on the same line as the price
-  const MONEY = /(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)[.,](\d{2})(?!\d)(?!\s*(?:l|ltr|litres?|liters?)\b)/gi;
+  // 12.34 but not litres ("20.12L"), which sit on the same line as the price. OCR often puts a space round the point ("RM116 .68")
+  const MONEY = /(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s?\.\s?|,)(\d{2})(?!\d)(?!\s*(?:l|ltr|litres?|liters?)\b)/gi;
   const moneyIn = (s) => {
     const out = [];
     let m;
@@ -79,6 +79,12 @@
     return r + (c || 0) / 100;
   }
 
+  /* A subsidy / discount line ("Budi95 Subsidy -RM56.68") comes off the item line above it. The amount paid is the figure
+     AFTER it, so the item line on its own (RM116.68) is never taken as the amount. */
+  const DEDUCT_WORD = /\b(subsid\w*|budi\w*|discount|diskaun|rebate|voucher|promo\w*)/i;
+  const DEDUCT_SKIP = /\b(price|harga|information|info)\b/i;
+  const MINUS_AMT = /[-–—~]\s*(?:RM|MYR)?\s*\d/i;
+
   /* the amount paid: a TOTAL / AMOUNT line, never cash given or change */
   function amount(text) {
     const lines = text.split(/\r?\n/);
@@ -104,13 +110,40 @@
       const t = Math.round((Math.max.apply(null, cashes) - Math.min.apply(null, changes)) * 100) / 100;
       if (t >= 1) paid = t;
     }
+    // subsidy / discount lines: what came off (cuts), whether a cut was there but its figure unreadable, and the item line above
+    const cuts = new Set();
+    let unreadable = false;
+    lines.forEach((ln) => {
+      if (!DEDUCT_WORD.test(ln) || DEDUCT_SKIP.test(ln)) return;
+      const vals = moneyIn(ln).filter((v) => v > 0);
+      if (vals.length) vals.forEach((v) => cuts.add(v));
+      else if (MINUS_AMT.test(ln)) unreadable = true;
+    });
+    const discounted = cuts.size > 0 || unreadable;
+    let gross = null, net = null;
+    if (discounted) {
+      lines.forEach((ln) => {
+        if (DEDUCT_WORD.test(ln) || skip.test(ln) || /\b(total|jumlah)\b/i.test(ln)) return;
+        moneyIn(ln).forEach((v) => { if (gross == null || v > gross) gross = v; });
+      });
+      const off = Array.from(cuts).reduce((a, v) => a + v, 0);
+      if (gross != null && off > 0 && gross - off >= 1) net = Math.round((gross - off) * 100) / 100;
+    }
     for (const re of [/\b(grand\s*total|total|jumlah)\b/i, /\b(amount|amt|nett?|payable|bayar|sale)\b/i]) {
       const f = pick(re);
       if (f.length) {
-        const labelled = Math.max.apply(null, f);
+        let labelled;
+        if (discounted) {
+          const below = gross != null ? f.filter((v) => v < gross - 0.05) : f;       // the figures after the discount
+          if (below.length) labelled = below[below.length - 1];
+          else if (net != null) labelled = net;
+          else return paid;                                                         // only the pre-discount figure was readable
+        } else labelled = Math.max.apply(null, f);
         return paid != null && Math.abs(paid - labelled) > 0.05 ? paid : labelled;   // "60.46" misread as "0.46"
       }
     }
+    // no TOTAL line read: the item line less the discount, else blank - never the pre-discount figure
+    if (discounted) return net != null ? net : paid;
     const spelled = inWords(text);                  // clinic receipts: "RM SEVENTY FIVE ONLY"
     if (spelled != null) return spelled;
     if (paid != null) return paid;
@@ -121,6 +154,53 @@
     const repeated = Array.from(counts).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1] || b[0] - a[0]);
     if (repeated.length) return repeated[0][0];
     return counts.size === 1 ? all[0] : null;       // a lone amount on the page is almost always the total
+  }
+
+  /* ---- other currencies: a receipt in USD etc. is never recorded as ringgit; the app converts it to MYR ---- */
+  const SYMCODE = { 'US$': 'USD', '$': 'USD', 'S$': 'SGD', 'A$': 'AUD', 'C$': 'CAD', 'HK$': 'HKD', 'NZ$': 'NZD',
+    '€': 'EUR', '£': 'GBP', '¥': 'JPY', '฿': 'THB', '₹': 'INR', '₩': 'KRW', '₱': 'PHP' };
+  const ISO = 'USD|SGD|EUR|GBP|AUD|CAD|HKD|NZD|JPY|CNY|RMB|THB|IDR|INR|KRW|PHP';
+  const SYM = '(?<![A-Za-z])(?:US\\$|HK\\$|NZ\\$|S\\$|A\\$|C\\$|\\$)|[€£¥฿₹₩₱]';
+  const FAMT = '(?:\\d{1,3}(?:,\\d{3})+|\\d+)\\s?\\.\\s?\\d{2}(?!\\d)';
+  // symbol or code before the figure ($11.00, USD 11.00 [USD]), or the code after it (11.00 USD)
+  const fxRe = () => new RegExp('(?:(' + SYM + ')|\\b(' + ISO + ')\\b)\\s?(' + FAMT + ')(?:\\s?\\b(' + ISO + ')\\b)?|(' + FAMT + ')\\s?\\b(' + ISO + ')\\b', 'gi');
+  const FX_LABEL = /\b(grand\s+total|total|amount\s+(?:due|paid|charged)|balance\s+due|charged|paid)\s*:?\s*$/i;
+  const codeOf = (c) => { c = String(c || '').toUpperCase(); return c === 'RMB' ? 'CNY' : c; };
+  const hasMyr = (t) => /\b(?:RM|MYR)\s?\d|\d\s?(?:RM|MYR)\b|\bringgit\b/i.test(t);
+
+  /* every amount written with a foreign symbol or code: [{ code, value, at, end, labelled }] */
+  function foreignAmounts(text) {
+    const out = [], re = fxRe();
+    let m;
+    text = String(text);
+    while ((m = re.exec(text))) {
+      const code = m[4] || m[2] || m[6] || (m[1] ? SYMCODE[m[1].toUpperCase()] : '');
+      const raw = m[3] || m[5];
+      if (!code || !raw) continue;
+      out.push({ code: codeOf(code), value: parseFloat(raw.replace(/[\s,]/g, '')), at: m.index, end: m.index + m[0].length,
+        labelled: FX_LABEL.test(text.slice(Math.max(0, m.index - 30), m.index)) });
+    }
+    return out;
+  }
+  const stripForeign = (text) => {
+    text = String(text);
+    let out = '', at = 0;
+    foreignAmounts(text).forEach((s) => { out += text.slice(at, s.at) + ' '; at = s.end; });
+    return out + text.slice(at);
+  };
+  /* the total of a document written in another currency -> { code, amount } or null */
+  function foreignTotal(text) {
+    const all = foreignAmounts(text);
+    if (!all.length) return null;
+    const labelled = all.filter((a) => a.labelled);
+    const pool = labelled.length ? labelled : all;                  // no TOTAL label: the biggest figure
+    const top = pool.reduce((a, b) => (b.value > a.value ? b : a));
+    return top.value > 0 ? { code: top.code, amount: top.value } : null;
+  }
+  /* "Charged RM46.70 using 1 USD = 4.2452 MYR": the card was charged in ringgit, so that is the amount */
+  function myrCharged(text) {
+    const m = /\b(?:charged|amount\s+(?:charged|paid|due)|total(?:\s+charged)?)\s*:?\s*(?:RM|MYR)\s?(\d{1,3}(?:,\d{3})+|\d+)\s?\.\s?(\d{2})(?!\d)/i.exec(String(text));
+    return m ? parseFloat(m[1].replace(/,/g, '') + '.' + m[2]) : null;
   }
 
   const words = (s) => s.toUpperCase().split(/[^A-Z0-9]+/).filter((w) => w.length >= 4);
@@ -186,14 +266,20 @@
       ds = ds.map((d) => (d.slice(5, 7) === cm && d.slice(0, 4) !== cy ? `${cy}-${cm}-${d.slice(8, 10)}` : d));
     }
     const inMonth = opts.month ? ds.filter((d) => d.slice(0, 7) === opts.month) : [];
-    const amt = amount(text);
+    let amt, foreign = null;
+    if (foreignAmounts(text).length) {              // written in another currency: ringgit only when the document says so
+      amt = myrCharged(text);
+      if (amt == null && hasMyr(text)) amt = amount(stripForeign(text));
+      if (amt == null) foreign = foreignTotal(text);
+    } else amt = amount(text);
     const out = {
       date: (inMonth[0] || ds[0] || ''),
       amount: amt == null ? '' : amt.toFixed(2),
+      foreign,
       station: station(text, opts.stations),
       receiptNo: receiptNo(text),
     };
-    out.found = !!(out.date || out.amount || out.station || out.receiptNo);
+    out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
     return out;
   }
 
@@ -212,5 +298,5 @@
     };
   }
 
-  return { parse, dates, amount, station, receiptNo, inWords, mc };
+  return { parse, dates, amount, station, receiptNo, inWords, mc, foreignTotal, foreignAmounts, stripForeign, myrCharged };
 });
