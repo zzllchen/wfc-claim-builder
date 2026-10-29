@@ -169,8 +169,34 @@
     ? (r.overridden ? 'Counted (ticked by you)' : r.reason)
     : (r.overridden ? 'Not counted (unticked by you)' : r.reason));
 
+  /* Parking is personal by default. This small card lists every parking charge with a box: tick the ones to claim. */
+  function parkingCard(tv) {
+    const rows = tv.rows.filter((r) => r.type === 'PARKING').sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    if (!rows.length) return null;
+    const ticked = rows.filter((r) => r.include);
+    const rows$ = rows.map((r) => {
+      const d = new Date(r.date + 'T00:00:00Z');
+      const cb = h('input', { type: 'checkbox', checked: r.include, 'aria-label': 'Claim this parking',
+        onchange: () => {
+          if (cb.checked === r.auto) S.overrides.delete(r.no); else S.overrides.set(r.no, cb.checked);
+          const sc = document.querySelector('.pk-list'); const top = sc ? sc.scrollTop : 0;
+          renderLines();
+          const sc2 = document.querySelector('.pk-list'); if (sc2) sc2.scrollTop = top;
+        } });
+      return h('label', { class: 'pk-row' + (r.include ? ' on' : '') }, cb,
+        h('span', { class: 'pk-date', text: `${ClaimPdf.fmtDate(r.date).slice(0, 5)} ${ClaimPdf.DAY[d.getUTCDay()]}` }),
+        h('span', { class: 'pk-name', text: r.plaza || 'Parking' }),
+        h('span', { class: 'pk-amt', text: money(r.amount) }));
+    });
+    return h('div', { class: 'parking' },
+      h('div', { class: 'pk-head' },
+        h('b', { text: 'Parking' }), h('span', { class: 'pk-note', text: 'Not claimed unless you tick it (for example a client visit)' }),
+        ticked.length ? h('span', { class: 'tag', text: `${ticked.length} ticked · RM ${money(TNG.sum(tv.rows, 'PARKING'))}` }) : null),
+      h('div', { class: 'pk-list' }, rows$));
+  }
+
   function tripsPanel(tv) {
-    const rows = tv.rows.slice().sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    const rows = tv.rows.filter((r) => r.type === 'TOLL').sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
     const tbody = h('tbody', {}, rows.map((r) => {
       const d = new Date(r.date + 'T00:00:00Z');
       const cb = h('input', { type: 'checkbox', checked: r.include, 'aria-label': 'Count this row',
@@ -189,7 +215,7 @@
     const panel = h('div', { class: 'trips' + (S.showTrips ? ' open' : '') },
       h('div', { class: 'scroll' }, h('table', {},
         h('thead', {}, h('tr', {}, ['', 'Date', 'Time', 'Type', 'Plaza', 'RM', 'Why'].map((t, i) => h('th', { class: i === 5 ? 'amt' : '', text: t })))), tbody)),
-      h('p', { class: 'hint' }, 'Ticked rows go into the claim. Tick or untick any row to override the rules (for example a client visit parking). ',
+      h('p', { class: 'hint' }, 'Ticked trips go into the claim. Untick a trip you do not want to claim, or tick one the rules left out. ',
         S.overrides.size ? h('button', { class: 'link', type: 'button', text: 'Reset my ticks', onclick: () => { S.overrides.clear(); renderLines(); } }) : null));
     return panel;
   }
@@ -206,6 +232,8 @@
       box.append(h('div', { class: 'row head' }, ['Category', 'Date', 'Name', 'Receipt no.', 'Amount (RM)', ''].map((t) => h('span', { text: t }))));
       lines.forEach((l) => box.append(l.kind === 'toll' || l.kind === 'parking' ? tollLine(l, tv) : editableLine(l)));
     }
+    const pk = tv && parkingCard(tv);
+    if (pk) box.append(pk);
     updateSummary();
   }
 

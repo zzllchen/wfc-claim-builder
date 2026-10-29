@@ -53,7 +53,7 @@ The first time you build, the browser asks you to pick a folder on this PC (Chro
 ## Toll rules
 
 Counted: every toll on a **work day** (Mon-Fri) **anywhere in Malaysia**, including trips outside KL / Selangor, that is not a public holiday and not a day off.
-Not counted: Saturday, Sunday, public holidays, days off (leave days, entered above or added from the Leave tab; these are holidays or trips home), **all parking** (tick a parking row to claim it), reloads.
+Not counted: Saturday, Sunday, public holidays, days off (leave days, entered above or added from the Leave tab; these are holidays or trips home), **all parking** (personal by default: the Parking card under the claim lines lists every charge with a tick box, tick the ones to claim), reloads.
 
 - The public-holiday list is a best-effort 2026 list. Check the Islamic holiday dates against the official gazette, add Selangor / one-off holidays, and add the next year's dates in Settings.
 - Settings (names, email, lists) are remembered in the browser it is used in.
