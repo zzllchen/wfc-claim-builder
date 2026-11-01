@@ -448,7 +448,7 @@
       console.warn('OCR failed', e);
       if (!S.other.includes(item)) return;
       if (e && e.code === 'decode') { dropItem(item); reject(file, Validate.MSG.decode, true); }
-      else { item.ocrError = String((e && e.message) || e).slice(0, 90); setOcr(item, 'failed'); }
+      else { item.ocrError = String((e && e.message) || e).slice(0, 220); setOcr(item, 'failed'); }
     }
   }
 

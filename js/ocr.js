@@ -14,16 +14,33 @@
     });
   }
 
+  /* Safe mode: some browsers, antivirus or networks refuse a worker that imports the engine by address ("Failed to execute
+     'importScripts'"). Then the page downloads the two script files itself and hands the worker local copies. It is switched
+     on automatically after a failure, so the usual path stays the fast one. */
+  let safeMode = false;
+  const SIMD_PROBE = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
+  const hasSimd = () => { try { return WebAssembly.validate(SIMD_PROBE); } catch (e) { return false; } };
+  async function localCopy(path) {
+    const res = await fetch(abs(path));
+    if (!res.ok) throw new Error(`${path} could not be downloaded (HTTP ${res.status})`);
+    return URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: 'text/javascript' }));
+  }
+
   function worker() {
     if (!workerPromise) {
       workerPromise = (async () => {
         if (!root.Tesseract) await loadScript('vendor/tesseract/tesseract.min.js');
-        const w = await root.Tesseract.createWorker('eng', 1, {
+        const cfg = {
           workerPath: abs('vendor/tesseract/worker.min.js'),
           corePath: abs('vendor/tesseract'),
           langPath: abs('vendor/tesseract/lang'),
           gzip: true,
-        });
+        };
+        if (safeMode) {
+          cfg.workerPath = await localCopy('vendor/tesseract/worker.min.js');
+          cfg.corePath = (await localCopy('vendor/tesseract/' + (hasSimd() ? 'tesseract-core-simd-lstm.wasm.js' : 'tesseract-core-lstm.wasm.js'))) + '#core.js';
+        }
+        const w = await root.Tesseract.createWorker('eng', 1, cfg);
         await w.setParameters({ tessedit_pageseg_mode: '4', preserve_interword_spaces: '1' });   // one column of text
         return w;
       })().catch((e) => { workerPromise = null; throw e; });
@@ -59,7 +76,9 @@
     let bmp;
     try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
     catch (e) { throw Object.assign(new Error('decode'), { code: 'decode' }); }       // e.g. HEIC in Chrome
-    const scale = Math.min(1, 2200 / Math.max(bmp.width, bmp.height));
+    // big photos are shrunk, small ones (a screenshot, a forwarded chat copy) are enlarged: the engine reads best at about this size
+    const longest = Math.max(bmp.width, bmp.height);
+    const scale = longest > 2200 ? 2200 / longest : longest < 1600 ? Math.min(3, 2200 / longest) : 1;
     const c = document.createElement('canvas');
     c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
     c.getContext('2d', { willReadFrequently: true }).drawImage(bmp, 0, 0, c.width, c.height);
@@ -87,6 +106,7 @@
       let text;
       try { text = await pass(canvas, psm); }
       catch (e) {
+        safeMode = true;                           // the engine failed to load or crashed: retry the careful way
         await resetWorker();                       // a crashed engine would fail every later photo too
         if (texts.length) break;                   // keep what the earlier layouts already read
         text = await pass(canvas, psm);            // one retry on a fresh engine
@@ -108,5 +128,5 @@
   /* a canvas (e.g. a rendered PDF page) -> recognised text */
   const readCanvas = (canvas, opts) => queue(async () => recognize(enhance(canvas), opts || {}), opts);
 
-  root.OCR = { read, readCanvas };
+  root.OCR = { read, readCanvas, setSafeMode: (on) => { safeMode = !!on; return resetWorker(); } };
 })(window);

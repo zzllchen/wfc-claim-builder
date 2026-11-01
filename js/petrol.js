@@ -90,12 +90,17 @@
   function amount(text) {
     const lines = text.split(/\r?\n/);
     const skip = /\b(change|baki|cash|tunai|tender|tendered|received|diterima|rounding|sst|gst|tax|price|harga|volume|liter|litre|qty)\b/i;
+    // the nearest line with text above / below line i (OCR leaves blank lines, and often reads the amounts column before the labels)
+    const near = (i, step) => { for (let j = i + step; j >= 0 && j < lines.length && Math.abs(j - i) <= 3; j += step) if (lines[j].trim()) return lines[j]; return ''; };
+    const amountOnly = (l) => moneyIn(l).length > 0 && !/[A-Za-z]/.test(l.replace(/RM|MYR/gi, ''));
     const pick = (re) => {
       const found = [];
       lines.forEach((ln, i) => {
         if (!re.test(ln) || skip.test(ln)) return;
         let vals = moneyIn(ln);
-        if (!vals.length && lines[i + 1] && !skip.test(lines[i + 1])) vals = moneyIn(lines[i + 1]);
+        const next = near(i, 1), prev = near(i, -1);
+        if (!vals.length && next && !skip.test(next)) vals = moneyIn(next);
+        if (!vals.length && prev && !skip.test(prev) && amountOnly(prev)) vals = moneyIn(prev);    // "RM60 . 00" read just above its "TOTAL"
         vals.forEach((v) => { if (v > 0) found.push(v); });
       });
       return found;
