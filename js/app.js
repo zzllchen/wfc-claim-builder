@@ -141,7 +141,7 @@
       field('Amount (RM)', 'am', bound(o, 'amount', 'number', { step: '0.01', min: '0', inputmode: 'decimal' })),
       h('button', { class: 'icon', type: 'button', title: 'Remove', 'aria-label': 'Remove line', text: '×', onclick: () => removeOther(o) }));
     const files = h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url)),
-      o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: OCR_LABEL[o.ocr] || '', hidden: !OCR_LABEL[o.ocr] }) : null,
+      o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
       o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
       o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null);       // gone once the amount is typed over
     if (S.other.length > 1) {
@@ -366,10 +366,12 @@
     done: 'Read from the photo – check the amber fields', failed: "Couldn't check this photo – please type the details",
   };
   const ocrTag = (item) => document.querySelector(`[data-ocr="${item.id}"]`);
+  // a failure says why, so it can be reported
+  const ocrText = (item) => (item.ocr === 'failed' && item.ocrError ? `${OCR_LABEL.failed} (${item.ocrError})` : OCR_LABEL[item.ocr] || '');
   function setOcr(item, state) {
     item.ocr = state;
     const tag = ocrTag(item);
-    if (tag) { tag.textContent = OCR_LABEL[state] || ''; tag.hidden = !OCR_LABEL[state]; tag.dataset.state = state; }
+    if (tag) { tag.textContent = ocrText(item); tag.hidden = !ocrText(item); tag.dataset.state = state; }
   }
 
   // dealers seen on past claims, so a receipt reading "KEJAYAAN TEGUH ENT" is named the way the team already writes it
@@ -446,7 +448,7 @@
       console.warn('OCR failed', e);
       if (!S.other.includes(item)) return;
       if (e && e.code === 'decode') { dropItem(item); reject(file, Validate.MSG.decode, true); }
-      else setOcr(item, 'failed');
+      else { item.ocrError = String((e && e.message) || e).slice(0, 90); setOcr(item, 'failed'); }
     }
   }
 

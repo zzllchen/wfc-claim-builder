@@ -68,14 +68,31 @@
 
   /* If opts.good(text) says a pass missed what we need (the amount, say), tries other page layouts and returns the
      first good pass, or every pass joined together so the parser can pick from all of them. */
-  async function recognize(canvas, opts) {
+  async function pass(canvas, psm) {
     const w = await worker();
+    await w.setParameters({ tessedit_pageseg_mode: psm });
+    const { data } = await w.recognize(canvas);
+    return data.text || '';
+  }
+
+  async function resetWorker() {
+    const p = workerPromise;
+    workerPromise = null;
+    try { const w = await p; if (w) await w.terminate(); } catch (e) { /* already gone */ }
+  }
+
+  async function recognize(canvas, opts) {
     const texts = [];
     for (const psm of ['4', '6', '11']) {
-      await w.setParameters({ tessedit_pageseg_mode: psm });
-      const { data } = await w.recognize(canvas);
-      texts.push(data.text || '');
-      if (!opts.good || opts.good(texts[texts.length - 1])) return texts[texts.length - 1];
+      let text;
+      try { text = await pass(canvas, psm); }
+      catch (e) {
+        await resetWorker();                       // a crashed engine would fail every later photo too
+        if (texts.length) break;                   // keep what the earlier layouts already read
+        text = await pass(canvas, psm);            // one retry on a fresh engine
+      }
+      texts.push(text);
+      if (!opts.good || opts.good(text)) return text;
     }
     return texts.join('\n');
   }

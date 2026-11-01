@@ -83,6 +83,7 @@
      AFTER it, so the item line on its own (RM116.68) is never taken as the amount. */
   const DEDUCT_WORD = /\b(subsid\w*|budi\w*|discount|diskaun|rebate|voucher|promo\w*)/i;
   const DEDUCT_SKIP = /\b(price|harga|information|info)\b/i;
+  const SUBSIDY_WORD = /subsid|budi|discount|diskaun|rebate/i;
   const MINUS_AMT = /[-–—~]\s*(?:RM|MYR)?\s*\d/i;
 
   /* the amount paid: a TOTAL / AMOUNT line, never cash given or change */
@@ -115,9 +116,9 @@
     let unreadable = false;
     lines.forEach((ln) => {
       if (!DEDUCT_WORD.test(ln) || DEDUCT_SKIP.test(ln)) return;
-      const vals = moneyIn(ln).filter((v) => v > 0);
+      const all = moneyIn(ln), vals = all.filter((v) => v > 0);
       if (vals.length) vals.forEach((v) => cuts.add(v));
-      else if (MINUS_AMT.test(ln)) unreadable = true;
+      else if (!all.length && (MINUS_AMT.test(ln) || SUBSIDY_WORD.test(ln))) unreadable = true;   // "Budios subsidy -RMS€ 68": there, but garbled
     });
     const discounted = cuts.size > 0 || unreadable;
     let gross = null, net = null;
