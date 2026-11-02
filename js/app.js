@@ -454,7 +454,7 @@
   }
 
   /* ---------- steps: one form at a time, with a progress line on top ---------- */
-  const STEPS = ['Details', 'Files', 'Check', 'Email and build'];
+  const STEPS = ['Details', 'Files', 'Check', 'Save and email'];
   const emailOk = (id) => /\S+@\S+/.test($(id).value);
 
   /* what each step still needs; a step is done when its list is empty */
@@ -493,8 +493,22 @@
     });
   }
 
+  /* a light-blue outline on every box that still waits for the person, so it is clear where to type */
+  function markNeeded() {
+    ['#claimant', '#subject'].forEach((id) => $(id).classList.toggle('need', !$(id).value.trim()));
+    ['#fromEmail', '#toEmail'].forEach((id) => $(id).classList.toggle('need', !emailOk(id)));
+    $('#month').classList.toggle('need', !monthParts());
+    $('#dropAll').classList.toggle('need', !S.tng && !S.other.length);
+    $('#needHint').hidden = !document.querySelector('#viewClaim .pane:not([hidden]) .need');
+  }
+  function markNeededLeave() {
+    ['#lName', '#lFrom', '#lTo', '#lReason', '#lSubject'].forEach((id) => $(id).classList.toggle('need', !$(id).value.trim()));
+    ['#lFromEmail', '#lToEmail'].forEach((id) => $(id).classList.toggle('need', !emailOk(id)));
+  }
+
   function renderSteps(lines) {
     if (!S.stepEls) return;
+    markNeeded();
     const p = stepProblems(lines || compileLines().lines);
     const done = p.map((x) => !x.length);
     S.stepEls.forEach((x, i) => {
@@ -519,7 +533,7 @@
     if (!ready) {
       const bits = [];
       p.forEach((list, i) => { if (list.length) bits.push(h('button', { class: 'link', type: 'button', text: `step ${i + 1}: ${list.join(', ')}`, onclick: () => go(i + 1) })); });
-      why.append(h('div', { class: 'note warn' }, 'To build the claim pack, finish ', bits.flatMap((b, i) => (i ? [' · ', b] : [b]))));
+      why.append(h('div', { class: 'note warn' }, 'To save your claim, finish ', bits.flatMap((b, i) => (i ? [' · ', b] : [b]))));
     }
   }
 
@@ -545,6 +559,7 @@
       const req = k === 'date' || k === 'name' || k === 'category' || k === 'amount';
       const empty = k === 'amount' ? !(num(o[k]) > 0) : !String(o[k] || '').trim();
       i.classList.toggle('bad', S.showErrors && req && empty);
+      i.classList.toggle('need', req && empty);
     });
     refreshEmail(lines);
     renderSteps(lines);                  // after the email subject is set, which step 4 checks
@@ -908,7 +923,7 @@
     if (v.bad.length) { notes.append(h('div', { class: 'note bad', text: 'Fix the red items above first.' })); (document.querySelector('.line .status.bad') || $('#notes')).scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
 
     const btn = $('#btnBuild');
-    S.building = true; btn.disabled = true; btn.textContent = 'Building…';
+    S.building = true; btn.disabled = true; btn.textContent = 'Saving…';
     const dir = await Folder.ready();     // first thing: the folder picker needs the click that started this
     try {
       const mp = monthParts();
@@ -970,9 +985,9 @@
       $('#pack').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (e) {
       console.error(e);
-      notes.append(h('div', { class: 'note bad', text: 'Could not build the pack: ' + (e.message || e) }));
+      notes.append(h('div', { class: 'note bad', text: 'Could not save the claim: ' + (e.message || e) }));
     } finally {
-      S.building = false; btn.textContent = 'Build claim pack'; renderSteps();
+      S.building = false; btn.textContent = 'Save my claim'; renderSteps();
     }
   }
 
@@ -1040,7 +1055,7 @@
     if (errs.length) { errs.forEach((t) => notes.append(h('div', { class: 'note bad', text: t }))); return; }
 
     const btn = $('#lBuild');
-    btn.disabled = true; btn.textContent = 'Building…';
+    btn.disabled = true; btn.textContent = 'Saving…';
     const dir = await Folder.ready();
     try {
       const xlsx = await ClaimXlsx.buildLeave(d);
@@ -1066,9 +1081,9 @@
       if ($('#lDaysOff').checked) addDaysOff(d.from, d.to);
     } catch (e) {
       console.error(e);
-      notes.append(h('div', { class: 'note bad', text: 'Could not build the leave form: ' + (e.message || e) }));
+      notes.append(h('div', { class: 'note bad', text: 'Could not save the leave form: ' + (e.message || e) }));
     } finally {
-      btn.disabled = false; btn.textContent = 'Build leave form';
+      btn.disabled = false; btn.textContent = 'Save my leave form';
     }
   }
 
@@ -1140,7 +1155,7 @@
     $('#tabLeave').classList.toggle('on', v === 'leave');
     $('#tabClaim').setAttribute('aria-selected', String(v === 'claim'));
     $('#tabLeave').setAttribute('aria-selected', String(v === 'leave'));
-    if (v === 'leave') syncLeaveDefaults();
+    if (v === 'leave') { syncLeaveDefaults(); markNeededLeave(); }
     else { $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail; renderSteps(); }
   }
 
@@ -1158,8 +1173,8 @@
     box.append(h('div', {},
       h('h3', { text: p.title }),
       p.savedTo ? h('div', { class: 'note ok', text: 'Saved to ' + p.savedTo + (kind === 'claim' ? ' (the zip is next to it)' : '') }) : h('div', { class: 'note info', text: 'Downloaded to your Downloads folder.' }),
-      p.stale ? h('div', { class: 'note warn', text: `You changed something after building – build again before sending.` }) : null,
-      p.blob.size / 1048576 > 24 ? h('div', { class: 'note warn', text: 'This is over 24 MB, which Gmail may refuse. Tick "Shrink photos" and build again, or send it by link.' }) : null,
+      p.stale ? h('div', { class: 'note warn', text: `You changed something after saving – save again before sending.` }) : null,
+      p.blob.size / 1048576 > 24 ? h('div', { class: 'note warn', text: 'This is over 24 MB, which Gmail may refuse. Tick "Shrink photos" and save again, or send it by link.' }) : null,
       h('ul', {}, p.entries.map((e) => h('li', { text: `${e.path} (${sizeText(e.size)})` })))));
     const files = p.attachments.map((a) => new File([a.blob], a.name, { type: a.blob.type || 'application/octet-stream' }));
     const canShare = !!(navigator.canShare && navigator.canShare({ files }));
@@ -1206,7 +1221,7 @@
       if (!Folder.supported) { box.append(h('span', { class: 'muted', text: "This browser can't save into a folder, so the zip downloads instead. Use Chrome or Edge to pick a save folder." })); return; }
       box.append(h('span', { text: 'Save to:' }), h('b', { text: handle ? handle.name : 'not chosen yet' }),
         h('button', { class: 'link', type: 'button', text: handle ? 'Change folder' : 'Choose folder', onclick: changeFolder }),
-        handle ? null : h('span', { class: 'muted', text: "You'll also be asked the first time you build." }));
+        handle ? null : h('span', { class: 'muted', text: "You'll also be asked the first time you save." }));
     });
     const sName = $('#sLocName');
     if (sName) sName.textContent = !Folder.supported ? "This browser can't save into a folder (use Chrome or Edge)." : handle ? handle.name : 'Not chosen yet';
@@ -1269,6 +1284,8 @@
     $('#lBuild').addEventListener('click', buildLeave);
     $('#tabClaim').addEventListener('click', () => showView('claim'));
     $('#tabLeave').addEventListener('click', () => showView('leave'));
+    $('#viewLeave').addEventListener('input', markNeededLeave);
+    $('#viewLeave').addEventListener('change', markNeededLeave);
 
     wireDrop();
     $('#ocrOn').checked = !!cfg.ocr;

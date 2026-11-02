@@ -6,7 +6,7 @@ Everything runs in the browser. Files are never uploaded anywhere, except that t
 
 ## First use
 
-Each person types their own work email and the accountant's email in the **Build and email** step once; the browser remembers them on that PC. Settings also holds the accountant's first name and the public-holiday list.
+Each person types their own work email and the accountant's email in the **Save and email** step once; the browser remembers them on that PC. Settings also holds the accountant's first name and the public-holiday list.
 
 ## Run it
 
@@ -15,7 +15,7 @@ Each person types their own work email and the accountant's email in the **Build
 
 ## What it does
 
-The expense claim is four steps, one form on screen at a time. The circles at the top (1 Details, 2 Files, 3 Check, 4 Email and build) turn green as each step is filled in completely, and the line between them turns green too. Click any circle to jump to that step, or use the Back / Next buttons. **Build claim pack stays locked until all four are green**; the note under it lists what is still missing, with a link to that step.
+The expense claim is four steps, one form on screen at a time. The circles at the top (1 Details, 2 Files, 3 Check, 4 Save and email) turn green as each step is filled in completely, and the line between them turns green too. Click any circle to jump to that step, or use the Back / Next buttons. **Save my claim stays locked until all four are green**; the note under it lists what is still missing, with a link to that step.
 
 1. **Details:** claimant, month, optional days off (leave).
 2. **Files:** one box. Drag everything in at once, paste with Ctrl+V (files copied in Explorer, or a copied image), or click to browse. The app looks inside each file and sorts it:
@@ -29,7 +29,7 @@ The expense claim is four steps, one form on screen at a time. The circles at th
    - Anything else is checked first and **refused with a reason** (shown under the box): a WFC claim or leave form, a medical certificate (use the Leave tab), a PDF with no receipt wording, a file with no amount, or a photo too blurry to read ("re-attach a clearer photo"). A blurry photo whose numbers can still be read is accepted. For files that could not be read, "Add anyway" lets you type the details by hand (for example a handwritten hotel bill).
    - Use "Attach to" to put several files (hotel receipt + bill + payment proof) on one claim line.
 3. **Check:** nothing is locked. Every field on every line can be typed over, including the amounts. **+ Add a line manually** adds a line with no file (a cash expense, say). The toll and parking lines are calculated from the ticked trips, but you can type a different amount, date, name or receipt no. over them; the line then says "Changed by you · calculated RM x" with a **Use calculated** link to go back, and the toll check list PDF records the difference. "See which trips" shows each toll row and why it was counted or not; tick or untick to override.
-4. **Build:** the claim form (.xlsx and .pdf) lists fuel first, then toll, parking, medical, AI tools, accommodation and any other claims (by date within each group). It downloads `Claim - <Month Year> - <Name>.zip` containing the claim form (.xlsx and .pdf), the original TNG statement, a **TNG toll check list PDF** (every trip with a ticked or unticked box and the reason, so the accountant can see exactly which trips count), and each receipt renamed `Receipt 01 - Petrol - 06-09-2026.jpg` (the number matches the line on the form).
+4. **Save:** the claim form (.xlsx and .pdf) lists fuel first, then toll, parking, medical, AI tools, accommodation and any other claims (by date within each group). It downloads `Claim - <Month Year> - <Name>.zip` containing the claim form (.xlsx and .pdf), the original TNG statement, a **TNG toll check list PDF** (every trip with a ticked or unticked box and the reason, so the accountant can see exactly which trips count), and each receipt renamed `Receipt 01 - Petrol - 06-09-2026.jpg` (the number matches the line on the form).
 5. **Email:** subject `Claim - <Month Year>`, to the accountant, from the work email.
    - *Create Gmail draft* (after the one-time setup below) signs in to Google once and puts the To, Subject, message **and the zip** into a draft in the user's own Gmail Drafts. Nothing is sent.
    - *Open Gmail draft* / *Open Gmail without the file* fills To / Subject / message in the work account. Gmail links cannot carry attachments, so drag the zip in.
@@ -55,7 +55,7 @@ The **Leave application** tab fills the WFC leave form: employee name, type (ann
 
 ## Where files are saved
 
-The first time you build, the browser asks you to pick a folder on this PC (Chrome or Edge). That choice is remembered **on this PC only**, so each colleague picks their own.
+The first time you press Save my claim, the browser asks you to pick a folder on this PC (Chrome or Edge). That choice is remembered **on this PC only**, so each colleague picks their own.
 
 ```
 <chosen folder>/
@@ -64,8 +64,8 @@ The first time you build, the browser asks you to pick a folder on this PC (Chro
   Leave form/                           leave forms (.xlsx + .pdf)
 ```
 
-- Change it any time: **Change folder** next to the Build button, or **Settings > Save location** (also has **Forget**).
-- Building the same month again updates that folder. Only files this app wrote earlier are replaced or removed; other files you put there are never touched.
+- Change it any time: **Change folder** next to the Save my claim button, or **Settings > Save location** (also has **Forget**).
+- Saving the same month again updates that folder. Only files this app wrote earlier are replaced or removed; other files you put there are never touched.
 - Browsers without folder access (Safari, Firefox, phones) download the zip instead. After a browser restart, Chrome may ask to allow access to the folder again.
 
 ## Toll rules
