@@ -40,11 +40,12 @@
 
   /* ---------- settings + state ---------- */
   const DEFAULTS = {
-    claimant: '', signature: '', fromEmail: '', toEmail: '',
+    claimant: '', signature: '', fromEmail: '', toEmail: 'agnes@yutech.com.my',      // the accountant; anyone can type over it
     toName: '', signoff: '', ocr: true, holidays: TNG.DEFAULT_HOLIDAYS,
     gmailClientId: '',      // the team's Google client ID goes here once it exists, so nobody has to paste it in Settings
   };
   const cfg = Object.assign({}, DEFAULTS, store.get('wfc-claim-cfg', {}));
+  if (!String(cfg.toEmail || '').trim()) cfg.toEmail = DEFAULTS.toEmail;      // an empty value saved earlier must not hide the default
   const gmailClientId = () => String(cfg.gmailClientId || DEFAULTS.gmailClientId || '').trim();
   const saveCfg = () => store.set('wfc-claim-cfg', cfg);
 
@@ -469,7 +470,7 @@
     if (wait) p[2].push('the photos to finish reading');
     if (bad) p[2].push(`${bad} line${bad > 1 ? 's' : ''} still to fill in`);
     if (lines.length > ClaimXlsx.MAX_LINES) p[2].push(`no more than ${ClaimXlsx.MAX_LINES} lines`);
-    if (!emailOk('#fromEmail')) p[3].push('your work email');
+    if (!emailOk('#fromEmail')) p[3].push('who the email is from');
     if (!emailOk('#toEmail')) p[3].push("the accountant's email");
     if (!$('#subject').value.trim()) p[3].push('the subject');
     return p;
@@ -493,10 +494,36 @@
     });
   }
 
+  /* Who the email comes from: pick from the team's list, or "Other email" to type one. The text box (#fromEmail) stays the one
+     source of truth for the rest of the code; the dropdown only fills it. */
+  const SENDERS = ['edward.wfcsystems@gmail.com', 'jimmy.wfcsystems@gmail.com', 'chowkl@yutech.com.my', 'william@yutech.com.my', 'danny.mpmotion@gmail.com', 'agnes@yutech.com.my'];
+  const picks = [];
+  const refreshPicks = () => picks.forEach((f) => f());
+  function wirePick(selId, inputId) {
+    const sel = $(selId), input = $(inputId);
+    const refresh = () => {
+      const v = input.value.trim();
+      const preset = SENDERS.find((x) => x.toLowerCase() === v.toLowerCase());
+      sel.textContent = '';
+      sel.append(h('option', { value: '', text: 'Choose your email…' }), ...SENDERS.map((x) => h('option', { value: x, text: x })), h('option', { value: '__other', text: 'Other email…' }));
+      sel.value = preset || (v || sel.dataset.other ? '__other' : '');
+      if (preset) input.value = preset;
+      input.hidden = sel.value !== '__other';
+    };
+    sel.addEventListener('change', () => {
+      if (sel.value === '__other') { sel.dataset.other = '1'; input.value = ''; input.hidden = false; input.focus(); }
+      else { delete sel.dataset.other; input.value = sel.value; input.hidden = true; }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    picks.push(refresh);
+    refresh();
+  }
+
   /* a light-blue outline on every box that still waits for the person, so it is clear where to type */
   function markNeeded() {
     ['#claimant', '#subject'].forEach((id) => $(id).classList.toggle('need', !$(id).value.trim()));
     ['#fromEmail', '#toEmail'].forEach((id) => $(id).classList.toggle('need', !emailOk(id)));
+    $('#fromPick').classList.toggle('need', !emailOk('#fromEmail'));
     $('#month').classList.toggle('need', !monthParts());
     $('#dropAll').classList.toggle('need', !S.tng && !S.other.length);
     $('#needHint').hidden = !document.querySelector('#viewClaim .pane:not([hidden]) .need');
@@ -504,6 +531,7 @@
   function markNeededLeave() {
     ['#lName', '#lFrom', '#lTo', '#lReason', '#lSubject'].forEach((id) => $(id).classList.toggle('need', !$(id).value.trim()));
     ['#lFromEmail', '#lToEmail'].forEach((id) => $(id).classList.toggle('need', !emailOk(id)));
+    $('#lFromPick').classList.toggle('need', !emailOk('#lFromEmail'));
   }
 
   function renderSteps(lines) {
@@ -1144,7 +1172,7 @@
   function syncLeaveDefaults() {
     if (!S.touched.lName) $('#lName').value = $('#claimant').value;
     if (!S.touched.lSign) $('#lSign').value = $('#signature').value;
-    $('#lFromEmail').value = cfg.fromEmail; $('#lToEmail').value = cfg.toEmail;
+    $('#lFromEmail').value = cfg.fromEmail; $('#lToEmail').value = cfg.toEmail; refreshPicks();
     refreshLeaveEmail();
   }
 
@@ -1156,7 +1184,7 @@
     $('#tabClaim').setAttribute('aria-selected', String(v === 'claim'));
     $('#tabLeave').setAttribute('aria-selected', String(v === 'leave'));
     if (v === 'leave') { syncLeaveDefaults(); markNeededLeave(); }
-    else { $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail; renderSteps(); }
+    else { $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail; refreshPicks(); renderSteps(); }
   }
 
   /* ---------- email panel ---------- */
@@ -1254,6 +1282,7 @@
 
     $('#claimant').value = cfg.claimant; $('#signature').value = cfg.signature;
     $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail;
+    wirePick('#fromPick', '#fromEmail'); wirePick('#lFromPick', '#lFromEmail');
     const now = new Date();
     $('#month').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
     $('#lSignDate').value = localIso(now);

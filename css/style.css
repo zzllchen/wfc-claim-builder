@@ -80,7 +80,7 @@ input[type=text], input[type=email], input[type=date], input[type=month], input[
 }
 input::placeholder, textarea::placeholder { color: var(--faint); }
 /* light-blue outline: this box still needs filling in */
-input.need, textarea.need { border-color: #7db4ff; background: #fafcff; box-shadow: 0 0 0 3px rgba(125, 180, 255, .28); }
+input.need, textarea.need, select.need { border-color: #7db4ff; background: #fafcff; box-shadow: 0 0 0 3px rgba(125, 180, 255, .28); }
 .drop.need { border-color: #7db4ff; border-width: 2px; }
 .needhint { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--muted); }
 .needhint[hidden] { display: none; }
