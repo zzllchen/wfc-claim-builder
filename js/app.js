@@ -49,6 +49,7 @@
   const S = {
     tng: null, overrides: new Map(), other: [], edits: { toll: {}, parking: {} },     // edits = values typed over the calculated toll / parking line
     showTrips: false, showErrors: false, packs: { claim: null, leave: null }, inputs: [],
+    open: new Map(), lineRefs: new Map(),      // open = lines whose details were opened or closed by hand; lineRefs = each drawn line's refresh function
     touched: { subject: false, body: false, month: false, lName: false, lSign: false, lTo: false, lSubject: false, lBody: false },
   };
 
@@ -87,10 +88,10 @@
     const rankOf = (cat) => (/petrol|fuel/i.test(cat) ? 0 : /toll/i.test(cat) ? 1 : /parking/i.test(cat) ? 2
       : /medical|klinik|clinic|pharmac|farmasi/i.test(cat) ? 3 : /\bai\b|software|subscription|saas/i.test(cat) ? 4
         : /accommodation|hotel/i.test(cat) ? 5 : 6);
-    S.other.forEach((o) => lines.push({ rank: rankOf(o.category), kind: 'other', src: o, category: o.category, date: o.date, name: o.name, receiptNo: o.receiptNo, amount: o.amount, files: o.files.map((x) => x.file) }));
+    S.other.forEach((o) => lines.push({ key: o.id, rank: rankOf(o.category), kind: 'other', src: o, category: o.category, date: o.date, name: o.name, receiptNo: o.receiptNo, amount: o.amount, files: o.files.map((x) => x.file) }));
     // toll / parking are calculated from the ticked trips, but every field can be typed over (S.edits)
-    if (tv && tv.toll > 0 && mp) lines.push(Object.assign({ rank: 1, kind: 'toll', category: 'Toll', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.toll, calc: tv.toll, files: [S.tng.file] }, S.edits.toll));
-    if (tv && tv.parking > 0 && mp) lines.push(Object.assign({ rank: 2, kind: 'parking', category: 'Parking', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.parking, calc: tv.parking, files: [S.tng.file] }, S.edits.parking));
+    if (tv && tv.toll > 0 && mp) lines.push(Object.assign({ key: 'toll', rank: 1, kind: 'toll', category: 'Toll', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.toll, calc: tv.toll, files: [S.tng.file] }, S.edits.toll));
+    if (tv && tv.parking > 0 && mp) lines.push(Object.assign({ key: 'parking', rank: 2, kind: 'parking', category: 'Parking', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.parking, calc: tv.parking, files: [S.tng.file] }, S.edits.parking));
     return { lines, tv };
   }
   const sortedForBuild = (lines) => lines.slice().sort((a, b) => a.rank - b.rank || (a.date || '').localeCompare(b.date || ''));
@@ -151,26 +152,130 @@
     renderLines(); refreshStatus();
   }
 
+  /* ---------- icons: a small drawing for each kind of claim ---------- */
+  const svg = (inner) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  const ICON = {
+    fuel: svg('<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0V9.8a2 2 0 0 0-.6-1.4L18 5"/>'),
+    toll: svg('<rect x="2.5" y="8" width="5" height="13" rx="1"/><rect x="7.5" y="11" width="14" height="4" rx="1"/><path d="M12 11v4M16 11v4"/><path d="M2 21h20"/>'),
+    parking: svg('<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9.5 17V7.5h3.2a2.8 2.8 0 0 1 0 5.6H9.5"/>'),
+    medical: svg('<path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/>'),
+    ai: svg('<path d="M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z"/><path d="M19 16v5M16.5 18.5h5"/>'),
+    stay: svg('<path d="M3 20V5"/><path d="M3 16h18v4"/><path d="M21 16v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="12" r="2"/>'),
+    meals: svg('<path d="M6 3v6a3 3 0 0 0 6 0V3"/><path d="M9 3v18"/><path d="M17 21V3c-2.5 1-4 4-4 8h4"/>'),
+    stationery: svg('<path d="M4 20l1-5L16 4a2.1 2.1 0 0 1 3 3L8 18z"/><path d="M14 6l3 3"/>'),
+    other: svg('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'),
+  };
+  const KIND_LABEL = { fuel: 'Fuel', toll: 'Toll', parking: 'Parking', medical: 'Medical', ai: 'AI tools', stay: 'Accommodation', meals: 'Meals', stationery: 'Stationery', other: 'Other' };
+  const kindOf = (cat) => {
+    const c = String(cat || '');
+    return /petrol|fuel/i.test(c) ? 'fuel' : /toll/i.test(c) ? 'toll' : /parking/i.test(c) ? 'parking'
+      : /medical|klinik|clinic|pharmac|farmasi/i.test(c) ? 'medical' : /\bai\b|software|subscription|saas/i.test(c) ? 'ai'
+        : /accommodation|hotel/i.test(c) ? 'stay' : /meal|food|lunch|dinner|makan/i.test(c) ? 'meals' : /stationer|office suppl/i.test(c) ? 'stationery' : 'other';
+  };
+  function iconEl(kind, cls) { const e = h('span', { class: `${cls} k-${kind}` }); e.innerHTML = ICON[kind]; return e; }   // ICON is fixed markup above, never user text
+
+  /* ---------- what each line says in plain words ---------- */
+  const FIELD_WORD = { category: 'type', date: 'date', name: 'name', receiptNo: 'receipt no.', amount: 'amount' };
+  const plainList = (a) => (a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
+  const isBlank = (o, k) => (k === 'amount' ? !(num(o[k]) > 0) : !String(o[k] || '').trim());
+  const niceDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${+m[3]} ${MONTH_NAMES[+m[2] - 1].slice(0, 3)} ${m[1]}` : ''; };
+
+  /* level: wait (still reading the photo) | bad (something required is empty) | warn (filled in by the app, please check) | ok */
+  function lineStatus(o, kind) {
+    if (kind === 'other' && (o.ocr === 'queued' || o.ocr === 'reading')) return { level: 'wait', text: 'Reading the photo…' };
+    const missing = ['category', 'date', 'name', 'amount'].filter((k) => isBlank(o, k));
+    if (missing.length) return { level: 'bad', text: 'Please fill in: ' + plainList(missing.map((k) => FIELD_WORD[k])) };
+    const guessed = ['category', 'date', 'name', 'receiptNo', 'amount'].filter((k) => o.auto && o.auto[k]);
+    if (guessed.length) return { level: 'warn', text: 'Please check: ' + plainList(guessed.map((k) => FIELD_WORD[k])) };
+    const mp = monthParts();
+    if (kind === 'other' && mp && o.date.slice(0, 7) !== mp.key) return { level: 'warn', text: `The date is not in ${monthLabel(mp)}` };
+    if (kind === 'other' && isBlank(o, 'receiptNo')) return { level: 'warn', text: 'Please check: receipt no.' };
+    return { level: 'ok', text: 'Looks right' };
+  }
+  const statusOf = (l) => lineStatus(l.kind === 'other' ? l.src : l, l.kind);
+  const refreshHeads = () => S.lineRefs.forEach((f) => f());
+
+  /* the little menu on the icon: pick the type of claim from a short list */
+  let menuWired = false;
+  const closeMenus = () => document.querySelectorAll('.catmenu').forEach((m) => m.remove());
+  function toggleCatMenu(wrap, o) {
+    const was = wrap.querySelector('.catmenu');
+    closeMenus();
+    if (was) return;
+    if (!menuWired) {
+      menuWired = true;
+      document.addEventListener('click', (e) => { if (!e.target.closest('.catmenu')) closeMenus(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenus(); });
+    }
+    wrap.append(h('div', { class: 'catmenu', role: 'menu' }, CATEGORIES.map((c) =>
+      h('button', { class: 'menuitem', type: 'button', role: 'menuitem', onclick: () => { closeMenus(); o.category = c; if (o.auto) delete o.auto.category; renderLines(); } }, iconEl(kindOf(c), 'mi'), c))));
+  }
+
+  /* One claim line as a card: icon, what and when, the amount, a status in plain words, and the boxes behind "Edit details".
+     opt = { key, kind (fixed kinds only), pick, auto, status(), fields, tags, below, onRemove, removeTitle } */
+  function lineCard(o, opt) {
+    const key = opt.key;
+    const badge = h(opt.pick ? 'button' : 'span', opt.pick ? { type: 'button', title: 'Click to change the type', 'aria-label': 'Change the type of this claim' } : {});
+    const wrap = h('span', { class: 'badgewrap' }, badge);
+    if (opt.pick) badge.addEventListener('click', (e) => { e.stopPropagation(); toggleCatMenu(wrap, o); });
+    const lcat = h('b', { class: 'lcat' }), lsub = h('span', { class: 'lsub' }), lamt = h('b', { class: 'lamt' }), status = h('span', { class: 'status' });
+    const toggle = h('button', { class: 'link toggle', type: 'button' });
+    const details = h('div', { class: 'ldetails' }, opt.fields);
+    const setOpen = (on) => { details.hidden = !on; toggle.textContent = on ? 'Hide details' : 'Edit details'; toggle.setAttribute('aria-expanded', String(on)); };
+    toggle.addEventListener('click', () => { const on = details.hidden; S.open.set(key, on); setOpen(on); });
+    details.addEventListener('input', () => S.open.set(key, true));        // once someone is typing here, keep it open
+
+    const refresh = () => {
+      const st = opt.status();
+      const kind = opt.kind || kindOf(o.category);
+      badge.className = 'badge k-' + kind;
+      badge.innerHTML = ICON[kind];
+      lcat.textContent = String(o.category || '').trim() || 'New line';
+      const name = String(o.name || '').trim(), date = niceDate(o.date);
+      lsub.textContent = '';
+      lsub.append(name ? name : h('span', { class: 'miss', text: 'no name yet' }), ' · ', date ? date : h('span', { class: 'miss', text: 'no date yet' }));
+      lamt.textContent = num(o.amount) > 0 ? 'RM ' + money(num(o.amount)) : 'RM –';
+      lamt.classList.toggle('guess', !!(o.auto && o.auto.amount));
+      status.className = 'status ' + st.level;
+      status.textContent = st.text;
+      if (S.showErrors && st.level === 'bad') { S.open.set(key, true); setOpen(true); }
+      else if (!S.open.has(key) && (st.level === 'warn' || st.level === 'bad')) setOpen(true);     // needs a look: open it, never close it again by itself
+    };
+    S.lineRefs.set(key, refresh);
+
+    const card = h('div', { class: 'line' + (opt.auto ? ' auto' : ''), 'data-key': key },
+      h('div', { class: 'lhead' }, wrap, h('div', { class: 'ltitle' }, lcat, lsub), lamt,
+        h('button', { class: 'icon', type: 'button', title: opt.removeTitle, 'aria-label': opt.removeTitle, text: '×', onclick: opt.onRemove })),
+      h('div', { class: 'lstat' }, status, opt.tags, toggle),
+      details, opt.below);
+    setOpen(false);
+    refresh();
+    if (S.open.has(key)) setOpen(S.open.get(key));
+    return card;
+  }
+
   function editableLine(l) {
     const o = l.src;
-    const row = h('div', { class: 'row' },
-      field('Category', 'cat', bound(o, 'category', 'text', { list: 'cats' })),
+    const fields = [
+      field('Type', 'cat', bound(o, 'category', 'text', { list: 'cats', placeholder: 'e.g. Petrol' })),
       field('Date', 'dt', bound(o, 'date', 'date')),
       field('Name', 'nm', bound(o, 'name', 'text', { placeholder: 'Station / merchant / hotel' })),
       field('Receipt no.', 'rn', bound(o, 'receiptNo', 'text')),
       field('Amount (RM)', 'am', bound(o, 'amount', 'number', { step: '0.01', min: '0', inputmode: 'decimal' })),
-      h('button', { class: 'icon', type: 'button', title: 'Remove', 'aria-label': 'Remove line', text: '×', onclick: () => removeOther(o) }));
-    const files = h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x))),
-      o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
-      o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
-      o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null);       // gone once the amount is typed over
+    ];
     if (S.other.length > 1) {
       const sel = h('select', { onchange: (e) => { const t = S.other.find((x) => x.id === e.target.value); if (t) mergeInto(o, t); } },
-        h('option', { value: '', text: 'separate line' }),
+        h('option', { value: '', text: 'Keep as its own line' }),
         S.other.filter((x) => x !== o).map((x) => h('option', { value: x.id, text: `${x.category || 'Line'} · ${x.name || (x.files[0] && x.files[0].file.name) || 'typed line'}`.slice(0, 48) })));
-      files.append(h('label', { class: 'merge' }, 'Attach to', sel));
+      fields.push(h('label', { class: 'f mg' }, h('span', { text: 'Same receipt as another line? Attach this file to it' }), sel));
     }
-    return h('div', { class: 'line' }, row, files);
+    const tags = [
+      o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
+      o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
+      o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null,       // gone once the amount is typed over
+    ];
+    const below = o.files.length ? h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x)))) : null;
+    return lineCard(o, { key: l.key, pick: true, status: () => lineStatus(o, 'other'), fields, tags, below, onRemove: () => removeOther(o), removeTitle: 'Remove this line' });
   }
 
   function tollLine(l, tv) {
@@ -180,20 +285,25 @@
     // every field can be typed over; what is typed is kept in S.edits and wins over the calculated value
     const edits = S.edits[l.kind];
     const view = new Proxy(Object.assign({}, l), { set(t, k, v) { t[k] = v; edits[k] = v; return true; } });
-    const row = h('div', { class: 'row' },
-      field('Category', 'cat', bound(view, 'category', 'text', { list: 'cats' })), field('Date', 'dt', bound(view, 'date', 'date')),
-      field('Name', 'nm', bound(view, 'name', 'text')), field('Receipt no.', 'rn', bound(view, 'receiptNo', 'text')),
+    const fields = [
+      field('Date', 'dt', bound(view, 'date', 'date')), field('Name', 'nm', bound(view, 'name', 'text')),
+      field('Receipt no.', 'rn', bound(view, 'receiptNo', 'text')),
       field('Amount (RM)', 'am', bound(view, 'amount', 'number', { step: '0.01', min: '0', inputmode: 'decimal' })),
-      h('button', { class: 'icon', type: 'button', title: 'Remove the TNG statement (removes the toll and parking lines)', 'aria-label': 'Remove TNG statement', text: '×', onclick: removeTng }));
+    ];
     const adjusted = Object.keys(edits).length > 0;
-    const files = h('div', { class: 'files' }, chip(S.tng.file, S.tng.url, removeTng),
-      h('span', { class: 'tag', text: `${counted} of ${rows.length} ${isToll ? 'toll trips' : 'parking rows'} counted` }),
-      adjusted ? h('span', { class: 'tag hint', text: `Adjusted by hand · calculated RM ${money(l.calc)}` }) : null,
+    const tags = [
+      h('span', { class: 'tag', text: `Counting ${counted} of ${rows.length} ${isToll ? 'toll trips' : 'parking charges'}` }),
+      adjusted ? h('span', { class: 'tag hint', text: `Changed by you · calculated RM ${money(l.calc)}` }) : null,
       adjusted ? h('button', { class: 'link', type: 'button', text: 'Use calculated', onclick: () => { S.edits[l.kind] = {}; renderLines(); } }) : null,
-      isToll ? h('button', { class: 'link', type: 'button', text: S.showTrips ? 'Hide trips' : 'Review trips', onclick: () => { S.showTrips = !S.showTrips; renderLines(); } }) : null);
-    const wrap = h('div', { class: 'line auto' }, row, files);
-    if (isToll) wrap.append(tripsPanel(tv));
-    return wrap;
+      isToll ? h('button', { class: 'link', type: 'button', text: S.showTrips ? 'Hide trips' : 'See which trips', onclick: () => { S.showTrips = !S.showTrips; renderLines(); } }) : null,
+    ];
+    const status = () => {
+      const s = lineStatus(view, l.kind);
+      if (s.level === 'ok') s.text = Object.keys(edits).length ? 'Changed by you' : 'Worked out from your statement';
+      return s;
+    };
+    const below = [h('div', { class: 'files' }, chip(S.tng.file, S.tng.url, removeTng)), isToll ? tripsPanel(tv) : null];
+    return lineCard(view, { key: l.key, kind: l.kind, auto: true, status, fields, tags, below, onRemove: removeTng, removeTitle: 'Remove the TNG statement (removes the toll and parking lines)' });
   }
 
   // the reason shown beside each trip, on screen and in the check-list PDF
@@ -256,12 +366,13 @@
     const box = $('#lines');
     box.textContent = '';
     S.inputs = [];
+    S.lineRefs.clear();
+    closeMenus();
     const { lines, tv } = compileLines();
     lines.sort((a, b) => a.rank - b.rank);   // stable: keeps upload order inside each group
     if (!lines.length) {
       box.append(h('div', { class: 'empty', text: 'Add your files above and the claim lines will appear here.' }));
     } else {
-      box.append(h('div', { class: 'row head' }, ['Category', 'Date', 'Name', 'Receipt no.', 'Amount (RM)', ''].map((t) => h('span', { text: t }))));
       lines.forEach((l) => box.append(l.kind === 'toll' || l.kind === 'parking' ? tollLine(l, tv) : editableLine(l)));
     }
     const pk = tv && parkingCard(tv);
@@ -286,7 +397,7 @@
     const noRn = lines.filter((l) => l.kind === 'other' && !String(l.receiptNo || '').trim());
     if (noRn.length) warn.push(`${noRn.length} line${noRn.length > 1 ? 's have' : ' has'} no receipt number.`);
     const noFile = lines.filter((l) => l.kind === 'other' && !l.files.length);
-    if (noFile.length) warn.push(`${noFile.length} typed line${noFile.length > 1 ? 's have' : ' has'} no receipt attached – drop the file on the line's "Attach to" or add it above.`);
+    if (noFile.length) warn.push(`${noFile.length} typed line${noFile.length > 1 ? 's have' : ' has'} no receipt attached – attach the receipt file to it (under "Edit details") or add it above.`);
     if (tv) {
       const hdr = S.tng.header;
       if (mp && hdr.from && hdr.to && !(hdr.from.slice(0, 7) === mp.key || hdr.to.slice(0, 7) === mp.key)) warn.push(`This statement covers ${hdr.from} to ${hdr.to}, not ${monthLabel(mp)}.`);
@@ -296,8 +407,42 @@
     return { bad, warn };
   }
 
+  /* the column beside the lines: what each kind of claim adds up to, the total, and whether anything still needs a look */
+  function renderSide(lines) {
+    const rows = $('#sideRows'), check = $('#sideCheck');
+    rows.textContent = '';
+    const by = new Map();
+    lines.forEach((l) => {
+      const k = l.kind === 'other' ? kindOf(l.category) : l.kind;
+      const g = by.get(k) || { n: 0, sum: 0 };
+      g.n++; g.sum += num(l.amount); by.set(k, g);
+    });
+    if (!by.size) rows.append(h('div', { class: 'muted', text: 'Nothing added yet.' }));
+    Object.keys(KIND_LABEL).filter((k) => by.has(k) && by.get(k).sum > 0).forEach((k) => {
+      const g = by.get(k);
+      rows.append(h('div', { class: 'srow' }, iconEl(k, 'sico'),
+        h('span', { text: KIND_LABEL[k] + (g.n > 1 ? ` (${g.n})` : '') }), h('span', { class: 'samt', text: money(round2(g.sum)) })));
+    });
+    check.textContent = '';
+    const sts = lines.map((l) => ({ l, st: statusOf(l) }));
+    const need = sts.filter((x) => x.st.level === 'warn' || x.st.level === 'bad');
+    if (sts.some((x) => x.st.level === 'wait')) check.append(h('span', { class: 'status wait', text: 'Reading photos…' }));
+    else if (need.length) {
+      check.append(h('span', { class: 'status warn', text: `${need.length} line${need.length > 1 ? 's need' : ' needs'} checking` }),
+        h('button', { class: 'link', type: 'button', text: 'Show me', onclick: () => {
+          const el = document.querySelector(`.line[data-key="${need[0].l.key}"]`);
+          if (!el) return;
+          const d = el.querySelector('.ldetails');
+          if (d && d.hidden) el.querySelector('.toggle').click();
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } }));
+    } else if (sts.length) check.append(h('span', { class: 'status ok', text: 'All lines look right' }));
+  }
+
   function updateSummary() {
     const { lines, tv } = compileLines();
+    refreshHeads();
+    renderSide(lines);
     $('#total').textContent = 'RM ' + money(lineTotal(lines));
     const v = validate(lines, tv);
     const notes = $('#notes');
@@ -388,11 +533,13 @@
   };
   const ocrTag = (item) => document.querySelector(`[data-ocr="${item.id}"]`);
   // a failure says why, so it can be reported
-  const ocrText = (item) => (item.ocr === 'failed' && item.ocrError ? `${OCR_LABEL.failed} (${item.ocrError})` : OCR_LABEL[item.ocr] || '');
+  // the line's status already says "reading" and "please check", so the tag appears only when the photo could not be read
+  const ocrText = (item) => (item.ocr !== 'failed' ? '' : item.ocrError ? `${OCR_LABEL.failed} (${item.ocrError})` : OCR_LABEL.failed);
   function setOcr(item, state) {
     item.ocr = state;
     const tag = ocrTag(item);
     if (tag) { tag.textContent = ocrText(item); tag.hidden = !ocrText(item); tag.dataset.state = state; }
+    refreshHeads();
   }
 
   // dealers seen on past claims, so a receipt reading "KEJAYAAN TEGUH ENT" is named the way the team already writes it
@@ -656,7 +803,7 @@
     updateSummary();
     const notes = $('#buildNotes');
     notes.textContent = '';
-    if (v.bad.length) { notes.append(h('div', { class: 'note bad', text: 'Fix the red items above first.' })); $('#notes').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    if (v.bad.length) { notes.append(h('div', { class: 'note bad', text: 'Fix the red items above first.' })); (document.querySelector('.line .status.bad') || $('#notes')).scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
 
     const btn = $('#btnBuild');
     btn.disabled = true; btn.textContent = 'Building…';
