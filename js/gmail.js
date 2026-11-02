@@ -63,7 +63,8 @@
     let email = '';
     try { email = (await call(API + '/profile', {}, tok)).emailAddress || ''; } catch (e) { /* the link then uses the first signed-in account */ }
     const messageId = draft.message && draft.message.id;
-    return { id: draft.id, messageId, email, url: `https://mail.google.com/mail/u/${encodeURIComponent(email || '0')}/#drafts?compose=${messageId}` };
+    // Gmail refuses /mail/u/<address>/ ("Temporary Error 404"); ?authuser=<address> picks the right signed-in account
+    return { id: draft.id, messageId, email, url: `https://mail.google.com/mail/?authuser=${encodeURIComponent(email || '0')}#drafts?compose=${messageId}` };
   }
 
   root.Gmail = { preload, createDraft };
