@@ -116,13 +116,33 @@
     return i;
   }
 
-  function chip(file, url) {
+  /* a file chip; with onRemove it gets a small x beside it */
+  function chip(file, url, onRemove) {
     const isImg = /^image\//.test(file.type);
-    return h('a', { class: 'chip', href: url, target: '_blank', rel: 'noopener', title: file.name },
+    const a = h('a', { class: 'chip', href: url, target: '_blank', rel: 'noopener', title: file.name },
       isImg ? h('img', { src: url, alt: '' }) : h('i', { text: 'PDF' }), h('span', { text: file.name }));
+    if (!onRemove) return a;
+    return h('span', { class: 'chipbox' }, a,
+      h('button', { class: 'icon sm', type: 'button', title: 'Remove this file', 'aria-label': 'Remove file ' + file.name, text: '×', onclick: onRemove }));
   }
 
   function removeOther(o) { o.files.forEach((x) => URL.revokeObjectURL(x.url)); S.other = S.other.filter((x) => x !== o); renderLines(); refreshStatus(); }
+
+  /* remove one file from a line; a line left with no file goes too (a line typed by hand stays) */
+  function removeFile(o, x) {
+    URL.revokeObjectURL(x.url);
+    o.files = o.files.filter((f) => f !== x);
+    if (!o.files.length && !o.manual) S.other = S.other.filter((y) => y !== o);
+    renderLines(); refreshStatus();
+  }
+
+  /* the toll and parking lines both come from the one TNG statement, so removing either removes the statement and both lines */
+  function removeTng() {
+    if (!S.tng) return;
+    URL.revokeObjectURL(S.tng.url);
+    S.tng = null; S.overrides.clear(); S.edits = { toll: {}, parking: {} }; S.showTrips = false;
+    renderLines(); refreshStatus();
+  }
 
   function mergeInto(item, target) {
     target.files.push(...item.files);
@@ -140,7 +160,7 @@
       field('Receipt no.', 'rn', bound(o, 'receiptNo', 'text')),
       field('Amount (RM)', 'am', bound(o, 'amount', 'number', { step: '0.01', min: '0', inputmode: 'decimal' })),
       h('button', { class: 'icon', type: 'button', title: 'Remove', 'aria-label': 'Remove line', text: '×', onclick: () => removeOther(o) }));
-    const files = h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url)),
+    const files = h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x))),
       o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
       o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
       o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null);       // gone once the amount is typed over
@@ -163,9 +183,10 @@
     const row = h('div', { class: 'row' },
       field('Category', 'cat', bound(view, 'category', 'text', { list: 'cats' })), field('Date', 'dt', bound(view, 'date', 'date')),
       field('Name', 'nm', bound(view, 'name', 'text')), field('Receipt no.', 'rn', bound(view, 'receiptNo', 'text')),
-      field('Amount (RM)', 'am', bound(view, 'amount', 'number', { step: '0.01', min: '0', inputmode: 'decimal' })), h('span'));
+      field('Amount (RM)', 'am', bound(view, 'amount', 'number', { step: '0.01', min: '0', inputmode: 'decimal' })),
+      h('button', { class: 'icon', type: 'button', title: 'Remove the TNG statement (removes the toll and parking lines)', 'aria-label': 'Remove TNG statement', text: '×', onclick: removeTng }));
     const adjusted = Object.keys(edits).length > 0;
-    const files = h('div', { class: 'files' }, chip(S.tng.file, S.tng.url),
+    const files = h('div', { class: 'files' }, chip(S.tng.file, S.tng.url, removeTng),
       h('span', { class: 'tag', text: `${counted} of ${rows.length} ${isToll ? 'toll trips' : 'parking rows'} counted` }),
       adjusted ? h('span', { class: 'tag hint', text: `Adjusted by hand · calculated RM ${money(l.calc)}` }) : null,
       adjusted ? h('button', { class: 'link', type: 'button', text: 'Use calculated', onclick: () => { S.edits[l.kind] = {}; renderLines(); } }) : null,
@@ -980,7 +1001,7 @@
     $('#ocrOn').addEventListener('change', () => { cfg.ocr = $('#ocrOn').checked; saveCfg(); });
 
     $('#btnAddLine').addEventListener('click', () => {      // a line typed by hand: no file needed
-      const item = { id: uid(), kind: 'other', files: [], category: '', name: '', date: '', receiptNo: '', amount: '', auto: {} };
+      const item = { id: uid(), kind: 'other', manual: true, files: [], category: '', name: '', date: '', receiptNo: '', amount: '', auto: {} };
       S.other.push(item); renderLines();
       const first = S.inputs.find((i) => i._obj === item && i._key === 'category');
       if (first) { first.focus(); first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }

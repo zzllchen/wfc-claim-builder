@@ -79,6 +79,8 @@ button.link { background: none; border: 0; padding: 2px 4px; color: var(--blue);
 button.link:hover { color: var(--blue-d); text-decoration: underline; }
 button.icon { background: none; border: 0; color: var(--faint); padding: 6px 10px; font-size: 20px; line-height: 1; }
 button.icon:hover { color: var(--bad); }
+button.icon.sm { padding: 2px 6px; font-size: 18px; }
+.chipbox { display: inline-flex; align-items: center; gap: 2px; }
 
 /* drop zones */
 .drop { display: grid; gap: 4px; align-content: center; justify-items: center; text-align: center; padding: 34px 20px; min-height: 160px;
