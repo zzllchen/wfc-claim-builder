@@ -42,7 +42,7 @@
   const DEFAULTS = {
     claimant: '', signature: '', fromEmail: '', toEmail: 'agnes@yutech.com.my',      // the accountant; anyone can type over it
     toName: '', signoff: '', ocr: true, holidays: TNG.DEFAULT_HOLIDAYS,
-    gmailClientId: '',      // the team's Google client ID goes here once it exists, so nobody has to paste it in Settings
+    gmailClientId: '561844027130-njr633b0hh2d5mciu0o8r0be6plrovt7.apps.googleusercontent.com',      // the team's Google client ID (public, not a secret), so nobody has to paste it in Settings
   };
   const cfg = Object.assign({}, DEFAULTS, store.get('wfc-claim-cfg', {}));
   if (!String(cfg.toEmail || '').trim()) cfg.toEmail = DEFAULTS.toEmail;      // an empty value saved earlier must not hide the default
