@@ -147,6 +147,15 @@
     renderLines(); refreshStatus();
   }
 
+  /* start over: every line and file off this page (the originals on the PC are not touched) */
+  function clearAll() {
+    if (!window.confirm('Remove every line and file from this page?\n\nYour original files on this PC are not touched.')) return;
+    S.other.forEach((o) => o.files.forEach((x) => URL.revokeObjectURL(x.url)));
+    if (S.tng) URL.revokeObjectURL(S.tng.url);
+    S.other = []; S.tng = null; S.overrides.clear(); S.edits = { toll: {}, parking: {} }; S.showTrips = false; S.open.clear();
+    renderLines(); refreshStatus();
+  }
+
   function mergeInto(item, target) {
     target.files.push(...item.files);
     if (!target.amount && item.amount) target.amount = item.amount;
@@ -335,7 +344,8 @@
     return h('div', { class: 'parking' },
       h('div', { class: 'pk-head' },
         h('b', { text: 'Parking' }), h('span', { class: 'pk-note', text: 'Not claimed unless you tick it (for example a client visit)' }),
-        ticked.length ? h('span', { class: 'tag', text: `${ticked.length} ticked · RM ${money(TNG.sum(tv.rows, 'PARKING'))}` }) : null),
+        ticked.length ? h('span', { class: 'tag', text: `${ticked.length} ticked · RM ${money(TNG.sum(tv.rows, 'PARKING'))}` }) : null,
+        h('button', { class: 'icon sm pk-x', type: 'button', title: 'Remove the TNG statement (removes the toll and parking lines)', 'aria-label': 'Remove TNG statement', text: '×', onclick: removeTng })),
       h('div', { class: 'pk-list' }, rows$));
   }
 
@@ -379,6 +389,7 @@
     }
     const pk = tv && parkingCard(tv);
     if (pk) box.append(pk);
+    $('#btnClearAll').hidden = !(S.tng || S.other.length);
     updateSummary();
   }
 
@@ -486,6 +497,7 @@
     const n = S.other.reduce((a, o) => a + o.files.length, 0);
     if (n) parts.push(`${n} receipt file${n > 1 ? 's' : ''}`);
     $('#stAll').textContent = parts.length ? '✓ ' + parts.join(' · ') + ' added' : '';
+    if (!parts.length) $('#fileNotes').textContent = '';          // "Added: 4 invoice / receipt PDFs" means nothing once they are all removed
   }
 
   const fileNote = (kind, text) => { $('#fileNotes').append(h('div', { class: 'note ' + kind, text })); };
@@ -1180,6 +1192,7 @@
       const first = S.inputs.find((i) => i._obj === item && i._key === 'category');
       if (first) { first.focus(); first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
     });
+    $('#btnClearAll').addEventListener('click', clearAll);
     $('#btnBuild').addEventListener('click', buildPack);
     $('#btnSettings').addEventListener('click', openSettings);
     $('#sLocChange').addEventListener('click', changeFolder);
