@@ -582,6 +582,12 @@
     fill('amount', r.amount);
     fill('name', r.station, true);       // beats the last station name pre-filled
     fill('receiptNo', r.receiptNo);
+    // a photo starts as Petrol; a hotel bill or clinic receipt says what it is, so switch the type (shown as "please check")
+    if (r.category && item.category === 'Petrol' && r.category !== 'Petrol') {
+      item.category = r.category; item.auto.category = true;
+      const input = S.inputs.find((i) => i._obj === item && i._key === 'category');
+      if (input) { input.value = r.category; input.classList.add('guess'); }
+    }
     updateSummary();
   }
 
@@ -623,9 +629,12 @@
         else item.hint = `Receipt is in ${r.foreign.code} ${r.foreign.amount.toFixed(2)} – type the MYR amount from your card statement`;
         if (!S.other.includes(item)) return;
       }
+      const kind = guessCategory(text);
+      if (kind === 'Accommodation' || kind === 'Medical') r.category = kind;
       applyOcr(item, r);
+      if (item.category === 'Accommodation' && !String(item.amount || '').trim()) item.hint = 'Hand-written bill: type the SUB TOTAL (not the deposit) and the check-in date';
       setOcr(item, 'done');
-      if (item.fx || item.hint) renderLines();
+      if (item.fx || item.hint || r.category) renderLines();       // a new type also moves the line to its place in the order
     } catch (e) {
       console.warn('OCR failed', e);
       if (!S.other.includes(item)) return;
@@ -635,7 +644,7 @@
   }
 
   const guessCategory = (text) => (/\b(klinik|clinic|consultation|medication|medical|pharmacy|farmasi|doctor)\b/i.test(text) ? 'Medical'
-    : /\b(hotel|room|booking|check-?in|accommodation|resort)\b/i.test(text) ? 'Accommodation'
+    : /\b(hotel|motel|room|booking|check-?\s?in|check-?\s?out|accommodation|resort|homestay|guest\s?house|penginapan)\b/i.test(text) ? 'Accommodation'
     : /\b(petrol|diesel|ron\s?9\d|pump|litre|liter)\b/i.test(text) ? 'Petrol'
       : /\b(subscription|software|cloud|api|saas)\b/i.test(text) ? 'AI tools' : '');
 

@@ -89,7 +89,8 @@
   /* the amount paid: a TOTAL / AMOUNT line, never cash given or change */
   function amount(text) {
     const lines = text.split(/\r?\n/);
-    const skip = /\b(change|baki|cash|tunai|tender|tendered|received|diterima|rounding|sst|gst|tax|price|harga|volume|liter|litre|qty)\b/i;
+    const skip = /\b(change|baki|cash|tunai|tender|tendered|received|diterima|rounding|sst|gst|tax|price|harga|volume|liter|litre|qty|deposit)\b/i;   // a deposit is never part of the claim
+    const NOT_AMOUNT = /\b(tarikh|date|tel|h\/p|k\/p|passport|booking|check|phone|fax)\b/i;      // a figure on these lines is a date or a phone number misread, never the total
     // the nearest line with text above / below line i (OCR leaves blank lines, and often reads the amounts column before the labels)
     const near = (i, step) => { for (let j = i + step; j >= 0 && j < lines.length && Math.abs(j - i) <= 3; j += step) if (lines[j].trim()) return lines[j]; return ''; };
     const amountOnly = (l) => moneyIn(l).length > 0 && !/[A-Za-z]/.test(l.replace(/RM|MYR/gi, ''));
@@ -135,6 +136,10 @@
       const off = Array.from(cuts).reduce((a, v) => a + v, 0);
       if (gross != null && off > 0 && gross - off >= 1) net = Math.round((gross - off) * 100) / 100;
     }
+    if (/deposit/i.test(text)) {                    // hotel bill: the room total row includes the deposit, the SUB TOTAL below it does not
+      const sub = pick(/\bsub\s*-?\s*total\b/i);
+      if (sub.length) return sub[sub.length - 1];
+    }
     for (const re of [/\b(grand\s*total|total|jumlah)\b/i, /\b(amount|amt|nett?|payable|bayar|sale)\b/i]) {
       const f = pick(re);
       if (f.length) {
@@ -154,7 +159,7 @@
     if (spelled != null) return spelled;
     if (paid != null) return paid;
     // no label: only trust an amount on a plain line (never cash / change) that appears more than once
-    const all = lines.filter((ln) => !skip.test(ln)).reduce((acc, ln) => acc.concat(moneyIn(ln)), []).filter((v) => v >= 5);
+    const all = lines.filter((ln) => !skip.test(ln) && !NOT_AMOUNT.test(ln)).reduce((acc, ln) => acc.concat(moneyIn(ln)), []).filter((v) => v >= 5);
     const counts = new Map();
     all.forEach((v) => counts.set(v, (counts.get(v) || 0) + 1));
     const repeated = Array.from(counts).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1] || b[0] - a[0]);
@@ -242,7 +247,9 @@
     });
     return first ? tidy(first) : '';
   }
+  // a hotel's name ends at the word Hotel: "PEKAN AUTO CITY BUDGET HOTEL curser ROOM BILL" is the hotel and the bill's title after it
   const tidy = (l) => l.replace(/[^A-Za-z0-9&'.,() \-]/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/^(.*\b(?:hotel|motel|resort|homestay|guest\s?house|lodge|inn))\b.*$/i, '$1')
     .toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 
   /* receipt / transaction number: only when it is labelled, and has a digit in it */
@@ -259,7 +266,10 @@
     }
     // clinic official receipts just say "No. RCC000014807": letters then a long number (not an MC number)
     const official = /(?:official\s+receipt|resit)[\s\S]{0,200}?\b((?!MC)[A-Z]{2,4}\d{6,})\b/i.exec(text);
-    return official ? official[1].toUpperCase() : '';
+    if (official) return official[1].toUpperCase();
+    // printed pad numbers ("No 257947", "№ 257947") on hotel bills and hand-written receipts: five or more digits right after No
+    const padNo = /(?:^|[\s:])(?:no|n[o°º]|№)\.?\s*[:.#]?\s*(\d{5,9})\b/im.exec(text);
+    return padNo ? padNo[1] : '';
   }
 
   /* opts: { month: 'YYYY-MM', stations: [names seen before] } */
