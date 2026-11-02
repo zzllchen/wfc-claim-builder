@@ -51,6 +51,7 @@
   const S = {
     tng: null, overrides: new Map(), other: [], edits: { toll: {}, parking: {} },     // edits = values typed over the calculated toll / parking line
     showTrips: false, showErrors: false, packs: { claim: null, leave: null }, inputs: [],
+    step: 1, building: false, stepEls: null,
     open: new Map(), lineRefs: new Map(),      // open = lines whose details were opened or closed by hand; lineRefs = each drawn line's refresh function
     touched: { subject: false, body: false, month: false, lName: false, lSign: false, lTo: false, lSubject: false, lBody: false },
   };
@@ -452,6 +453,83 @@
     } else if (sts.length) check.append(h('span', { class: 'status ok', text: 'All lines look right' }));
   }
 
+  /* ---------- steps: one form at a time, with a progress line on top ---------- */
+  const STEPS = ['Details', 'Files', 'Check', 'Email and build'];
+  const emailOk = (id) => /\S+@\S+/.test($(id).value);
+
+  /* what each step still needs; a step is done when its list is empty */
+  function stepProblems(lines) {
+    const p = [[], [], [], []];
+    if (!$('#claimant').value.trim()) p[0].push('the claimant name');
+    if (!monthParts()) p[0].push('the claim month');
+    if (!S.tng && !S.other.length) p[1].push('at least one file (or a line typed by hand)');
+    const sts = lines.map(statusOf);
+    const wait = sts.filter((s) => s.level === 'wait').length, bad = sts.filter((s) => s.level === 'bad').length;
+    if (!lines.length) p[2].push('at least one claim line');
+    if (wait) p[2].push('the photos to finish reading');
+    if (bad) p[2].push(`${bad} line${bad > 1 ? 's' : ''} still to fill in`);
+    if (lines.length > ClaimXlsx.MAX_LINES) p[2].push(`no more than ${ClaimXlsx.MAX_LINES} lines`);
+    if (!emailOk('#fromEmail')) p[3].push('your work email');
+    if (!emailOk('#toEmail')) p[3].push("the accountant's email");
+    if (!$('#subject').value.trim()) p[3].push('the subject');
+    return p;
+  }
+
+  function buildStepper() {
+    const nav = $('#stepper');
+    const items = STEPS.map((label, i) => {
+      const dot = h('button', { type: 'button', class: 'sdot', onclick: () => go(i + 1) });
+      const name = h('span', { class: 'slabel', text: label });
+      return { li: h('li', {}, dot, name), dot, name };
+    });
+    nav.append(h('ol', {}, items.map((x) => x.li)));
+    S.stepEls = items;
+    // Back / Next under each form
+    document.querySelectorAll('#viewClaim > .pane').forEach((sec) => {
+      const n = +sec.dataset.step;
+      const back = n > 1 ? h('button', { class: 'ghost', type: 'button', text: '← Back', onclick: () => go(n - 1) }) : h('span');
+      const next = n < 4 ? h('button', { class: 'ghost next', type: 'button', text: `Next: ${STEPS[n]} →`, onclick: () => go(n + 1) }) : null;
+      sec.append(h('div', { class: 'stepnav' }, back, next));
+    });
+  }
+
+  function renderSteps(lines) {
+    if (!S.stepEls) return;
+    const p = stepProblems(lines || compileLines().lines);
+    const done = p.map((x) => !x.length);
+    S.stepEls.forEach((x, i) => {
+      const n = i + 1;
+      x.dot.className = 'sdot' + (done[i] ? ' done' : '') + (S.step === n ? ' cur' : '');
+      x.dot.textContent = done[i] ? '✓' : String(n);
+      x.dot.title = done[i] ? 'Done' : 'Still needs: ' + p[i].join(', ');
+      x.dot.setAttribute('aria-label', `Step ${n}: ${STEPS[i]}${done[i] ? ', done' : ''}`);
+      if (S.step === n) x.dot.setAttribute('aria-current', 'step'); else x.dot.removeAttribute('aria-current');
+      x.name.className = 'slabel' + (S.step === n ? ' cur' : '') + (done[i] ? ' done' : '');
+      x.li.className = i && done[i - 1] ? 'after-done' : '';        // the line leading into a step turns green once the one before it is done
+    });
+    document.querySelectorAll('#viewClaim .stepnav .next').forEach((b) => {
+      const n = +b.closest('.pane').dataset.step;
+      b.className = (done[n - 1] ? 'primary' : 'ghost') + ' next';      // the next button lights up when this step is complete
+    });
+    // Build only works when all four are done
+    const ready = done.every(Boolean);
+    $('#btnBuild').disabled = S.building || !ready;
+    const why = $('#buildWhy');
+    why.textContent = '';
+    if (!ready) {
+      const bits = [];
+      p.forEach((list, i) => { if (list.length) bits.push(h('button', { class: 'link', type: 'button', text: `step ${i + 1}: ${list.join(', ')}`, onclick: () => go(i + 1) })); });
+      why.append(h('div', { class: 'note warn' }, 'To build the claim pack, finish ', bits.flatMap((b, i) => (i ? [' · ', b] : [b]))));
+    }
+  }
+
+  function go(n, quiet) {
+    S.step = n;
+    document.querySelectorAll('#viewClaim > .pane').forEach((s) => { s.hidden = +s.dataset.step !== n; });
+    renderSteps();
+    if (!quiet) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function updateSummary() {
     const { lines, tv } = compileLines();
     refreshHeads();
@@ -469,6 +547,7 @@
       i.classList.toggle('bad', S.showErrors && req && empty);
     });
     refreshEmail(lines);
+    renderSteps(lines);                  // after the email subject is set, which step 4 checks
     if (S.packs.claim && !S.packs.claim.stale) { S.packs.claim.stale = true; renderPack('claim'); }
   }
 
@@ -829,7 +908,7 @@
     if (v.bad.length) { notes.append(h('div', { class: 'note bad', text: 'Fix the red items above first.' })); (document.querySelector('.line .status.bad') || $('#notes')).scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
 
     const btn = $('#btnBuild');
-    btn.disabled = true; btn.textContent = 'Building…';
+    S.building = true; btn.disabled = true; btn.textContent = 'Building…';
     const dir = await Folder.ready();     // first thing: the folder picker needs the click that started this
     try {
       const mp = monthParts();
@@ -893,7 +972,7 @@
       console.error(e);
       notes.append(h('div', { class: 'note bad', text: 'Could not build the pack: ' + (e.message || e) }));
     } finally {
-      btn.disabled = false; btn.textContent = 'Build claim pack';
+      S.building = false; btn.textContent = 'Build claim pack'; renderSteps();
     }
   }
 
@@ -1062,7 +1141,7 @@
     $('#tabClaim').setAttribute('aria-selected', String(v === 'claim'));
     $('#tabLeave').setAttribute('aria-selected', String(v === 'leave'));
     if (v === 'leave') syncLeaveDefaults();
-    else { $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail; }
+    else { $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail; renderSteps(); }
   }
 
   /* ---------- email panel ---------- */
@@ -1168,9 +1247,9 @@
     $('#signature').addEventListener('input', () => { cfg.signature = $('#signature').value; saveCfg(); updateSummary(); });
     $('#month').addEventListener('input', () => { S.touched.month = true; renderLines(); });
     $('#daysOff').addEventListener('input', renderLines);
-    $('#fromEmail').addEventListener('input', () => { cfg.fromEmail = $('#fromEmail').value; saveCfg(); });
-    $('#toEmail').addEventListener('input', () => { cfg.toEmail = $('#toEmail').value; saveCfg(); });
-    $('#subject').addEventListener('input', () => { S.touched.subject = true; });
+    $('#fromEmail').addEventListener('input', () => { cfg.fromEmail = $('#fromEmail').value; saveCfg(); renderSteps(); });
+    $('#toEmail').addEventListener('input', () => { cfg.toEmail = $('#toEmail').value; saveCfg(); renderSteps(); });
+    $('#subject').addEventListener('input', () => { S.touched.subject = true; renderSteps(); });
     $('#body').addEventListener('input', () => { S.touched.body = true; });
 
     // leave application
@@ -1201,6 +1280,7 @@
       const first = S.inputs.find((i) => i._obj === item && i._key === 'category');
       if (first) { first.focus(); first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
     });
+    $('#btnHandLine').addEventListener('click', () => { go(3, true); $('#btnAddLine').click(); });
     $('#btnClearAll').addEventListener('click', clearAll);
     $('#btnBuild').addEventListener('click', buildPack);
     $('#btnSettings').addEventListener('click', openSettings);
@@ -1215,6 +1295,8 @@
       ['claim', 'leave'].forEach((k) => { if (S.packs[k]) renderPack(k); });       // so the Gmail draft button appears or goes
     });
 
+    buildStepper();
+    go(1, true);
     renderLines();
     refreshStatus();
     refreshLoc();

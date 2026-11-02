@@ -15,6 +15,8 @@ Each person types their own work email and the accountant's email in the **Build
 
 ## What it does
 
+The expense claim is four steps, one form on screen at a time. The circles at the top (1 Details, 2 Files, 3 Check, 4 Email and build) turn green as each step is filled in completely, and the line between them turns green too. Click any circle to jump to that step, or use the Back / Next buttons. **Build claim pack stays locked until all four are green**; the note under it lists what is still missing, with a link to that step.
+
 1. **Details:** claimant, month, optional days off (leave).
 2. **Files:** one box. Drag everything in at once, paste with Ctrl+V (files copied in Explorer, or a copied image), or click to browse. The app looks inside each file and sorts it:
    - TNG statement PDF: toll rows are read and checked against the rules below.

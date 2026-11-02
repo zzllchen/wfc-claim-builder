@@ -43,6 +43,25 @@ main { padding: 12px 20px 80px; display: grid; gap: 20px; }
 .tab:hover { color: var(--ink); }
 .tab.on { color: var(--blue); border-bottom-color: var(--blue); }
 
+/* steps: 1-2-3-4 circles joined by a line that turns green as each step is finished */
+.pane[hidden] { display: none; }
+.stepper { position: sticky; top: 61px; z-index: 4; margin: 0 -20px; padding: 14px 20px 12px; background: rgba(255, 255, 255, .96); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.stepper ol { list-style: none; margin: 0 auto; padding: 0; display: flex; max-width: 760px; }
+.stepper li { flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.stepper li + li::before { content: ""; position: absolute; top: 17px; right: 50%; width: 100%; height: 3px; border-radius: 2px; background: var(--line-2); }
+.stepper li.after-done::before { background: #16a34a; }
+.sdot { position: relative; z-index: 1; width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 2px solid var(--line-2); background: #fff; color: var(--muted); font-size: 15px; font-weight: 700; display: grid; place-items: center; }
+.sdot:hover { border-color: #b9c6e6; }
+.sdot.cur { border-color: var(--blue); color: var(--blue); box-shadow: var(--ring); }
+.sdot.done { background: #16a34a; border-color: #16a34a; color: #fff; }
+.sdot.done.cur { box-shadow: 0 0 0 3px rgba(22, 163, 74, .25); }
+.slabel { font-size: 12.5px; font-weight: 600; color: var(--faint); text-align: center; }
+.slabel.cur { color: var(--ink); }
+.slabel.done { color: #15803d; }
+.stepnav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+#buildWhy:empty { display: none; }
+#buildWhy { margin-top: 14px; }
+
 /* cards */
 .card { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 26px 28px; }
 .card h2 { margin: 0 0 20px; font-size: 17px; font-weight: 650; letter-spacing: -.01em; display: flex; align-items: center; gap: 12px; }
@@ -245,6 +264,8 @@ dialog .sec { display: grid; gap: 6px; }
 }
 @media (max-width: 480px) {
   .wrap, main { padding-left: 14px; padding-right: 14px; }
+  .stepper { margin: 0 -14px; padding: 12px 8px 10px; }
+  .slabel { font-size: 11.5px; }
   .grid { grid-template-columns: 1fr; }
   .card { padding: 18px 16px; }
   .tabs { gap: 20px; }
