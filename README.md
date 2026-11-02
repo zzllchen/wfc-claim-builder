@@ -2,7 +2,7 @@
 
 Staff attach their Touch 'n Go statement, fuel receipts and other receipts. The page fills the WFC monthly claim form, makes the PDF, zips everything into one folder and prepares the email to the accountant.
 
-Everything runs in the browser. Files are never uploaded anywhere.
+Everything runs in the browser. Files are never uploaded anywhere, except that the optional **Create Gmail draft** button (see below) puts the zip into the user's own Gmail when they press it.
 
 ## First use
 
@@ -26,12 +26,26 @@ Each person types their own work email and the accountant's email in the **Build
    - Clinic receipts: the amount is read even when it is only written in words ("RM SEVENTY FIVE ONLY"); category Medical.
    - Anything else is checked first and **refused with a reason** (shown under the box): a WFC claim or leave form, a medical certificate (use the Leave tab), a PDF with no receipt wording, a file with no amount, or a photo too blurry to read ("re-attach a clearer photo"). A blurry photo whose numbers can still be read is accepted. For files that could not be read, "Add anyway" lets you type the details by hand (for example a handwritten hotel bill).
    - Use "Attach to" to put several files (hotel receipt + bill + payment proof) on one claim line.
-3. **Check:** nothing is locked. Every field on every line can be typed over, including the amounts. **+ Add a line manually** adds a line with no file (a cash expense, say). The toll and parking lines are calculated from the ticked trips, but you can type a different amount, date, name or receipt no. over them; the line then says "Adjusted by hand · calculated RM x" with a **Use calculated** link to go back, and the toll check list PDF records the difference. "Review trips" shows each toll row and why it was counted or not; tick or untick to override.
+3. **Check:** nothing is locked. Every field on every line can be typed over, including the amounts. **+ Add a line manually** adds a line with no file (a cash expense, say). The toll and parking lines are calculated from the ticked trips, but you can type a different amount, date, name or receipt no. over them; the line then says "Changed by you · calculated RM x" with a **Use calculated** link to go back, and the toll check list PDF records the difference. "See which trips" shows each toll row and why it was counted or not; tick or untick to override.
 4. **Build:** the claim form (.xlsx and .pdf) lists fuel first, then toll, parking, medical, AI tools, accommodation and any other claims (by date within each group). It downloads `Claim - <Month Year> - <Name>.zip` containing the claim form (.xlsx and .pdf), the original TNG statement, a **TNG toll check list PDF** (every trip with a ticked or unticked box and the reason, so the accountant can see exactly which trips count), and each receipt renamed `Receipt 01 - Petrol - 06-09-2026.jpg` (the number matches the line on the form).
 5. **Email:** subject `Claim - <Month Year>`, to the accountant, from the work email.
-   - *Open Gmail draft* fills To / Subject / message in the work account. Gmail links cannot carry attachments, so drag the zip in.
+   - *Create Gmail draft* (after the one-time setup below) signs in to Google once and puts the To, Subject, message **and the zip** into a draft in the user's own Gmail Drafts. Nothing is sent.
+   - *Open Gmail draft* / *Open Gmail without the file* fills To / Subject / message in the work account. Gmail links cannot carry attachments, so drag the zip in.
    - *Download .eml draft* opens in Outlook / Apple Mail with the zip already attached.
    - *Share...* (phones) hands the zip to the Gmail app.
+
+## Gmail draft with the zip attached
+
+A web page cannot attach a file to Gmail through a link, so this button uses the Gmail API with the person's own Google sign-in. The permission asked for is "Manage drafts and send emails" (`gmail.compose`); it cannot read the mailbox. It needs a Google **client ID** (a public value, not a secret). Set it up once for the whole team:
+
+1. Open https://console.cloud.google.com and create a project (for example *WFC Claim Builder*).
+2. **APIs & Services > Library:** search for *Gmail API* and **Enable** it.
+3. **OAuth consent screen** (shown as *Google Auth platform* in newer consoles): choose **External** (choose **Internal** if everyone is on one Google Workspace domain, which skips the warning in step 6), give it a name and your email, and add the scope `https://www.googleapis.com/auth/gmail.compose`. Leave publishing status on **Testing** and add every colleague's Gmail address under **Test users** (up to 100).
+4. **Credentials > Create credentials > OAuth client ID:** application type **Web application**. Under **Authorized JavaScript origins** add `https://zzllchen.github.io` (and `http://localhost:8080` if people also use `Start.bat`). No redirect URI is needed.
+5. Copy the **Client ID** (it ends in `.apps.googleusercontent.com`). Paste it in **Settings > Google client ID** on this PC, or ask for it to be built in so colleagues need nothing (it goes in `DEFAULTS.gmailClientId` in `js/app.js`).
+6. On first use Google shows "Google hasn't verified this app": choose **Advanced > Go to WFC Claim Builder**, then allow. In Testing mode Google asks again about once a week.
+
+The draft appears in the Gmail account that was signed in, with the zip attached; open it from the link under the button and press Send.
 
 ## Leave application
 
@@ -73,6 +87,7 @@ js/ocr.js           reads receipt photos on-device (Tesseract.js)
 js/petrol.js        turns the OCR text into date / amount / station / receipt no.
 js/receipts.js      reads invoice / receipt PDFs
 js/mail.js          Gmail link and .eml draft
+js/gmail.js         one-click Gmail draft with the zip attached (Google sign-in + Gmail API)
 js/folder.js        remembered save folder (File System Access API)
 assets/             base claim form (from the October form) and logo, embedded as data
 vendor/             pdf.js, JSZip, jsPDF (bundled, no internet needed)

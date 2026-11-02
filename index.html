@@ -6,7 +6,7 @@
 <title>WFC Claim Builder</title>
 <meta name="theme-color" content="#1f4ad8">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f4ad8'/%3E%3Cpath d='M8 11l3 11 5-8 5 8 3-11' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=22">
+<link rel="stylesheet" href="css/style.css?v=23">
 </head>
 <body>
 <header class="top">
@@ -145,6 +145,8 @@
     </div>
     <div class="sec"><label class="f">Public holidays (one per line: YYYY-MM-DD name)<textarea id="sHol" spellcheck="false"></textarea></label>
       <p class="hint">Best-effort list for 2026 &mdash; check the Islamic holiday dates against the official gazette and add Selangor / one-off holidays. Add next year's dates here too.</p></div>
+    <div class="sec"><label class="f">Google client ID (optional, for a Gmail draft with the zip attached)<input type="text" id="sGmail" spellcheck="false" autocomplete="off"></label>
+      <p class="hint">One-time setup that lets the &ldquo;Create Gmail draft&rdquo; button put the zip into a draft in your own Gmail. The steps are in the README under &ldquo;Gmail draft with the zip attached&rdquo;. Leave it empty to keep the normal Gmail link.</p></div>
     <div class="foot">
       <button class="ghost" type="button" id="sReset">Reset lists to defaults</button>
       <button class="primary" value="save" id="sSave">Save</button>
@@ -158,16 +160,17 @@
 <script src="assets/claim-base.js"></script>
 <script src="assets/leave-base.js"></script>
 <script src="assets/logo.js"></script>
-<script src="js/tng.js?v=22"></script>
-<script src="js/xlsx.js?v=22"></script>
-<script src="js/pdf.js?v=22"></script>
-<script src="js/receipts.js?v=22"></script>
-<script src="js/mail.js?v=22"></script>
-<script src="js/folder.js?v=22"></script>
-<script src="js/fx.js?v=22"></script>
-<script src="js/petrol.js?v=22"></script>
-<script src="js/validate.js?v=22"></script>
-<script src="js/ocr.js?v=22"></script>
-<script src="js/app.js?v=22"></script>
+<script src="js/tng.js?v=23"></script>
+<script src="js/xlsx.js?v=23"></script>
+<script src="js/pdf.js?v=23"></script>
+<script src="js/receipts.js?v=23"></script>
+<script src="js/mail.js?v=23"></script>
+<script src="js/gmail.js?v=23"></script>
+<script src="js/folder.js?v=23"></script>
+<script src="js/fx.js?v=23"></script>
+<script src="js/petrol.js?v=23"></script>
+<script src="js/validate.js?v=23"></script>
+<script src="js/ocr.js?v=23"></script>
+<script src="js/app.js?v=23"></script>
 </body>
 </html>

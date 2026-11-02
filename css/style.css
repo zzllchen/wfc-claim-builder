@@ -204,6 +204,8 @@ button.badge:hover { box-shadow: 0 0 0 3px rgba(13, 27, 62, .1); }
 .note.warn { background: var(--warn-bg); color: var(--warn); }
 .note.ok { background: var(--blue-50); color: var(--blue-d); }
 .note.info { background: #f6f7fb; color: var(--muted); }
+.note a { color: inherit; font-weight: 650; text-decoration: underline; }
+.gstat:not(:empty) { margin-top: 12px; }
 
 /* email + output */
 .mail { display: grid; gap: 16px 18px; grid-template-columns: 1fr 1fr; }

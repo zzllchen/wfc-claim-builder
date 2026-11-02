@@ -38,7 +38,7 @@
         wrap76(b64(bytes)));
     }
     const parts = [
-      `From: ${fromName ? encodeWord(fromName) + ' ' : ''}<${from}>`,
+      from ? `From: ${fromName ? encodeWord(fromName) + ' ' : ''}<${from}>` : null,      // no From: Gmail uses the account that is signed in
       `To: ${to}`,
       `Subject: ${encodeWord(subject)}`,
       'X-Unsent: 1',
@@ -53,7 +53,7 @@
       ...attParts,
       `--${boundary}--`,
       '',
-    ];
+    ].filter((p) => p !== null);
     return new Blob([parts.join('\r\n')], { type: 'message/rfc822' });
   }
 

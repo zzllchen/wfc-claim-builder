@@ -42,8 +42,10 @@
   const DEFAULTS = {
     claimant: '', signature: '', fromEmail: '', toEmail: '',
     toName: '', signoff: '', ocr: true, holidays: TNG.DEFAULT_HOLIDAYS,
+    gmailClientId: '',      // the team's Google client ID goes here once it exists, so nobody has to paste it in Settings
   };
   const cfg = Object.assign({}, DEFAULTS, store.get('wfc-claim-cfg', {}));
+  const gmailClientId = () => String(cfg.gmailClientId || DEFAULTS.gmailClientId || '').trim();
   const saveCfg = () => store.set('wfc-claim-cfg', cfg);
 
   const S = {
@@ -1062,15 +1064,38 @@
     const files = p.attachments.map((a) => new File([a.blob], a.name, { type: a.blob.type || 'application/octet-stream' }));
     const canShare = !!(navigator.canShare && navigator.canShare({ files }));
     const what = p.attachments.length > 1 ? 'files' : 'zip';
-    box.append(h('div', { class: 'actions' },
-      h('button', { class: 'primary', type: 'button', text: 'Open Gmail draft', onclick: () => window.open(Mail.gmailLink(fields()), '_blank', 'noopener') }),
+    const clientId = gmailClientId();
+    const gstat = h('div', { class: 'gstat' });
+    const say = (cls, ...kids) => { gstat.textContent = ''; if (cls) gstat.append(h('div', { class: 'note ' + cls }, ...kids)); };
+    const makeDraft = async (btn) => {
+      const m = fields();
+      btn.disabled = true;
+      say('info', 'Signing in to Google…');
+      try {
+        const d = await Gmail.createDraft({ clientId, hint: m.from, makeBlob: () => { say('info', `Putting the ${what} into a Gmail draft…`); return Mail.emlBlob({ to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }); } });
+        say('ok', `The draft is in your Gmail Drafts with the ${what} attached. `, h('a', { href: d.url, target: '_blank', rel: 'noopener', text: 'Open the draft' }), ' and press Send.');
+      } catch (e) {
+        say('bad', String((e && e.message) || e));
+      }
+      btn.disabled = false;
+    };
+    if (clientId) Gmail.preload().catch(() => {});             // so the Google sign-in popup can open straight from the click
+    const draftBtn = clientId
+      ? h('button', { class: 'primary', type: 'button', text: `Create Gmail draft (${what} attached)`, onclick: (e) => makeDraft(e.currentTarget) })
+      : null;
+    box.append(h('div', { class: 'actions' }, draftBtn,
+      h('button', { class: draftBtn ? 'ghost' : 'primary', type: 'button', text: draftBtn ? 'Open Gmail without the file' : 'Open Gmail draft', onclick: () => window.open(Mail.gmailLink(fields()), '_blank', 'noopener') }),
       h('button', { class: 'ghost', type: 'button', text: `Download .eml draft (${what} attached)`, onclick: async () => {
         const m = fields();
         download(await Mail.emlBlob({ from: m.from, to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }), safe(m.subject) + '.eml');
       } }),
       h('button', { class: 'ghost', type: 'button', text: 'Download zip again', onclick: () => download(p.blob, p.name) }),
-      canShare ? h('button', { class: 'ghost', type: 'button', text: 'Share…', onclick: () => navigator.share({ files, title: fields().subject, text: fields().body }).catch(() => {}) }) : null));
-    box.append(h('p', { class: 'hint', text: `Gmail opens with the To, Subject and message filled in (sent from ${fields().from || 'your work account'}). A web link can't attach files, so attach the ${what} yourself (drag it in from the saved folder or use the paperclip). The .eml file opens in Outlook / Apple Mail with the ${what} already attached.` }));
+      canShare ? h('button', { class: 'ghost', type: 'button', text: 'Share…', onclick: () => navigator.share({ files, title: fields().subject, text: fields().body }).catch(() => {}) }) : null,
+      clientId ? null : h('button', { class: 'link', type: 'button', text: `Set up a Gmail draft with the ${what} attached…`, onclick: openSettings })));
+    box.append(gstat);
+    box.append(h('p', { class: 'hint', text: clientId
+      ? `"Create Gmail draft" signs you in to Google once, then puts the To, Subject, message and the ${what} into a draft in your own Gmail (nothing is sent). "Open Gmail without the file" fills in the message only, so you attach the ${what} yourself. The .eml file opens in Outlook / Apple Mail with the ${what} already attached.`
+      : `Gmail opens with the To, Subject and message filled in (sent from ${fields().from || 'your work account'}). A web link can't attach files, so attach the ${what} yourself (drag it in from the saved folder or use the paperclip), or set up the Gmail draft button above. The .eml file opens in Outlook / Apple Mail with the ${what} already attached.` }));
   }
 
   /* ---------- save folder ---------- */
@@ -1100,6 +1125,8 @@
   function openSettings() {
     $('#sToName').value = cfg.toName; $('#sSignoff').value = cfg.signoff;
     $('#sHol').value = cfg.holidays;
+    $('#sGmail').value = cfg.gmailClientId || '';
+    $('#sGmail').placeholder = DEFAULTS.gmailClientId || '1234567890-abc123.apps.googleusercontent.com';
     refreshLoc();
     $('#dlg').showModal();
   }
@@ -1161,7 +1188,9 @@
     $('#dlgForm').addEventListener('submit', () => {
       cfg.toName = $('#sToName').value.trim(); cfg.signoff = $('#sSignoff').value.trim();
       cfg.holidays = $('#sHol').value;
+      cfg.gmailClientId = $('#sGmail').value.trim();
       saveCfg(); S.touched.body = false; S.touched.lBody = false; renderLines(); refreshLeaveEmail();
+      ['claim', 'leave'].forEach((k) => { if (S.packs[k]) renderPack(k); });       // so the Gmail draft button appears or goes
     });
 
     renderLines();
