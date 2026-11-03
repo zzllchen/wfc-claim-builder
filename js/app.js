@@ -519,7 +519,7 @@
     refresh();
   }
 
-  /* a light-blue outline on every box that still waits for the person, so it is clear where to type */
+  /* a light-yellow outline on every box that still waits for the person, so it is clear where to type */
   function markNeeded() {
     ['#claimant', '#subject'].forEach((id) => $(id).classList.toggle('need', !$(id).value.trim()));
     ['#fromEmail', '#toEmail'].forEach((id) => $(id).classList.toggle('need', !emailOk(id)));

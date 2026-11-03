@@ -79,12 +79,12 @@ input[type=text], input[type=email], input[type=date], input[type=month], input[
   border: 1px solid var(--line-2); border-radius: 10px; transition: border-color .12s, box-shadow .12s;
 }
 input::placeholder, textarea::placeholder { color: var(--faint); }
-/* light-blue outline: this box still needs filling in */
-input.need, textarea.need, select.need { border-color: #7db4ff; background: #fafcff; box-shadow: 0 0 0 3px rgba(125, 180, 255, .28); }
-.drop.need { border-color: #7db4ff; border-width: 2px; }
+/* light-yellow outline: this box still needs filling in (not blue, so it does not blend into the blue theme) */
+input.need, textarea.need, select.need { border-color: #f5d442; background: #fffdf0; box-shadow: 0 0 0 3px rgba(250, 214, 66, .32); }
+.drop.need { border-color: #f5d442; background: #fffdf0; border-width: 2px; }
 .needhint { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--muted); }
 .needhint[hidden] { display: none; }
-.needhint .swatch { flex: none; width: 28px; height: 14px; border: 1.5px solid #7db4ff; border-radius: 5px; box-shadow: 0 0 0 3px rgba(125, 180, 255, .28); }
+.needhint .swatch { flex: none; width: 28px; height: 14px; border: 1.5px solid #f5d442; border-radius: 5px; background: #fffdf0; box-shadow: 0 0 0 3px rgba(250, 214, 66, .32); }
 input:hover, select:hover, textarea:hover { border-color: #b9c6e6; }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--blue); box-shadow: var(--ring); }
 input:disabled { background: transparent; border-color: var(--line); color: var(--ink); opacity: 1; }
