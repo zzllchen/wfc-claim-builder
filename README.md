@@ -6,7 +6,7 @@ Everything runs in the browser. Files are never uploaded anywhere, except that t
 
 ## First use
 
-Each person types their own work email and the accountant's email in the **Save and email** step once; the browser remembers them on that PC. Settings also holds the accountant's first name and the public-holiday list.
+In the **Save and email** step each person picks their own email from the **From** list (it starts blank every time) and **To** starts as the accountant, agnes@yutech.com.my, and can be typed over. The browser remembers the claimant name on that PC, not the two emails. Settings also holds the accountant's first name and the public-holiday list.
 
 ## Run it
 

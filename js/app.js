@@ -45,9 +45,10 @@
     gmailClientId: '561844027130-njr633b0hh2d5mciu0o8r0be6plrovt7.apps.googleusercontent.com',      // the team's Google client ID (public, not a secret), so nobody has to paste it in Settings
   };
   const cfg = Object.assign({}, DEFAULTS, store.get('wfc-claim-cfg', {}));
-  if (!String(cfg.toEmail || '').trim()) cfg.toEmail = DEFAULTS.toEmail;      // an empty value saved earlier must not hide the default
+  cfg.fromEmail = ''; cfg.toEmail = DEFAULTS.toEmail;      // ignore anything an earlier version saved
   const gmailClientId = () => String(cfg.gmailClientId || DEFAULTS.gmailClientId || '').trim();
-  const saveCfg = () => store.set('wfc-claim-cfg', cfg);
+  // who the email is from and who gets it are chosen fresh on every visit: sender blank (pick from the list), receiver the accountant
+  const saveCfg = () => store.set('wfc-claim-cfg', Object.assign({}, cfg, { fromEmail: '', toEmail: '' }));
 
   const S = {
     tng: null, overrides: new Map(), other: [], edits: { toll: {}, parking: {} },     // edits = values typed over the calculated toll / parking line
