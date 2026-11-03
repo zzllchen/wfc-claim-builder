@@ -496,7 +496,7 @@
 
   /* Who the email comes from: pick from the team's list, or "Other email" to type one. The text box (#fromEmail) stays the one
      source of truth for the rest of the code; the dropdown only fills it. */
-  const SENDERS = ['edward.wfcsystems@gmail.com', 'jimmy.wfcsystems@gmail.com', 'chowkl@yutech.com.my', 'william@yutech.com.my', 'danny.mpmotion@gmail.com', 'agnes@yutech.com.my'];
+  const SENDERS = ['marketing.wfcsystems@gmail.com', 'edward.wfcsystems@gmail.com', 'jimmy.wfcsystems@gmail.com', 'chowkl@yutech.com.my', 'william@yutech.com.my', 'danny.mpmotion@gmail.com', 'agnes@yutech.com.my'];
   const picks = [];
   const refreshPicks = () => picks.forEach((f) => f());
   function wirePick(selId, inputId) {
