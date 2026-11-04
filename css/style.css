@@ -212,7 +212,9 @@ button.badge:hover { box-shadow: 0 0 0 3px rgba(13, 27, 62, .1); }
 .pk-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 8px; }
 .pk-note { color: var(--muted); font-size: 13px; flex: 1; min-width: 200px; }
 .pk-x { margin-left: auto; }
-#btnClearAll { margin-left: auto; color: var(--bad); }
+.sidehead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+#btnClearAll.subtle { padding: 0; font-size: 13px; font-weight: 500; color: var(--faint); }
+#btnClearAll.subtle:hover { color: var(--bad); text-decoration: none; }
 #btnClearAll[hidden] { display: none; }
 .pk-list { max-height: 260px; overflow: auto; display: grid; }
 .pk-row { display: grid; grid-template-columns: 22px 78px 1fr auto; gap: 10px; align-items: center; padding: 8px 6px; border-top: 1px solid var(--line); cursor: pointer; font-size: 14px; color: var(--muted); }

@@ -253,7 +253,7 @@
       status.className = 'status ' + st.level;
       status.textContent = st.text;
       if (S.showErrors && st.level === 'bad') { S.open.set(key, true); setOpen(true); }
-      else if (!S.open.has(key) && (st.level === 'warn' || st.level === 'bad')) setOpen(true);     // needs a look: open it, never close it again by itself
+      else if (opt.autoOpen && !S.open.has(key) && st.level === 'bad') setOpen(true);     // only a line typed by hand opens itself (it is empty and waiting); the rest stay folded
     };
     S.lineRefs.set(key, refresh);
 
@@ -289,7 +289,7 @@
       o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null,       // gone once the amount is typed over
     ];
     const below = o.files.length ? h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x)))) : null;
-    return lineCard(o, { key: l.key, pick: true, status: () => lineStatus(o, 'other'), fields, tags, below, onRemove: () => removeOther(o), removeTitle: 'Remove this line' });
+    return lineCard(o, { key: l.key, pick: true, autoOpen: !!o.manual, status: () => lineStatus(o, 'other'), fields, tags, below, onRemove: () => removeOther(o), removeTitle: 'Remove this line' });
   }
 
   function tollLine(l, tv) {
