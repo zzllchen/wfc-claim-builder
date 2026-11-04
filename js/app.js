@@ -287,6 +287,7 @@
       o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
       o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
       o.planB ? h('span', { class: 'tag hint', text: o.planB }) : null,       // plan B: why Claude was asked, or what looked odd
+      o.dateWarn ? h('span', { class: 'tag hint', text: o.dateWarn }) : null,
       o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null,       // gone once the amount is typed over
     ];
     const below = o.files.length ? h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x)))) : null;
@@ -378,7 +379,14 @@
     return panel;
   }
 
+  // Subsidy petrol slips carry the litres left in the month: the one with more left was bought first, so its date cannot be later
+  function checkOrder() {
+    const slips = S.other.filter((o) => o.bal && o.date);
+    S.other.forEach((o) => { delete o.dateWarn; });
+    Petrol.orderCheck(slips.map((o) => ({ id: o.id, date: o.date, bal: o.bal }))).forEach((w) => { const o = S.other.find((x) => x.id === w.id); if (o) o.dateWarn = w.why; });
+  }
   function renderLines() {
+    checkOrder();
     const box = $('#lines');
     box.textContent = '';
     S.inputs = [];
@@ -742,8 +750,10 @@
       const parts = [];
       const text = await OCR.read(file, {
         collect: parts,
+        enough: (texts) => { const b = Petrol.best(texts, opts); return !!(b.amount && (b.date || b.sure === true)); },       // the second look stops here: an amount that adds up, or an amount and a date
         onStart: () => setOcr(item, 'reading'),
-        good: (t) => { const p = Petrol.parse(t, opts); return !!((p.amount || p.foreign) && p.date && p.sure !== false); },
+        // good enough to stop: an amount and a date, and on a subsidy receipt the sums must add up (item - subsidy = total)
+        good: (t) => { const p = Petrol.parse(t, opts); return !!((p.amount || p.foreign) && p.date && (/subsid|budi/i.test(t) ? p.sure === true : p.sure !== false)); },
       });
       if (!S.other.includes(item)) return;              // removed while waiting
       let r = Petrol.best(parts.length ? parts : [text], opts);          // every reading votes, so one misread digit is outvoted
@@ -767,10 +777,11 @@
       }
       const kind = guessCategory(text);
       if (!r.category && (kind === 'Accommodation' || kind === 'Medical' || kind === 'Parking')) r.category = kind;
+      item.bal = r.bal || null;                         // litres left before and after, for the order check
       applyOcr(item, r);
       if (item.category === 'Accommodation' && !String(item.amount || '').trim()) item.hint = 'Hand-written bill: type the SUB TOTAL (not the deposit) and the check-in date';
       setOcr(item, 'done');
-      if (item.fx || item.hint || item.planB || r.category) renderLines();       // a new type also moves the line to its place in the order
+      if (item.fx || item.hint || item.planB || r.category || item.bal) renderLines();       // a new type also moves the line to its place in the order
     } catch (e) {
       console.warn('OCR failed', e);
       if (!S.other.includes(item)) return;

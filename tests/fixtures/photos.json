@@ -1,0 +1,1349 @@
+{
+"o57": {
+"truth": {
+"date": "2026-10-24",
+"amount": "44.31"
+},
+"pages": [
+"w § roby of\nPE TRoNAg\nTu  TRAD {yy   QR\n{Irgyps SING gy\nLOT oiFlmiage!\nLOT py 5%,          )\nA a? JL BES AR\n5 ac DA8E BY 5    :\n24001 2000  9235p\nPRIMA X   eyo\n  Ee]           RMOE 1g\n22. 29 \\ tRMa | 3; 0/1\nBUDISS Subsid y          “RMS1 gn\n22.2671 URM2  2330/1\nTOTAL                 RM44 34\nSUBSTOY INFORMATION\nPump Price                  RHA S207\nSubsidy Price        EN Elo vg]\n\nPrevious Ba)                236.1630\nRemaining sal           193. 806\n\nINVOICE\n\n\n\nSite Tran No          084336\nP3S STAN                     G01s97\nInvoice No            ieoe4d2\n\n\n\nAC Type               Credit\n\nie          CZFCHS ESS ADRGNA\nApp               Visa Debit\n\n\nThank You ror Visiting\nPETRONAS\nri grrr\nal pain ra                |\n[Ele SLE)\nfe                           4 4      ¥\n4                 EAL ERY\net, Un             [}      le        .\ni J                 I's    4) +           .\nNn             I:       x\nEE        [hei of I) vp\nHe           EY Coed\nRS     b       SE  bo       Lad\nET      OR t      ad\nnL   o   [0 ob    A\n“a,     o Scan for\nSubsidy  Details\nTE J eT A aN\n",
+"",
+""
+],
+"lines": [
+{
+"t": "w § roby of",
+"reads": {
+"h60": "PETRA",
+"h60b": "PETRA,",
+"h90b": "PETRA,"
+}
+},
+{
+"t": "PE TRoNAg",
+"reads": {
+"h60": "PERO,",
+"h60b": "PE YRong",
+"h90b": "a PETRONAG"
+}
+},
+{
+"t": "Tu TRAD {yy QR",
+"reads": {
+"h60": "TY Thang",
+"h60b": "MAY LY ' Rap ng Fe",
+"h90b": "REY TRA,"
+}
+},
+{
+"t": "{Irgyps SING gy",
+"reads": {
+"h60": "4 {Ibo gg HIGLEY",
+"h60b": "b (x POIRLY Sn gg",
+"h90b": ". (IPO 15 4g INGLE"
+}
+},
+{
+"t": "LOT oiFlmiage!",
+"reads": {
+"h60": "",
+"h60b": "LOT py oiBldsgyy",
+"h90b": "LOT py or oldasyy"
+}
+},
+{
+"t": "LOT py 5%, )",
+"reads": {
+"h60": "LOT py 575 85Ty",
+"h60b": "LOT py 555 8ST)",
+"h90b": "LOT py 5g 8ST)"
+}
+},
+{
+"t": "A a? JL BES AR",
+"reads": {
+"h60": "Basan tN Besa",
+"h60b": "Basen N BEsag",
+"h90b": "Basar tN Besa"
+}
+},
+{
+"t": "5 ac DA8E BY 5 :",
+"reads": {
+"h60": "",
+"h60b": "pan 23958015 SESaR",
+"h90b": "pao d088u1p TSAR"
+}
+},
+{
+"t": "24001 2000 9235p",
+"reads": {
+"h60": "Ron 2026 \"gn : Mio",
+"h60b": "200012028 102 300m",
+"h90b": "RA0CT2026 02. 200m"
+}
+},
+{
+"t": "PRIMA X eyo",
+"reads": {
+"h60": "PRIMAX of",
+"h60b": "PRIMAX og",
+"h90b": "PRIMAX ot"
+}
+},
+{
+"t": "Ee] RMOE 1g",
+"reads": {
+"h60": "22 ney LL @RrMAa nmi Rio AS",
+"h60b": "22.787 LRM A ~ ey RMOE AS",
+"h90b": "22. na LR MA ~ oy mn RMge CAS"
+}
+},
+{
+"t": "22. 29 \\ tRMa | 3; 0/1",
+"reads": {
+"h60": "22. 2870LiRMA 300",
+"h60b": "22. 2870iRMa 30 /y",
+"h90b": "22. 2870iRMa 300 /)"
+}
+},
+{
+"t": "BUDISS Subsid y “RMS1 gn",
+"reads": {
+"h60": "",
+"h60b": "BUDTSS Subsidy 0 Lo",
+"h90b": "BuD1ss Subsidy TE 1.82"
+}
+},
+{
+"t": "22.2671 URM2 2330/1",
+"reads": {
+"h60": "22.267 LRM 2360/1",
+"h60b": "22. 2671LERM2 2330/1",
+"h90b": "22. 267LRM2 230,"
+}
+},
+{
+"t": "TOTAL RM44 34",
+"reads": {
+"h60": "TOTAL RM44 121",
+"h60b": "TOTAL RM44 11",
+"h90b": ""
+}
+},
+{
+"t": "SUBSTOY INFORMATION",
+"reads": {
+"h60": "SUBSTOY TNFORMAT ON",
+"h60b": "SUBST DY TNFORMAT [ON",
+"h90b": "SUBST D VO INFORMAT JON"
+}
+},
+{
+"t": "Pump Price RHA S207",
+"reads": {
+"h60": "TET TO Cl",
+"h60b": "bmpatice J rion",
+"h90b": "bpatice. J wan"
+}
+},
+{
+"t": "Subsidy Price EN Elo vg]",
+"reads": {
+"h60": "",
+"h60b": "Suhsidy pricallll ar lon",
+"h90b": "Sunsidy ericallll ni con"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "Previous Ba) 236.1630",
+"reads": {
+"h60": "Provious Bal 216, 1001",
+"h60b": "Previous Bal 216. 1631",
+"h90b": "Pray ous Bal 216. rm"
+}
+},
+{
+"t": "Remaining sal 193. 806",
+"reads": {
+"h60": "Remaining gal S03. a",
+"h60b": "Roma ining bal 203. 8061",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "Ty = ’ to i Ge 2216625 an",
+"h60b": "BOERT No BBIRRER 1 tno Lasoo 10",
+"h90b": "Re Re! No. Ce 165 LAG 10"
+}
+},
+{
+"t": "INVOICE",
+"reads": {
+"h60": "INVOICE",
+"h60b": "INVOICE",
+"h90b": "INVOICE"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "gard Desc a : Visa",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": "ye ras nal re Tole TATA b1s40306"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "Bre Td i: 29205001635 350",
+"h60b": "",
+"h90b": "Site rd & 39205001620 3601"
+}
+},
+{
+"t": "Site Tran No 084336",
+"reads": {
+"h60": "",
+"h60b": "Site Tran NG PRT ooasas",
+"h90b": "Site Tran NO ORT osasce"
+}
+},
+{
+"t": "P3S STAN G01s97",
+"reads": {
+"h60": "",
+"h60b": "pos ran Tif £01597",
+"h90b": "Pos ‘gran Til 601597"
+}
+},
+{
+"t": "Invoice No ieoe4d2",
+"reads": {
+"h60": "Jets Li NI Or\" A 160047",
+"h60b": "Jovoice NO VEY 160042",
+"h90b": "Tovoice NO VE. 0% 160042"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "Hi | 007641351043",
+"h60b": "Ror 0 wovestsnioas",
+"h90b": "Ret il. 007841383005"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "Tard ig 255808 | 1 bons",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "Carg Exp ON et, Sd wl ud A a Lh",
+"h60b": "Badlepll,. IE re",
+"h90b": ""
+}
+}
+]
+},
+"o58": {
+"truth": {
+"date": "2026-10-29",
+"amount": "58.37",
+"station": "Kejayaan Teguh Enterprise",
+"receiptNo": "60770c"
+},
+"pages": [
+"PETRONAS\nKEJAYAAN TEGUH EN\n0021401458 -V      :\nLOT +  301. BPN 74094 TMN EQUINI\n03-89453573\n200CT2026 09:53PM\nPRIMAY g5           RM129 65\n    29. 3320LERM4 , 420/1    i\nBUDTOS subsidy       -RM71.28\n29 332LARM2 . 430/L\nTOTAL                       RMS8. 37\nSUBSIDY INFORMATION\nPump orice                RMA, 4260/1\nSubsidy price            RM. 9090/1\n\nPrevious pal              163. 836!\nRemaining pal                164.5034\nCE Rei No      SFE D043R2ABOGHOE LH\nINVOICE\n\n\n\nSite Tran No          216680\n\nInvoice No            GA770C\n\n\n\nAC Type               Credit\n\nTHE                                  EOGAZCE7FODDEFOF\nApp               Visa Debit\n\n\nEarn up to 3x Mesra points!\nGer SETEL Now!               ,\nThank You For visiting\nPETRONAS\nHAA]\nEE\na mT  ’   Fi\nof   L    fe]\nte  13\nPr.  Ede    N  *  3\nfo Av  id   ep\nREE    fas\n(w] AA\nscan for  potafl           d\n>           .     -    ~  dv   welitased\nEthno i ¢ e & Subsid\n—\n"
+],
+"lines": [
+{
+"t": "PETRONAS",
+"reads": {
+"h60": "PETRONAS",
+"h60b": "PETRONAS",
+"h90b": "PETRONAS"
+}
+},
+{
+"t": "KEJAYAAN TEGUH EN",
+"reads": {
+"h60": "KEJAYAAN TEGUH ENT",
+"h60b": "KEJAYAAN TEGUH ENT",
+"h90b": "KEJAYAAN TEGUH ENT"
+}
+},
+{
+"t": "0021401458 -V :",
+"reads": {
+"h60": "001401458 = Vo ait SL pee peach EE I",
+"h60b": "00 1401458 £ A txt \"IT",
+"h90b": "00 1401458 if Vi ww.) J JT.iibk4d"
+}
+},
+{
+"t": "LOT + 301. BPN 74094 TMN EQUINI",
+"reads": {
+"h60": "LOT 85391, py 7404 TMN EQUINE",
+"h60b": "LOT 55301. pn 7404 TMN EQUINE",
+"h90b": "LOT 85301 pN 7404 TMN EQUINE"
+}
+},
+{
+"t": "03-89453573",
+"reads": {
+"h60": "03-89453573",
+"h60b": "03-89453573",
+"h90b": "03-80453573"
+}
+},
+{
+"t": "200CT2026 09:53PM",
+"reads": {
+"h60": "200CT2026 09:53PM",
+"h60b": "200CT2026 00:53PM",
+"h90b": "200CT2026 00:53PM"
+}
+},
+{
+"t": "PRIMAY g5 RM129 65",
+"reads": {
+"h60": "PRIMAX 95 M129. 65",
+"h60b": "PRIMAX of | RM129.65",
+"h90b": "PRIMAX gf | RM129 .65"
+}
+},
+{
+"t": "29. 3320LERM4 , 420/1 i",
+"reads": {
+"h60": "79. 3320L@RM4. 42078 HE",
+"h60b": "29 332L@RM4 42076 FE",
+"h90b": "Cad, 332LkM4a i 420/% 01%"
+}
+},
+{
+"t": "BUDTOS subsidy -RM71.28",
+"reads": {
+"h60": "BUDTOS subsidy -RM71.28",
+"h60b": "BUDTOS Subsidy ~~ -RM71.28",
+"h90b": "BUDTOS Subsidy ~~ -RM71.28"
+}
+},
+{
+"t": "29 332LARM2 . 430/L",
+"reads": {
+"h60": "29. 332LERMZ . 430/L",
+"h60b": "29. 332L{ERMZ . 430/L",
+"h90b": "29. 332LARMZ. 430/L"
+}
+},
+{
+"t": "TOTAL RMS8. 37",
+"reads": {
+"h60": "TOTAL RMS8 . 37",
+"h60b": "FOTAL RMS8 . 37",
+"h90b": "[TOTAL RMS8 . 37"
+}
+},
+{
+"t": "SUBSIDY INFORMATION",
+"reads": {
+"h60": "SUBSE LY INFORMATION",
+"h60b": "SUBSIDY INFORMATION",
+"h90b": "SUBSIDY INFORMATION"
+}
+},
+{
+"t": "Pump orice RMA, 4260/1",
+"reads": {
+"h60": "Pump Price RM4.426/0",
+"h60b": "Pimp Dr ice Re [XMA 420/11",
+"h90b": "Pump Price RMA.420/1"
+}
+},
+{
+"t": "Subsidy price RM. 9090/1",
+"reads": {
+"h60": "",
+"h60b": "Subsidy price RM. 9906/1",
+"h90b": "Subsidy Pr ice RM 9906/1."
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "Previous pal 163. 836!",
+"reads": {
+"h60": "Previous pal 193. 8361",
+"h60b": "Previous ial 193. 8361",
+"h90b": "Previous ial 193. G61"
+}
+},
+{
+"t": "Remaining pal 164.5034",
+"reads": {
+"h60": "Remaining gal 164. B0AL",
+"h60b": "Remaining gal 164. E0AL",
+"h90b": "Remaining gal 164. EO4AL"
+}
+},
+{
+"t": "CE Rei No SFE D043R2ABOGHOE LH",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "INVOICE",
+"reads": {
+"h60": "INVOICE",
+"h60b": "INVOICE",
+"h90b": "INVOICE"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "Cara : Desc J visa",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "Site Tran No 216680",
+"reads": {
+"h60": "Site Tran No 2166380",
+"h60b": "Site Tran No 2166030",
+"h90b": "Site Tran No 2166080"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "PCS STAN DH7553",
+"h90b": ""
+}
+},
+{
+"t": "Invoice No GA770C",
+"reads": {
+"h60": "Invoice NG G6O770C",
+"h60b": "Invoice NO GO770C",
+"h90b": "Invoice NO GO770C"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": "Ret OE7951135419"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "AC Type Credit",
+"reads": {
+"h60": "AC Type Credit",
+"h60b": "AC Type Credit",
+"h90b": "AC Type ; Credit"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "B.ApEroval 402047",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "THE EOGAZCE7FODDEFOF",
+"reads": {
+"h60": "1i# EOBAZCE7FODDS FEOF",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "App Visa Debit",
+"reads": {
+"h60": "App Visa Debit",
+"h60b": "App Visa Debit",
+"h90b": "App Visa Debit"
+}
+}
+]
+},
+"o55": {
+"truth": {
+"date": "2026-10-03",
+"amount": "49.91"
+},
+"pages": [
+"Vi  1 \\   TATA\nHe ERONAD\nNO LAGS -\\/\nJIN\ny                  (31   ;\ni               ;          ME 4  L7\ntO IAL                        KM49 91\n{   id  ORME LON\nPUY   i                Fopa   |\nwitad MNumbog            hi}\nProv     iad               IRIE ETRIOH\nRoma avipa Bal         IRS\n  5  {  :        fli   RRR IRIN]\nIRVOLICE\nTACO DE                  158\nfarmival                  [RICE ERISIoIS!\n1h   {Ere        1533608046202 16G1\nSite Tram NO             LRAT AQ\n\nAvoice No             dfg349\n311           GEGEO1147 ARG\n\nCand Bxp               XAARY\nri  ES a                 Cred\nAl   L yx                    Sy fi (a !\n\nIt            FOASNEB3TRAYEZEO\nABD                      Visa Debit\napf           HEOGREHEILOTE\nBEPROVED GU\nEdi ali io Six. Mes Pa poin tt\nGel SETEL Now!\nthank You For   1% Ling\nPETRONLS\nTra 2 Boke © \"ug   roy\nfat >       i\ni; dir rh HAR)\nCOR A = ST\nBOP LEY   fe 4 a>\nty Ra 1 Yor a A i\nSEMA EY\n a 1 AAA px\n:   lg dete, Be\nfn   gt Aang tod\nh,   WV   4 Bc i Fl\nEI Rg, Er\nscan ros\nro odnvoice & Subsidy peta\n",
+"",
+"=\nBe:            =\n~\nA                       =                  -\n\n=                      L\n>     i\n\n+  yl\n\n"
+],
+"lines": [
+{
+"t": "Vi 1 \\ TATA",
+"reads": {
+"h60": "de TY A",
+"h60b": "die TY20 30 4",
+"h90b": "Jo TY203 0 AN"
+}
+},
+{
+"t": "He ERONAD",
+"reads": {
+"h60": "PE TRONAS",
+"h60b": "PE TRONAS",
+"h90b": "PE ITRONAS"
+}
+},
+{
+"t": "NO LAGS -\\/",
+"reads": {
+"h60": "4E1455 -\\V",
+"h60b": "J401458 -\\V",
+"h90b": "JO 1458 -V"
+}
+},
+{
+"t": "JIN",
+"reads": {
+"h60": "TNE",
+"h60b": "INE",
+"h90b": "UTNE"
+}
+},
+{
+"t": "y (31 ;",
+"reads": {
+"h60": "LAMAX QL RINL1S",
+"h60b": "LIMAX QL RIN113.",
+"h90b": "LIMAX OY RIN1L13"
+}
+},
+{
+"t": "i ; ME 4 L7",
+"reads": {
+"h60": "UHIOS Subsidy - R63 dr",
+"h60b": "UPTOS Subsidy -RME3 47",
+"h90b": "UPTO Subsidy -RME3 47"
+}
+},
+{
+"t": "tO IAL KM49 91",
+"reads": {
+"h60": "v1 Al KM49. 91",
+"h60b": "tG IAL RM49 91",
+"h90b": "tO ALR Ki49 91"
+}
+},
+{
+"t": "{ id ORME LON",
+"reads": {
+"h60": "Lr ANF ORMAT LON",
+"h60b": "Le LAME ORMAT LON",
+"h90b": "Le LMF ORMAT LON"
+}
+},
+{
+"t": "PUY i Fopa |",
+"reads": {
+"h60": "SARIS By 1.00 FMA foe",
+"h60b": "Pang Prace FEMA Fo,",
+"h90b": "Puig: I'rrce FEMA Coe,"
+}
+},
+{
+"t": "witad MNumbog hi}",
+"reads": {
+"h60": "By ad STRREY, SRR ad",
+"h60b": "My ad PGi : ES 14 TE",
+"h90b": "My foal STR IeY : PRE VLE"
+}
+},
+{
+"t": "Prov iad IRIE ETRIOH",
+"reads": {
+"h60": "Prov oes iad S{CIENRRTRISY",
+"h60b": "Prov ios tad S10 RIRRTRIDY",
+"h90b": "Proviso S10 EINE IRIST"
+}
+},
+{
+"t": "Roma avipa Bal IRS",
+"reads": {
+"h60": "Rema iaing Bal | LF BRR",
+"h60b": "Remaining Bal | “rh 93",
+"h90b": "Rema iaing Bal | “fALUT"
+}
+},
+{
+"t": "5 { : fli RRR IRIN]",
+"reads": {
+"h60": "bad ida i i CRT SE RTT ATS OR ER SENT",
+"h60b": "ad ERE NO. g ERS SUDA PAE LN BERNE IRISH K",
+"h90b": "3 NEE) Nu. : EP ESTAS LN BPR ELE CN E"
+}
+},
+{
+"t": "IRVOLICE",
+"reads": {
+"h60": "ARVOLICE",
+"h60b": "ARVOICE",
+"h90b": "AikVOiICE"
+}
+},
+{
+"t": "TACO DE 158",
+"reads": {
+"h60": "Bard Dest Viaa",
+"h60b": "cara Deg Visa",
+"h90b": "Sard Desc Visa"
+}
+},
+{
+"t": "farmival [RICE ERISIoIS!",
+"reads": {
+"h60": "ferminal ir nh COGE4 0005",
+"h60b": "Ferminal ir p 364/005",
+"h90b": "farminal 06470005"
+}
+},
+{
+"t": "1h {Ere 1533608046202 16G1",
+"reads": {
+"h60": "site Td J A500 cago 164",
+"h60b": "1 te Td 8 A553e06ca880bvG4a",
+"h90b": "te Id dB As3eescasiol 164"
+}
+},
+{
+"t": "Site Tram NO LRAT AQ",
+"reads": {
+"h60": "grte Tran NO 247 a4",
+"h60b": "Site Tran NO SANT AA",
+"h90b": "Site Tran NO 2347 44"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "POS SEY AN 232883",
+"h60b": "OS STAN © RR2BB7",
+"h90b": ""
+}
+},
+{
+"t": "Avoice No dfg349",
+"reads": {
+"h60": "He) VO iow NO de 3a9",
+"h60b": "favoice No dTf8349",
+"h90b": "[Avoice NO dre349"
+}
+},
+{
+"t": "311 GEGEO1147 ARG",
+"reads": {
+"h60": "Sf BELGE 1147 ARG",
+"h60b": "er AGEBH 11471380",
+"h90b": "er ; OGGO1147 120"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "CAT] ADFROBG, 983",
+"h60b": "",
+"h90b": "Caro 405686... .28a%"
+}
+},
+{
+"t": "Cand Bxp XAARY",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "ri ES a Cred",
+"reads": {
+"h60": "AC Tyne Crean",
+"h60b": "AC Tne Credit",
+"h90b": "AC Type Credit"
+}
+},
+{
+"t": "Al L yx Sy fi (a !",
+"reads": {
+"h60": "AC Type Creda",
+"h60b": "AC Type Credat",
+"h90b": "AC Type Creda"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "It FOASNEB3TRAYEZEO",
+"reads": {
+"h60": "re FOLDS IEQORESED",
+"h60b": "IC FOLDS IEQBESED",
+"h90b": "rc FOA3D3031EQ8F8EQ"
+}
+},
+{
+"t": "ABD Visa Debit",
+"reads": {
+"h60": "ABD Misa. Debit",
+"h60b": "AD Visa Debit",
+"h90b": "AD Visa Debit"
+}
+},
+{
+"t": "apf HEOGREHEILOTE",
+"reads": {
+"h60": "pn IO AOGOGRBHGILO 10",
+"h60b": "“pp LO AQCOGREOGILO LU",
+"h90b": "“pn 10 ADOOGREOGILOLU"
+}
+},
+{
+"t": "BEPROVED GU",
+"reads": {
+"h60": "SPPRUOYVED GUO",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "Edi ali io Six. Mes Pa poin tt",
+"reads": {
+"h60": "Edie ali Uo Gx. Mesa points!",
+"h60b": "Fain Li Lo 3x Mesa Points!",
+"h90b": "Fail Lf LO Sx Mesra points!"
+}
+},
+{
+"t": "Gel SETEL Now!",
+"reads": {
+"h60": "Get SETEL Now!",
+"h60b": "Get SETFEL NOW !",
+"h90b": "Get SETEL Now!"
+}
+}
+]
+},
+"o54": {
+"truth": {
+"date": "2026-10-11",
+"amount": "55.64",
+"station": "Kejayaan Teguh Enterprise"
+},
+"pages": [
+"PETRONAS       :\nKEJAYAAN TEGUH ENT           ;\nP0140 1458 -V            F\nOf  > S3H, MH 7404 TMN COU NE     b\nD3-89453573            ;\n11OCT20268 014 39kM\nPRIMAX 95           RMi36.57\n27 U6OLURMA 6700/1\nBUDISH subsidy      -RMY74 93\n27 DEOLIRM2 688 /1.\nTO1AL                         RMS Ga      g\nSUBS LLY INFORMAT TON                 i\nPump Proce             WMA Grad\nSubsidy Pyice           IME G6     ;\n\nPrevious Bal              PLAIN)\nfeema in big Bal               246\ncoi ef Mo.       FE IADAGGN FENG 0\nINVOXCE\n\nferminal            65470007\nSligo         AB3LLOBAGEOL161          pe\nSree Tran NG              235905           )\n\n:                             Cae\nInvoice NO            5ce50bh   CN\n\nee eae       Ney re     BE\n\n\niS            die 7\nAC Type                 Credit     vn\nB.ALDIoval                     205084        Co\nIC               GLHERDEAEGGDBOOF        War\n        APP               visa Debit\n|        Anp LU        AOOOAECOOO3101E\n|\n|                                            |\n\noak\nEarn Up to 3x Mesia points!       By\nGet SETEL How!                a\nEy                         Wm           Ee\nThank You for visiting           i\nPET IRONAS                      Cl\nFE)\n[alge              r\nPome Fo       i               p\n4         #   ni                 pr      se\n  ge fl    3d              BE     Ie\nVcd       i\"           I   J\n                i\non,   rind    Fe                  E\nZin\n»                 oo     .\n{a}  4    Fh A                    ji\nscan for                  x     All\nF-Invoice & Sabisidy petails        gn\nEe eS\n  es. dai      /\nLN   :\nCe a\nCe\n",
+"",
+""
+],
+"lines": [
+{
+"t": "PETRONAS :",
+"reads": {
+"h60": "PETRONAS :",
+"h60b": "PETRONAS i",
+"h90b": "PETRONAS"
+}
+},
+{
+"t": "KEJAYAAN TEGUH ENT ;",
+"reads": {
+"h60": "KEJAYAAN TEGUH ENT 5",
+"h60b": "KEJAYAAN TEGUH ENT 3",
+"h90b": "KEJAYAAN TEGUH ENT !"
+}
+},
+{
+"t": "P0140 1458 -V F",
+"reads": {
+"h60": "£01401458.v v",
+"h60b": "f01401458-v v",
+"h90b": "001401458-v v"
+}
+},
+{
+"t": "Of > S3H, MH 7404 TMN COU NE b",
+"reads": {
+"h60": "LOT 53391, Bl 7404 TMN eQuing 4)",
+"h60b": "LOT 53391, BN 7404 TMN eQuing i",
+"h90b": "LOT 58391, BN 7404 TMN eQuing 4"
+}
+},
+{
+"t": "D3-89453573 ;",
+"reads": {
+"h60": "D3-804%3%73 aE i",
+"h60b": "03-894%3573 ar jo",
+"h90b": "D3-8904%3573 ry i"
+}
+},
+{
+"t": "11OCT20268 014 39kM",
+"reads": {
+"h60": "11QC 20268 01. 39FM",
+"h60b": "11QC 2026 ©1; 39FPM",
+"h90b": "11QC 2026 01; 39M"
+}
+},
+{
+"t": "PRIMAX 95 RMi36.57",
+"reads": {
+"h60": "PRIMAX 9% RMA 30.57 i",
+"h60b": "PRIMAX 95 RM 30.57 g",
+"h90b": "PRIMAX 95 RM 30.57 \""
+}
+},
+{
+"t": "27 U6OLURMA 6700/1",
+"reads": {
+"h60": "27 D66LURMA 6/0/L",
+"h60b": "27 O9GO0LURMA 670/L",
+"h90b": "27 UGOLUMRMA 670/L"
+}
+},
+{
+"t": "BUDISH subsidy -RMY74 93",
+"reads": {
+"h60": "BLUDISY Subsidy SRM74 93",
+"h60b": "BUDISH Subsidy -RM74 93",
+"h90b": "BUDISS subsidy -RM7 4 93"
+}
+},
+{
+"t": "27 DEOLIRM2 688 /1.",
+"reads": {
+"h60": "27 DUOLIRM2  6ED/ LL",
+"h60b": "27 DEOLIRMZ  680/L",
+"h90b": "S7 DOOLIIRMZ GED / IL"
+}
+},
+{
+"t": "TO1AL RMS Ga g",
+"reads": {
+"h60": "TOA RMES 6a",
+"h60b": "OTA RMS 64 :",
+"h90b": "TOTAL RMSS 64 :"
+}
+},
+{
+"t": "SUBS LLY INFORMAT TON i",
+"reads": {
+"h60": "SUBS LLY INPFORMAT TON by",
+"h60b": "SUBS LLY INFORMAT TON i*",
+"h90b": "SUBS LLY INFORMAT TON yy"
+}
+},
+{
+"t": "Pump Proce WMA Grad",
+"reads": {
+"h60": "Clip Pt ENE NCERNSNIE VE",
+"h60b": "Pump Price RMA LG rag",
+"h90b": "ump ee KM. G70"
+}
+},
+{
+"t": "Subsidy Pyice IME G6 ;",
+"reads": {
+"h60": "Subs id J A ROE RE i G61 :",
+"h60b": "Subs dy Hy LCi i G01 ;",
+"h90b": "subsidy by dee M100"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "My had Lambe ARERR",
+"h60b": "My haul Lamhe EAB ART TY",
+"h90b": "MY hud Lambe FALARRRT TY"
+}
+},
+{
+"t": "Previous Bal PLAIN)",
+"reads": {
+"h60": "Previous Bal 274.91 or",
+"h60b": "i EV OUS ited 214.9 To",
+"h90b": "if evious pal 24.9 To]"
+}
+},
+{
+"t": "feema in big Bal 246",
+"reads": {
+"h60": "RSH RARELTE Ral 246, GE",
+"h60b": "forma RARE fal 246, SN",
+"h90b": "Foe RARELY fal 246,"
+}
+},
+{
+"t": "coi ef Mo. FE IADAGGN FENG 0",
+"reads": {
+"h60": "sor pet Mat. aT ADAG LH 8)",
+"h60b": "Cot pot Yi TE 2IADAOOM TERE",
+"h90b": "oor ot Mao TEI FOE"
+}
+},
+{
+"t": "INVOXCE",
+"reads": {
+"h60": "INVOICE",
+"h60b": "INVOICE",
+"h90b": "INVOICE"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "ferminal 65470007",
+"reads": {
+"h60": "Terpinal GRA 70007",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "Sligo AB3LLOBAGEOL161 pe",
+"reads": {
+"h60": "Siieugd LC AB3GRO0AGEORIG] me",
+"h60b": "Sitewdd A336BOGAGEO2161 ae",
+"h90b": "Siteudd 433600046202161 re"
+}
+},
+{
+"t": "Sree Tran NG 235905 )",
+"reads": {
+"h60": "tite Tran No senor PY",
+"h60b": "Site Tran No 0 Ao esony",
+"h90b": "Cite Tran No 205095 gg"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "PGS STAN 205377 SHEE",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": ": Cae",
+"reads": {
+"h60": "UE ted PD fo:",
+"h60b": "UT rd | i fg",
+"h90b": "Ot rea i ey ai"
+}
+},
+{
+"t": "Invoice NO 5ce50bh CN",
+"reads": {
+"h60": "Tnvoice Mo 5ccseh . SHEER ©",
+"h60b": "invoice No Sccseb. SEER ©",
+"h90b": "invoice Mo Scceeb. SEER"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "ee eae Ney re BE",
+"reads": {
+"h60": "Fi As ER TA",
+"h60b": "Fin A",
+"h90b": "Foch AEE I, 00"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "Sang ep Jrexe SE",
+"h60b": "Gard exp Jrrxx",
+"h90b": ""
+}
+},
+{
+"t": "iS die 7",
+"reads": {
+"h60": "RACE ©",
+"h60b": "RAE ©",
+"h90b": "ie EE"
+}
+},
+{
+"t": "AC Type Credit vn",
+"reads": {
+"h60": "AC Type Credit GHA",
+"h60b": "AC Type Credit (ER",
+"h90b": "AC Type Credit QE"
+}
+}
+]
+},
+"o56": {
+"truth": {
+"date": "2026-10-20",
+"amount": "61.40",
+"station": "Kejayaan Teguh Enterprise"
+},
+"pages": [
+"PETRONAS\nKEJAYAAN TEGUM ENT\nCE1461458 Vv\nLOT B35391, A   OR  MN EQUINE\n} 3 « 59445  yi\n[OI]   2026   (OF    “pm\nPRIMAX 6&5           RMA42 54\nJEL SE2 LRM 6820/1\nBUDIGE Subsidy        RMB, 14\n30 BS2LAMRM2 6308/1\nTOTAL                        RMG1. 40\nSUBSIDY INFORMAT LON\nPump Price                 RMA. 6206/1\nSubsidy Py jco  Hy  Sr\n\nPrevious Bal                 246, 955\nRemaining bal             216.103\nChi Ret ho,       FE 2AGIL0SLB006H 10\nINVOICE\n\nTerinlnal            BELTER07T\nsited             SRAG0E0A6002161\nSite TranBno        208050\n\nInvoice No              6cd3es\nRed                         REEVE 1128356\n\n\nAC Type             Credit\n\n\nApp               visa Debit\nApp 10                 SAEOEEOOBER10106\n!        Li              %     om             Ni\n\n|\nEarn up to 3x Mesra points\nGet SETEL Now!\nThank You For visi ting\nPETRONAS\ncrt op pp wt\nLIE   Yklu)\n0g att 08 ft\nSRY pt\na PE TY TE\nDRE Eth\nVe En 8 1°)\nArT Ag\naga\n[a] foptond,    Ag                     ;\nscan for\n\\        E-Tavoice & Subsidy petails\n",
+"=i\n\nHn\n\nms   {   =\n—      =   &\nwy      <<\noC   Tam\n\n0 <   i)    o\ni   =\n—     2\n=     re\n“     .\n174      f\n\n—— © © MCN. MA\n",
+"2h Fg\n\n1\n\n"
+],
+"lines": [
+{
+"t": "PETRONAS",
+"reads": {
+"h60": "PETRONAS",
+"h60b": "PETRONAS",
+"h90b": "PETRONAS"
+}
+},
+{
+"t": "KEJAYAAN TEGUM ENT",
+"reads": {
+"h60": "KEJAYAAN TEGUN ENT",
+"h60b": "KEJAYAALAN TEGUHM ENT",
+"h90b": "KEJAYAAN TEGUH ENT"
+}
+},
+{
+"t": "CE1461458 Vv",
+"reads": {
+"h60": "01461452",
+"h60b": "01461452",
+"h90b": "C0146 14A52"
+}
+},
+{
+"t": "LOT B35391, A OR MN EQUINE",
+"reads": {
+"h60": "LOT H33Y 1 ; PN 7404 MN EQUINE",
+"h60b": "LOT D3I391, PN 7404 ITMN EQUINE",
+"h90b": "LOT 55391 PN 7404 TMN EQUINE"
+}
+},
+{
+"t": "} 3 « 59445 yi",
+"reads": {
+"h60": "G3 -8BO0N05H7 3",
+"h60b": "H3-BOIEI57 3",
+"h90b": "H3-ROAEI57 3"
+}
+},
+{
+"t": "[OI] 2026 (OF “pm",
+"reads": {
+"h60": "LOULTZO26 OF 30PM",
+"h60b": "SOUL TZO26 08 30pPM",
+"h90b": "JOULTZO26 08 30PM"
+}
+},
+{
+"t": "PRIMAX 6&5 RMA42 54",
+"reads": {
+"h60": "PRIMAX 5 RM142 54",
+"h60b": "PRIMAX 65 RM142 54",
+"h90b": "PRIMAX 65 RM142 54"
+}
+},
+{
+"t": "JEL SE2 LRM 6820/1",
+"reads": {
+"h60": "JE. H52LERM4A 620/1L",
+"h60b": "JE. 852LRM4 6200/1",
+"h90b": "338. 852LRM4 6260/1"
+}
+},
+{
+"t": "BUDIGE Subsidy RMB, 14",
+"reads": {
+"h60": "BUDISS Subsidy -RMB1 . 14",
+"h60b": "BUDISS Subsidy -RM81 . 14",
+"h90b": "BUDISS Subsidy -RM81 . 14"
+}
+},
+{
+"t": "30 BS2LAMRM2 6308/1",
+"reads": {
+"h60": "36, BE 2LARM2 6836/1",
+"h60b": "30.8682 1LARM2 . 636 /1",
+"h90b": "30.88 2L4RM2 . 6236/1"
+}
+},
+{
+"t": "TOTAL RMG1. 40",
+"reads": {
+"h60": "TOTAL RMOG1. 40",
+"h60b": "TOTAL RMG1. 40",
+"h90b": "TOTAL RMO61 40"
+}
+},
+{
+"t": "SUBSIDY INFORMAT LON",
+"reads": {
+"h60": "SUBSIDY INFORMATION",
+"h60b": "SUBSIDY INFORMAT LON",
+"h90b": "SUBSIDY INFORMAT LON"
+}
+},
+{
+"t": "Pump Price RMA. 6206/1",
+"reads": {
+"h60": "Putip Price RMA 620/71",
+"h60b": "Pup P iGo RMA 6200/1]",
+"h90b": "HY P TE MA E20 /"
+}
+},
+{
+"t": "Subsidy Py jco Hy Sr",
+"reads": {
+"h60": "pubtsidy Byles Loan",
+"h60b": "Subsidy price a va0/1",
+"h90b": "Subsidy Ls i - na Jd * pg a"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "Previous Bal 246, 955",
+"reads": {
+"h60": "Bravious ml, PAB an",
+"h60b": "Previous fal 246, 905i",
+"h90b": "Previous al Bat on!"
+}
+},
+{
+"t": "Remaining bal 216.103",
+"reads": {
+"h60": "Roma Hi ng bal pe Pf, 103",
+"h60b": "Roa Hing Bil 206. 1631",
+"h90b": "Roma Hing HER A 216. 1603]"
+}
+},
+{
+"t": "Chi Ret ho, FE 2AGIL0SLB006H 10",
+"reads": {
+"h60": "ChE Red Mics TR dB 0 AQT BO060 i 0",
+"h60b": "CD Red NG *Rt 2 19 75,630 BE000 i 0)",
+"h90b": "CD INE | hich . * Eat 2 } 1, {! oy 3 Hil 0) 1 0)"
+}
+},
+{
+"t": "INVOICE",
+"reads": {
+"h60": "INVOICE",
+"h60b": "INVOYCE",
+"h90b": "INVOICE"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "Terinlnal BELTER07T",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "sited SRAG0E0A6002161",
+"reads": {
+"h60": "Si te Td 3 4 2RGOERAE ~@ - 16 1",
+"h60b": "Bite Td § 0 4323000046202161",
+"h90b": "Bite Td § 0 4230060006202161"
+}
+},
+{
+"t": "Site TranBno 208050",
+"reads": {
+"h60": "Site Trankno 2OBOLE",
+"h60b": "Site Trango 208050",
+"h90b": "Site Trafigho 2QE050"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "Invoice No 6cd3es",
+"reads": {
+"h60": "ITNvolice No Geile",
+"h60b": "Invoice NOOO 6cd3es",
+"h90b": "Invoice NO 6cd3el"
+}
+},
+{
+"t": "Red REEVE 1128356",
+"reads": {
+"h60": "Ret BEERS 1128358",
+"h60b": "Ret © EE 066951128366",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "AC Type Credit",
+"reads": {
+"h60": "AC Type Credit",
+"h60b": "AC Type Credit",
+"h90b": "AC Type Credit"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "B.4pproval . 224984 |",
+"h60b": "B.Apgrovall 2za084 i",
+"h90b": "B.Apgrovall 22.1084 §"
+}
+},
+{
+"t": "",
+"reads": {
+"h60": "ee GL3BECE3D32596F9 \"",
+"h60b": "",
+"h90b": ""
+}
+},
+{
+"t": "App visa Debit",
+"reads": {
+"h60": "APP visa Debit",
+"h60b": "App 3 visa Debit",
+"h90b": "APPS Visa Debit"
+}
+}
+]
+}
+}

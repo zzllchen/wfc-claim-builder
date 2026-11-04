@@ -84,7 +84,9 @@
     c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
     c.getContext('2d', { willReadFrequently: true }).drawImage(bmp, 0, 0, c.width, c.height);
     const crop = paperCrop(bmp, c);               // the paper alone, cut from the full-size photo, straightened, everything else whitened
-    return { full: enhance(c), crop: crop ? enhance(crop) : null };
+    // the same cut-out at the photo's own sharpness (the page reading above is shrunk to keep it quick): single lines are re-read from this one
+    const hi = crop ? paperCrop(bmp, c, 4400, 3) : null;
+    return { full: enhance(c), crop: crop ? enhance(crop) : null, hi: hi ? enhance(hi) : null, hiRatio: hi && crop ? hi.width / crop.width : 1 };
   }
 
   const newCanvas = (w, h) => { const r = document.createElement('canvas'); r.width = Math.max(1, Math.round(w)); r.height = Math.max(1, Math.round(h)); return r; };
@@ -176,11 +178,11 @@
 
   /* The paper cut out of the original full-size photo: enlarged or shrunk so the print is about the size the engine reads best,
      everything that is not paper painted white, and a tilted strip turned upright. */
-  function paperCrop(bmp, c) {
+  function paperCrop(bmp, c, maxSide, maxUp) {
     const f = findPaper(c); if (!f) return null;
     const kx = bmp.width / f.W, ky = bmp.height / f.H;
     const sx = f.box.x * kx, sy = f.box.y * ky, sw = f.box.w * kx, sh = f.box.h * ky;
-    const up = Math.min(2.5, 2800 / Math.max(sw, sh));
+    const up = Math.min(maxUp || 2.5, (maxSide || 2800) / Math.max(sw, sh));
     let r = newCanvas(sw * up, sh * up);
     const ctx = r.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, r.width, r.height);
@@ -197,12 +199,70 @@
     return r;
   }
 
+  /* Faint print (thermal paper, a worn ribbon): a pixel is ink when it is clearly darker than the average around it (Bradley-Roth), which keeps
+     a pale header as readable as a dark total. Returns black ink on white. */
+  function adaptive(src, win, k) {
+    const w = src.width, h = src.height, d = src.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+    const I = new Float64Array((w + 1) * (h + 1));
+    for (let y = 0; y < h; y++) { let row = 0; for (let x = 0; x < w; x++) { row += d[(y * w + x) * 4]; I[(y + 1) * (w + 1) + x + 1] = I[y * (w + 1) + x + 1] + row; } }
+    const r = Math.max(8, win >> 1), out = newCanvas(w, h), o = out.getContext('2d'), od = o.createImageData(w, h);
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
+      for (let x = 0; x < w; x++) {
+        const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r), area = (x1 - x0 + 1) * (y1 - y0 + 1);
+        const mean = (I[(y1 + 1) * (w + 1) + x1 + 1] - I[y0 * (w + 1) + x1 + 1] - I[(y1 + 1) * (w + 1) + x0] + I[y0 * (w + 1) + x0]) / area;
+        const i = (y * w + x) * 4, v = d[i] < mean * (1 - k) ? 0 : 255;
+        od.data[i] = od.data[i + 1] = od.data[i + 2] = v; od.data[i + 3] = 255;
+      }
+    }
+    o.putImageData(od, 0, 0);
+    return out;
+  }
+
   /* One reading of the picture at one page layout: the text and how sure the engine is (0-100). */
-  async function pass(canvas, psm) {
+  async function pass(canvas, psm, withLines) {
     const w = await worker();
     await w.setParameters({ tessedit_pageseg_mode: psm });
-    const { data } = await w.recognize(canvas);
-    return { text: data.text || '', conf: data.confidence || 0 };
+    const { data } = withLines ? await w.recognize(canvas, {}, { blocks: true }) : await w.recognize(canvas);
+    const out = { text: data.text || '', conf: data.confidence || 0 };
+    if (withLines && data.lines) out.lines = data.lines.map((l) => ({ t: String(l.text || '').trim(), b: l.bbox }));
+    return out;
+  }
+
+  /* ---- second look: single lines read again from the sharp cut-out ----
+     The page reading is shrunk to keep it quick, and the engine's page layout analysis mangles dot-matrix print (a date line comes out as
+     "11QCT20286 @71 39M"). Reading one line at a time, at the size the engine likes, with the dots blurred together, fixes most of that. */
+  function lineCanvas(prep, b, v) {
+    const hi = prep.hi || prep.crop, k = prep.hi ? prep.hiRatio : 1, pad = 10 * k;
+    const x0 = Math.max(0, b.x0 * k - pad * 2), y0 = Math.max(0, b.y0 * k - pad);
+    const w = Math.min(hi.width - x0, (b.x1 - b.x0) * k + pad * 4), h = Math.min(hi.height - y0, (b.y1 - b.y0) * k + pad * 2);
+    const scale = Math.max(0.5, Math.min(2.5, v.h / Math.max(8, (b.y1 - b.y0) * k)));
+    const r = newCanvas(w * scale, h * scale), g = r.getContext('2d', { willReadFrequently: true });
+    g.fillStyle = '#fff'; g.fillRect(0, 0, r.width, r.height); g.imageSmoothingQuality = 'high';
+    if (v.blur) g.filter = `blur(${v.blur}px)`;
+    g.drawImage(hi, x0, y0, w, h, 0, 0, r.width, r.height);
+    g.filter = 'none';
+    return v.adapt ? adaptive(r, Math.max(30, Math.round(r.height * 1.2)), 0.1) : r;
+  }
+  // the lines worth a second look: the top of the slip (shop, date) and every line with an amount, a label or a number we need
+  const WORTH = /\d{2}|total|jumlah|subsid|budi|prim|ron|diesel|rm|l\s?@|inv|bal|tran|amount|bayar/i;
+  async function rescue(prep, lines, collect, faint, ok, enough) {
+    if (!lines || !lines.length || !(prep.hi || prep.crop)) return null;
+    // the top of the slip (shop, date, items, total, subsidy) and, further down, only the lines that carry a number we need (balances, invoice no)
+    const want = lines.map((l, i) => ({ l, i })).filter((x) => x.l.b.y1 - x.l.b.y0 >= 12 && (x.i < 14 || /inv|bal|prev|rema|tran/i.test(x.l.t))).slice(0, 18);
+    const w = await worker();
+    await w.setParameters({ tessedit_pageseg_mode: '7' });
+    const variants = faint ? [{ h: 60, adapt: true }, { h: 60, blur: 1.5, adapt: true }, { h: 60 }] : [{ h: 60 }, { h: 60, blur: 1.5 }, { h: 90, blur: 2.5 }];
+    let done = 0;
+    for (const v of variants) {
+      const texts = lines.map((l) => l.t);
+      for (const x of want) { const { data } = await w.recognize(lineCanvas(prep, x.l.b, v)); texts[x.i] = (data.text || '').trim(); }
+      const page = texts.join('\n');
+      collect.push(page); collect.push(page);          // a repaired page counts twice: it is the better reading
+      if (ok && ok(page)) return page;                 // good enough: no need for the other ways of looking
+      if (++done >= 2 && enough && enough(collect)) break;       // two looks agree on an amount and a date: the third would only cost time
+    }
+    return null;
   }
 
   /* the picture turned by 90, 180 or 270 degrees: a receipt held sideways in the frame reads as gibberish until it is turned */
@@ -216,6 +276,10 @@
     return r;
   }
   const alnumCount = (t) => (t.match(/[A-Za-z0-9]/g) || []).length;
+  // how much of a slip a reading really understood: the words every slip has, found even when one letter is wrong (more telling than the length of the text)
+  const VOCAB = ['PETRONAS', 'SUBSIDY', 'TOTAL', 'PRIMAX', 'INVOICE', 'PRICE', 'BALANCE', 'PREVIOUS', 'REMAINING', 'THANK', 'APPROVED', 'TERMINAL', 'RECEIPT', 'AMOUNT', 'CASH', 'CHANGE', 'INFORMATION', 'SHELL', 'CALTEX', 'PUMP'];
+  const dist = (a, b) => { const d = []; for (let i = 0; i <= a.length; i++) d[i] = [i]; for (let j = 1; j <= b.length; j++) d[0][j] = j; for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[a.length][b.length]; };
+  const understood = (t) => String(t).toUpperCase().split(/[^A-Z0-9]+/).filter((w) => w.length >= 4).filter((w) => VOCAB.some((v) => Math.abs(v.length - w.length) <= 1 && dist(w, v) <= 1)).length;
 
   async function resetWorker() {
     const p = workerPromise;
@@ -229,8 +293,8 @@
     const canvas = prep.crop || prep.full;       // the paper alone when it could be found, else the whole picture
     const texts = opts.collect || [];             // the caller may want every reading, not only the text returned
     const ok = (t) => !opts.good || opts.good(t);
-    const attempt = async (cv, psm) => {
-      try { return await pass(cv, psm); }
+    const attempt = async (cv, psm, withLines) => {
+      try { return await pass(cv, psm, withLines); }
       catch (e) {
         safeMode = true;                           // the engine failed to load or crashed: retry the careful way
         await resetWorker();                       // a crashed engine would fail every later photo too
@@ -240,10 +304,27 @@
     };
     let cv = canvas;
     const order = prep.crop ? ['6', '4', '11'] : ['4', '6', '11'];     // on a clean cut-out the block layout reads best
-    const first = await attempt(cv, order[0]);
+    const first = await attempt(cv, order[0], true);
     texts.push(first.text);
     if (ok(first.text)) return first.text;
-    if (prep.turnable !== false && (first.conf < 60 || alnumCount(first.text) < 60)) {      // a poor first look of a PHOTO: the paper may be sideways or upside down in the frame
+    let lines = first.lines && first.lines.length >= 10 && first.conf >= 25 ? first.lines : null;       // a first look that found paper to read (not a sideways photo)
+    let faint = false;
+    if (prep.crop && opts.rescue !== false) {                    // a second look at the same cut-out with faint print brought out
+      const a = await attempt(adaptive(prep.crop, 90, 0.12), '6', true);
+      if (a) {
+        texts.push(a.text);
+        if (ok(a.text)) return a.text;
+        if (a.lines && a.lines.length >= 10 && a.conf >= 25 && (!lines || understood(a.text) > understood(first.text))) { lines = a.lines; faint = !!first.lines && understood(a.text) > understood(first.text); }       // it read clearly more: its lines are the ones to re-read
+      }
+    }
+    if (opts.rescue !== false && lines) {                       // the single-line second look first: it is the one that fixes dot-matrix print
+      let page = null;
+      try { page = await rescue(prep, lines, texts, faint, ok, opts.enough); } catch (e) { console.warn('second look failed', e); }
+      if (page) return page;
+      if (opts.enough && opts.enough(texts)) return texts.join('\n');       // an amount and a date were found: the slower page layouts below add nothing
+    }
+    const upright = /total|jumlah|invoice|receipt|subsid|petronas|RM\s?\d/i.test(first.text) && alnumCount(first.text) > 150;      // the words of a receipt, the right way up: no need to try it sideways
+    if (prep.turnable !== false && !upright && (first.conf < 60 || alnumCount(first.text) < 60)) {      // a poor first look of a PHOTO: the paper may be sideways or upside down in the frame
       let best = { cv: canvas, conf: first.conf };
       for (const deg of [90, 270, 180]) {
         const r = turned(canvas, deg);
@@ -279,5 +360,5 @@
   /* a canvas (e.g. a rendered PDF page) -> recognised text */
   const readCanvas = (canvas, opts) => queue(async () => recognize({ full: enhance(canvas), crop: null, turnable: false }, opts || {}), opts);
 
-  root.OCR = { read, readCanvas, setSafeMode: (on) => { safeMode = !!on; return resetWorker(); } };
+  root.OCR = { read, readCanvas, prepare, setSafeMode: (on) => { safeMode = !!on; return resetWorker(); } };
 })(window);
