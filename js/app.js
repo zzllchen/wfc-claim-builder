@@ -1217,7 +1217,14 @@
       say('info', 'Signing in to Google…');
       try {
         const d = await Gmail.createDraft({ clientId, hint: m.from, makeBlob: () => { say('info', `Putting the ${what} into a Gmail draft…`); return Mail.emlBlob({ to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }); } });
-        say('ok', `The draft is in your Gmail Drafts with the ${what} attached. `, h('a', { href: d.url, target: '_blank', rel: 'noopener', text: 'Open the draft' }), ' and press Send.');
+        // open it straight away; a browser may refuse a new tab this long after the click, then the big button does it
+        const tab = window.open(d.url, '_blank');
+        if (tab) {
+          try { tab.opener = null; } catch (e) { /* cross-origin already */ }
+          say('ok', `Your Gmail draft is open in a new tab with the ${what} attached. Check it and press Send. `, h('a', { href: d.url, target: '_blank', rel: 'noopener', text: 'Open it again' }));
+        } else {
+          say('ok', `Your Gmail draft is ready with the ${what} attached. `, h('a', { class: 'openlink', href: d.url, target: '_blank', rel: 'noopener', text: 'Open the draft and press Send' }));
+        }
       } catch (e) {
         say('bad', String((e && e.message) || e));
       }

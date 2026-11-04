@@ -233,6 +233,8 @@ button.badge:hover { box-shadow: 0 0 0 3px rgba(13, 27, 62, .1); }
 .note.ok { background: var(--blue-50); color: var(--blue-d); }
 .note.info { background: #f6f7fb; color: var(--muted); }
 .note a { color: inherit; font-weight: 650; text-decoration: underline; }
+.note .openlink { display: inline-block; margin-left: 6px; padding: 8px 16px; background: var(--blue); color: #fff; border-radius: 10px; text-decoration: none; }
+.note .openlink:hover { background: var(--blue-d); }
 .gstat:not(:empty) { margin-top: 12px; }
 
 /* email + output */
