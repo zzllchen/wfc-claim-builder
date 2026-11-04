@@ -17,7 +17,7 @@ In the **Save and email** step each person picks their own email from the **From
 
 The expense claim is four steps, one form on screen at a time. The circles at the top (1 Details, 2 Files, 3 Check, 4 Save and email) turn green as each step is filled in completely, and the line between them turns green too. Click any circle to jump to that step, or use the Back / Next buttons. **Save my claim stays locked until all four are green**; the note under it lists what is still missing, with a link to that step.
 
-1. **Details:** claimant, month, optional days off (leave).
+1. **Details:** claimant, month (it opens on **last month**, because October is claimed by 15 Nov and November by 15 Dec), optional days off (leave).
 2. **Files:** one box. Drag everything in at once, paste with Ctrl+V (files copied in Explorer, or a copied image), or click to browse. The app looks inside each file and sorts it:
    - TNG statement PDF: toll rows are read and checked against the rules below.
    - Eleven Labs / Runway style invoice + receipt PDFs: filled in automatically (merchant, date, amount in MYR, invoice number). The invoice and its receipt share one line.

@@ -1292,7 +1292,9 @@
     $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail;
     wirePick('#fromPick', '#fromEmail'); wirePick('#lFromPick', '#lFromEmail');
     const now = new Date();
-    $('#month').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+    // claims are made the month after: October's is claimed by 15 Nov, so the page opens on last month
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    $('#month').value = `${lastMonth.getFullYear()}-${pad(lastMonth.getMonth() + 1)}`;
     $('#lSignDate').value = localIso(now);
 
     $('#claimant').addEventListener('input', () => { cfg.claimant = $('#claimant').value; saveCfg(); updateSummary(); });
