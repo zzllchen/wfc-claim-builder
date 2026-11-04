@@ -12,7 +12,7 @@
   --blue-100: #e5edff;
   --ring: 0 0 0 3px rgba(31, 74, 216, .16);
   --ok: #067647; --ok-bg: #ecfdf3;
-  --warn: #8a5300; --warn-bg: #fffaeb;
+  --warn: #b54708; --warn-bg: #fff0e1;
   --bad: #b42318; --bad-bg: #fff4f3;
   --r: 14px;
 }
@@ -89,7 +89,7 @@ input:hover, select:hover, textarea:hover { border-color: #b9c6e6; }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--blue); box-shadow: var(--ring); }
 input:disabled { background: transparent; border-color: var(--line); color: var(--ink); opacity: 1; }
 input.bad { border-color: #f04438; background: var(--bad-bg); }
-input.guess { border-color: #f2b441; background: var(--warn-bg); }
+input.guess { border-color: #f79009; background: var(--warn-bg); }
 input[type=checkbox] { accent-color: var(--blue); width: 16px; height: 16px; }
 textarea { resize: vertical; line-height: 1.5; }
 
