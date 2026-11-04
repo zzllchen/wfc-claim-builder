@@ -223,7 +223,9 @@
     (known || []).forEach((name) => {
       const ws = words(name);
       if (!ws.length) return;
-      const hits = ws.filter((w) => up.includes(w)).length;
+      // OCR often drops the first or last letters ("JAYAAN TEGUH ENT" for KEJAYAAN TEGUH ENTERPRISE), so a long word also counts
+      // when all but its first two or last two letters are there
+      const hits = ws.filter((w) => up.includes(w) || (w.length >= 7 && (up.includes(w.slice(2)) || up.includes(w.slice(0, -2))))).length;
       if (hits / ws.length >= 0.6 && hits > bestHits) { best = name; bestHits = hits; }
     });
     if (best) return best;
@@ -232,6 +234,10 @@
       const letters = (l.match(/[A-Za-z]/g) || []).length;
       return letters >= 5 && letters / l.length > 0.6 && !NOISE_LINE.test(l);
     };
+    // a clinic prints its name in capitals ("KLINIK PUTRA CARE"); the bare word KLINIK on the first line would otherwise be taken as the
+    // name, so look for the full name anywhere in the text first
+    const clinic = /\b(?:KLINIK|POLIKLINIK|CLINIC|FARMASI)(?:[ \t]+[A-Z][A-Z&.'-]+){1,3}/.exec(text);       // words on the same line only
+    if (clinic) return tidy(clinic[0]);
     const brandAt = lines.findIndex((l) => BRANDS.some((b) => l.toUpperCase().includes(b)) && /[A-Za-z]{4}/.test(l));
     if (brandAt >= 0) {
       // "PETRONAS" on its own line: the dealer's name on the next line is what the claim uses
