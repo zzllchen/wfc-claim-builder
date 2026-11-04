@@ -288,12 +288,22 @@
       if (amt == null && hasMyr(text)) amt = amount(stripForeign(text));
       if (amt == null) foreign = foreignTotal(text);
     } else amt = amount(text);
+    // MBSJ / council "Flexi Parking" monthly receipt (an email, a PDF of it or a screenshot): the Payment line is this month's
+    // fee. The table under it adds the next period too, so its Total (twice the fee) is never the claim.
+    let category = '', stationName = null;
+    if (/flexi\s*parking/i.test(text)) {
+      category = 'Parking';
+      stationName = /\bmbsj\b/i.test(text) ? 'MBSJ Flexi Parking' : 'Flexi Parking';
+      const pay = /\bpayment\s*:?\s*(?:RM|MYR)?\s*(\d{1,3}(?:,\d{3})+|\d+)\s?\.\s?(\d{2})(?!\d)/i.exec(text);
+      if (pay) amt = parseFloat(pay[1].replace(/,/g, '') + '.' + pay[2]);
+    }
     const out = {
       date: (inMonth[0] || ds[0] || ''),
       amount: amt == null ? '' : amt.toFixed(2),
       foreign,
-      station: station(text, opts.stations),
+      station: stationName || station(text, opts.stations),
       receiptNo: receiptNo(text),
+      category,
     };
     out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
     return out;

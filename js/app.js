@@ -753,7 +753,7 @@
         if (!S.other.includes(item)) return;
       }
       const kind = guessCategory(text);
-      if (kind === 'Accommodation' || kind === 'Medical') r.category = kind;
+      if (!r.category && (kind === 'Accommodation' || kind === 'Medical' || kind === 'Parking')) r.category = kind;
       applyOcr(item, r);
       if (item.category === 'Accommodation' && !String(item.amount || '').trim()) item.hint = 'Hand-written bill: type the SUB TOTAL (not the deposit) and the check-in date';
       setOcr(item, 'done');
@@ -769,6 +769,7 @@
   const guessCategory = (text) => (/\b(klinik|clinic|consultation|medication|medical|pharmacy|farmasi|doctor)\b/i.test(text) ? 'Medical'
     : /\b(hotel|motel|room|booking|check-?\s?in|check-?\s?out|accommodation|resort|homestay|guest\s?house|penginapan)\b/i.test(text) ? 'Accommodation'
     : /\b(petrol|diesel|ron\s?9\d|pump|litre|liter)\b/i.test(text) ? 'Petrol'
+    : /\b(flexi\s*parking|parking|car\s?park|mbsj|mbpj|mbsa|mpaj|dbkl)\b/i.test(text) ? 'Parking'
       : /\b(subscription|software|cloud|api|saas)\b/i.test(text) ? 'AI tools' : '');
 
   /* Everything that is not the TNG statement is checked, then becomes a claim line.
@@ -839,7 +840,7 @@
             const auto = {};
             ['date', 'amount', 'receiptNo'].forEach((k) => { if (p[k]) auto[k] = true; });
             if (p.station) auto.name = true;
-            blank({ category: guessCategory(text), name: p.station, date: p.date, amount: p.amount, receiptNo: p.receiptNo, auto, fx, hint });
+            blank({ category: p.category || guessCategory(text), name: p.station, date: p.date, amount: p.amount, receiptNo: p.receiptNo, auto, fx, hint });
           }
           added.invoices++;
         }
