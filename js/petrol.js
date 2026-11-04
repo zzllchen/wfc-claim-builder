@@ -382,6 +382,10 @@
     return st;
   }
   function stationRaw(text, known) {
+    if (isEinvoice(text)) {                                            // the e-invoice page names the legal merchant, with its registration number in brackets
+      const nm = EINV_NAME.exec(String(text));
+      if (nm) { const name = tidy(nm[1]); const seen = (known || []).find((k) => k.toLowerCase() === name.toLowerCase()); return seen || name; }
+    }
     const up = text.toUpperCase();
     let best = '', bestHits = 0;
     (known || []).forEach((name) => {
@@ -446,7 +450,14 @@
   }
 
   /* receipt / transaction number: only when it is labelled, and has a digit in it */
+  /* The e-invoice page that the QR code on a Petronas slip opens (a phone screenshot of it): invoice number and total on the first line, then
+     "11 Oct 2026 at 01:39:04 PM", the site, and the legal name with its registration number in brackets. Clean text, so it is read exactly. */
+  const EINV_TOP = /^[ \t]*([0-9A-Za-z\u00a2|]{5,8})[ \t]+RM[ \t]?\d[\d,]*[.,]\d\d[ \t]*\r?\n[ \t]*\d{1,2}[ \t]+[A-Za-z]{3,9}[ \t]+20\d\d[ \t]+at[ \t]+\d/im;
+  const EINV_NAME = /^[ \t]*([A-Z][A-Za-z0-9 &.'-]{4,60}?)[ \t]*\([ \t]*\d{5,}[-\s]?[A-Z]?[ \t]*\)/m;
+  const isEinvoice = (text) => EINV_TOP.test(String(text));
   function receiptNo(text) {
+    const ei = EINV_TOP.exec(String(text));
+    if (ei) { const h = hexFix(ei[1].replace(/[^0-9A-Za-z|]/g, '')); if (/^[0-9a-f]{6}$/.test(h)) return h; }
     // a Petronas slip: "Invoice No 60770c" (six hex characters). The label and the value are often mangled ("Invoice NG GO770C"), so read what follows the word
     const lines = String(text).split(/\r?\n/);
     for (const ln of lines) {
