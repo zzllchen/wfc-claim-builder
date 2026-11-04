@@ -769,7 +769,8 @@
     }
   }
 
-  const guessCategory = (text) => (/\b(klinik|clinic|consultation|medication|medical|pharmacy|farmasi|doctor)\b/i.test(text) ? 'Medical'
+  // any clinic, hospital, dental or health centre is Medical, by its words and by the big chains, so a name the tool has never seen still works
+  const guessCategory = (text) => (/\b(klinik|clinic|poliklinik|polyclinic|hospital|hospitals|pusat\s+perubatan|perubatan|kesihatan|healthcare|medical\s+cent(?:re|er)|dental|pergigian|pharmacy|farmasi|consultation|medication|medical|doctor|kpj|gleneagles|columbia\s+asia|ijn)\b/i.test(text) ? 'Medical'
     : /\b(hotel|motel|room|booking|check-?\s?in|check-?\s?out|accommodation|resort|homestay|guest\s?house|penginapan)\b/i.test(text) ? 'Accommodation'
     : /\b(petrol|diesel|ron\s?9\d|pump|litre|liter)\b/i.test(text) ? 'Petrol'
     : /\b(flexi\s*parking|parking|car\s?park|mbsj|mbpj|mbsa|mpaj|dbkl)\b/i.test(text) ? 'Parking'
