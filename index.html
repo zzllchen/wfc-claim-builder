@@ -6,7 +6,7 @@
 <title>WFC Claim Builder</title>
 <meta name="theme-color" content="#1f4ad8">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f4ad8'/%3E%3Cpath d='M8 11l3 11 5-8 5 8 3-11' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=80">
+<link rel="stylesheet" href="css/style.css?v=81">
 </head>
 <body>
 <header class="top">
@@ -157,8 +157,8 @@
         <button class="ghost" type="button" id="sClaudeSave">Save and test</button>
         <button class="ghost" type="button" id="sClaudeForget">Remove</button></div>
       <div class="locrow"><select id="sClaudeModel" aria-label="Claude model"></select><b id="sClaudeStatus"></b></div>
-      <label class="opts" id="sClaudeFirstRow" hidden><input type="checkbox" id="sClaudeFirst" checked> Claude reads every photo first (faster and more accurate)</label>
-      <p class="hint">Optional. With a key, Claude reads each photo first (about RM 0.03 each) and this computer double-checks anything Claude is unsure about. Untick the box to use Claude only when this computer cannot read a photo or the result looks wrong. With no key, nothing is sent anywhere.</p></div>
+      <label class="opts" id="sClaudeFirstRow" hidden><input type="checkbox" id="sClaudeFirst" checked> Claude reads camera photos first (they can be blurry)</label>
+      <p class="hint">Optional. With a key, Claude reads each camera photo first (about RM 0.03 each) and this computer double-checks anything Claude is unsure about. PDFs are always read on this computer, and screenshots are read here first. Untick the box to use Claude only when this computer cannot read a photo or the result looks wrong. With no key, nothing is sent anywhere.</p></div>
     <div class="foot">
       <button class="ghost" type="button" id="sReset">Reset lists to defaults</button>
       <button class="primary" value="save" id="sSave">Save</button>
@@ -172,18 +172,18 @@
 <script src="assets/claim-base.js"></script>
 <script src="assets/leave-base.js"></script>
 <script src="assets/logo.js"></script>
-<script src="js/tng.js?v=80"></script>
-<script src="js/xlsx.js?v=80"></script>
-<script src="js/pdf.js?v=80"></script>
-<script src="js/receipts.js?v=80"></script>
-<script src="js/mail.js?v=80"></script>
-<script src="js/gmail.js?v=80"></script>
-<script src="js/folder.js?v=80"></script>
-<script src="js/fx.js?v=80"></script>
-<script src="js/petrol.js?v=80"></script>
-<script src="js/validate.js?v=80"></script>
-<script src="js/ocr.js?v=80"></script>
-<script src="js/planb.js?v=80"></script>
-<script src="js/app.js?v=80"></script>
+<script src="js/tng.js?v=81"></script>
+<script src="js/xlsx.js?v=81"></script>
+<script src="js/pdf.js?v=81"></script>
+<script src="js/receipts.js?v=81"></script>
+<script src="js/mail.js?v=81"></script>
+<script src="js/gmail.js?v=81"></script>
+<script src="js/folder.js?v=81"></script>
+<script src="js/fx.js?v=81"></script>
+<script src="js/petrol.js?v=81"></script>
+<script src="js/validate.js?v=81"></script>
+<script src="js/ocr.js?v=81"></script>
+<script src="js/planb.js?v=81"></script>
+<script src="js/app.js?v=81"></script>
 </body>
 </html>

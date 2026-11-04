@@ -750,7 +750,7 @@
       // Claude first (a key is saved and this PC is set that way): one look at the photo. When it finds an amount and a date, is sure, and nothing looks
       // wrong, that is the reading and the slower reader on this PC is skipped; otherwise the reader on this PC checks it too
       let pre = null;
-      if (PlanB.available() && PlanB.first() && !item.askedClaude) {
+      if (PlanB.available() && PlanB.first() && !clearFile(file) && !item.askedClaude) {
         setOcr(item, 'reading');
         pre = await claudeFirst(item, file, mp);
         if (!S.other.includes(item)) return;
@@ -810,6 +810,9 @@
       } else setOcr(item, 'failed');
     }
   }
+
+  // a screenshot or a clean picture made on a screen reads exactly with the reader on this PC: Claude first is for camera photos, which can be blurry
+  const clearFile = (f) => f.type === 'image/png' || /screen[\s_-]?shot|snip/i.test(f.name || '');
 
   /* Claude first: one look at the photo. Never throws -> { c } | { notReceipt, reason } | { error } */
   async function claudeFirst(item, file, mp) {
@@ -1369,7 +1372,7 @@
   function refreshClaude(msg, bad) {
     const sel = $('#sClaudeModel'), key = PlanB.apiKey();
     // the privacy line on the Files step stays true: with a key saved, Claude may see a photo the computer cannot read
-    $('#privacyNote').textContent = !key ? 'Your photos stay on this computer.' : PlanB.first() ? 'Your photos are sent to Claude to be read (a key is saved on this computer).' : 'Your photos stay on this computer, unless it cannot read one.';
+    $('#privacyNote').textContent = !key ? 'Your photos stay on this computer.' : PlanB.first() ? 'Camera photos are sent to Claude to be read (a key is saved on this computer). PDFs stay on this computer.' : 'Your photos stay on this computer, unless it cannot read one.';
     if (!sel.options.length) Object.keys(PlanB.MODELS).forEach((k) => sel.append(h('option', { value: k, text: PlanB.MODELS[k].label })));
     sel.value = PlanB.model();
     $('#sClaudeFirstRow').hidden = !key; $('#sClaudeFirst').checked = PlanB.first();
