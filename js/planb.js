@@ -8,14 +8,14 @@
 })(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
   const API_URL = 'https://api.anthropic.com/v1/messages', VERSION = '2023-06-01', RM_PER_USD = 4.4;
-  const KEY = 'wfc-claude-key', MODEL = 'wfc-claude-model', DEFAULT_MODEL = 'claude-sonnet-5-5';
+  const KEY = 'wfc-claude-key', MODEL = 'wfc-claude-model', FIRST = 'wfc-claude-first', DEFAULT_MODEL = 'claude-sonnet-5-5';
   const MODELS = {                      // $ per million tokens, in / out
     'claude-sonnet-5-5': { label: 'Sonnet 5.5 (recommended)', inUsd: 2, outUsd: 10 },
     'claude-haiku-5-5': { label: 'Haiku 5.5 (cheapest)', inUsd: 0.1, outUsd: 0.5 },
     'claude-opus-5-5': { label: 'Opus 5.5 (smartest)', inUsd: 4, outUsd: 20 },
   };
   const KINDS = ['Petrol', 'Medical', 'Parking', 'Accommodation', 'AI tools', 'Other'];
-  const MAX_CALLS = 30;                 // per page visit: a pile of unreadable photos cannot run up a bill
+  const MAX_CALLS = 60;                 // per page visit: a pile of photos cannot run up a bill
   let calls = 0;
 
   /* ---------- the saved key (this browser only) ---------- */
@@ -26,6 +26,8 @@
   const apiKey = () => ls.get(KEY);
   const model = () => (MODELS[ls.get(MODEL)] ? ls.get(MODEL) : DEFAULT_MODEL);
   const available = () => !!apiKey() && calls < MAX_CALLS;
+  // Claude reads every photo first (the default once a key is saved); switched off, it is only asked when the reader on this PC fails or doubts
+  const first = () => ls.get(FIRST) !== '0';
 
   /* ---------- when is the normal reading doubtful? ---------- */
   // a believable amount for each kind of claim, in ringgit
@@ -82,6 +84,19 @@
     };
   }
 
+  /* Claude's reading as the line's reading (the same shape the reader on this PC gives), with the category from what Claude says it is */
+  function asReading(c) {
+    const r = merge({}, c, []).r;
+    if (c.kind === 'Other' && !r.category) r.category = 'Other';
+    return r;
+  }
+  /* is Claude's reading good enough to use as it is: an amount and a date, Claude is not unsure, and nothing about it looks wrong */
+  function clean(c, ctx) {
+    if (!c || !c.isReceipt || c.confidence === 'low' || !c.date || !(c.amount || c.foreign)) return false;
+    const cat = ['Medical', 'Parking', 'Accommodation', 'AI tools'].includes(c.kind) ? c.kind : (c.kind === 'Other' ? 'Other' : 'Petrol');
+    return doubts({ amount: c.amount, foreign: c.foreign, date: c.date }, Object.assign({}, ctx, { category: cat })).length === 0;
+  }
+
   /* the normal reading + Claude's -> the reading to use, and a sentence saying what happened (shown on the line) */
   function merge(ocr, c, why) {
     const out = Object.assign({}, ocr), notes = [], hadDateDoubt = (why || []).some((w) => /date|wrong/.test(w));
@@ -101,6 +116,9 @@
   const SYSTEM = `You read one photo of a receipt for a Malaysian company's monthly expense claim and answer with ONLY one JSON object, no other text.
 {"isReceipt": true or false, "kind": "Petrol" | "Medical" | "Parking" | "Accommodation" | "AI tools" | "Other", "merchant": "shop, station, clinic or hotel name as printed", "date": "YYYY-MM-DD", "amount": number, "currency": "MYR", "receiptNo": "the receipt, invoice or transaction number", "confidence": "high" | "medium" | "low", "notes": "one short sentence, only if something is unclear"}
 Rules:
+- merchant: on a fuel slip that starts with a brand (PETRONAS, SHELL, CALTEX), the dealer's name on the next line (for example KEJAYAAN TEGUH ENT), never the brand alone.
+- receiptNo: the invoice number. On a Petronas slip that is the value after "Invoice No" (six characters, 0-9 and a-f, for example 60770c), not the site, transaction or reference number.
+- If the photo is a phone screenshot of an e-invoice page, read it the same way (invoice number, date, shop, total).
 - amount is the FINAL amount actually paid. A fuel receipt with a Budi95 or other subsidy: the TOTAL after the subsidy, never the item line before it. Cash given and change are never the amount. A hotel bill: the SUB TOTAL, never the deposit. A clinic receipt: the amount paid (it may be written in words). MBSJ Flexi Parking: the Payment line.
 - currency is the currency printed beside the amount (MYR for RM). Never convert.
 - Dates in Malaysia are day/month/year. Use null for any field you cannot read; never guess a number.
@@ -159,6 +177,6 @@ Rules:
     return m;
   }
 
-  return { doubts, parseReply, merge, read, test, explain, available, apiKey, model, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
+  return { doubts, parseReply, merge, asReading, clean, read, test, explain, available, first, setFirst: (on) => ls.set(FIRST, on ? '' : '0'), apiKey, model, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
     setKey: (v) => ls.set(KEY, v), setModel: (v) => ls.set(MODEL, v), resetCalls: () => { calls = 0; } };
 });

@@ -747,6 +747,16 @@
     try {
       const mp = monthParts();
       const opts = { month: mp && mp.key, stations: stations() };
+      // Claude first (a key is saved and this PC is set that way): one look at the photo. When it finds an amount and a date, is sure, and nothing looks
+      // wrong, that is the reading and the slower reader on this PC is skipped; otherwise the reader on this PC checks it too
+      let pre = null;
+      if (PlanB.available() && PlanB.first() && !item.askedClaude) {
+        setOcr(item, 'reading');
+        pre = await claudeFirst(item, file, mp);
+        if (!S.other.includes(item)) return;
+        if (pre.notReceipt) { dropItem(item); reject(file, pre.reason, true); return; }
+        if (pre.c && PlanB.clean(pre.c, {})) { await finishFromClaude(item, pre.c); return; }
+      }
       const parts = [];
       const text = await OCR.read(file, {
         collect: parts,
@@ -763,12 +773,15 @@
       // plan B: only when the normal reader could not read the photo, or what it read does not make sense, and only with a saved key
       const canRetry = unreadable && (verdict.reason === Validate.MSG.photoUnreadable || verdict.reason === Validate.MSG.noAmount);
       const why = !unreadable || canRetry ? PlanB.doubts(r, { category: r.category || guessCategory(text) || item.category }) : [];
-      const b = (canRetry || why.length) && PlanB.available() && !item.askedClaude ? await askClaude(item, file, r, why, mp) : null;
+      const b = pre && pre.c ? claudeChecked(pre.c, r, why)
+        : (canRetry || why.length) && PlanB.available() && !item.askedClaude ? await askClaude(item, file, r, why, mp) : null;
+      const claudeErr = pre && pre.error ? pre.error : '';
       if (!S.other.includes(item)) return;
       if (b && b.notReceipt) { dropItem(item); reject(file, b.reason, true); return; }
       if (b && b.r && !(canRetry && !b.r.amount && !b.r.foreign)) { r = b.r; item.planB = b.note; }
       else if (unreadable) { dropItem(item); reject(file, verdict.reason + (b ? (b.error ? ` Claude could not help: ${b.error}` : ' Claude could not read it either.') : ''), verdict.force, verdict.mc); return; }
       else if (why.length) item.planB = 'Please check: ' + why.join('; ') + '.' + (b && b.error ? ` Claude could not help: ${b.error}` : '');
+      if (claudeErr && !item.planB) item.planB = `Claude could not help (${claudeErr}), so this was read on this computer. Please check the photo.`;
       if (!r.amount && r.foreign) {                     // a receipt in another currency is claimed in ringgit
         const c = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
         if (c) { r.amount = c.myr.toFixed(2); item.fx = c; }
@@ -796,6 +809,40 @@
         setOcr(item, 'done'); renderLines();
       } else setOcr(item, 'failed');
     }
+  }
+
+  /* Claude first: one look at the photo. Never throws -> { c } | { notReceipt, reason } | { error } */
+  async function claudeFirst(item, file, mp) {
+    item.askedClaude = true;
+    try {
+      const c = (await PlanB.read(file, { month: mp && mp.key })).reading;
+      if (!c.isReceipt) return { notReceipt: true, reason: `Claude looked at this photo and it does not seem to be a receipt${c.notes ? ': ' + c.notes.replace(/\.$/, '') : ''}. Attach the receipt itself, or add it anyway and type the details.` };
+      return { c };
+    } catch (e) { console.warn('Claude first failed', e); return { error: PlanB.explain(e) }; }
+  }
+  // Claude's reading used as it is (no reader on this PC needed): the shop is matched to the saved shops first
+  async function finishFromClaude(item, c) {
+    const r = PlanB.asReading(c);
+    const known = Petrol.station(c.merchant || '', stations());
+    if (known) r.station = known;
+    if (!r.amount && r.foreign) {
+      const f = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
+      if (f) { r.amount = f.myr.toFixed(2); item.fx = f; }
+      else item.hint = `Receipt is in ${r.foreign.code} ${r.foreign.amount.toFixed(2)} – type the MYR amount from your card statement`;
+      if (!S.other.includes(item)) return;
+    }
+    applyOcr(item, r);
+    if (c.confidence === 'medium' || c.notes) item.planB = c.notes ? `Read by Claude: ${c.notes.replace(/\.$/, '')}. Please check the photo.` : null;
+    setOcr(item, 'done');
+    renderLines();
+  }
+  // Claude's reading put next to the one from this PC: they agree, they differ (the slip's own sums win when they add up), or one fills a gap
+  function claudeChecked(c, r, why) {
+    if (r.sure === true && r.amount && c.amount && Math.abs(parseFloat(r.amount) - parseFloat(c.amount)) > 0.005) {
+      return { r, note: `Claude read RM${c.amount}, but the sums on the slip add up to RM${r.amount}. Please check the photo.` };
+    }
+    const m = PlanB.merge(r, c, why);
+    return { r: m.r, note: m.note || c.confidence === 'low' ? `Checked with Claude. ${m.note ? m.note + ' ' : ''}${c.confidence === 'low' ? 'Claude was not sure either. ' : ''}Please check the photo.` : null };
   }
 
   /* plan B: ask Claude about one photo. Never throws -> { r, note } | { notReceipt, reason } | { error } */
@@ -1322,9 +1369,10 @@
   function refreshClaude(msg, bad) {
     const sel = $('#sClaudeModel'), key = PlanB.apiKey();
     // the privacy line on the Files step stays true: with a key saved, Claude may see a photo the computer cannot read
-    $('#privacyNote').textContent = key ? 'Your photos stay on this computer, unless it cannot read one.' : 'Your photos stay on this computer.';
+    $('#privacyNote').textContent = !key ? 'Your photos stay on this computer.' : PlanB.first() ? 'Your photos are sent to Claude to be read (a key is saved on this computer).' : 'Your photos stay on this computer, unless it cannot read one.';
     if (!sel.options.length) Object.keys(PlanB.MODELS).forEach((k) => sel.append(h('option', { value: k, text: PlanB.MODELS[k].label })));
     sel.value = PlanB.model();
+    $('#sClaudeFirstRow').hidden = !key; $('#sClaudeFirst').checked = PlanB.first();
     $('#sClaudeKey').hidden = !!key; $('#sClaudeSave').hidden = !!key; $('#sClaudeForget').hidden = !key;
     const st = $('#sClaudeStatus');
     st.textContent = msg || (key ? 'On' : 'Off');
@@ -1413,6 +1461,7 @@
     $('#sReset').addEventListener('click', () => { $('#sHol').value = TNG.DEFAULT_HOLIDAYS; });
     $('#sClaudeSave').addEventListener('click', saveClaudeKey);
     $('#sClaudeForget').addEventListener('click', () => { PlanB.setKey(''); refreshClaude(); });
+    $('#sClaudeFirst').addEventListener('change', () => { PlanB.setFirst($('#sClaudeFirst').checked); refreshClaude(); });
     $('#sClaudeModel').addEventListener('change', () => { PlanB.setModel($('#sClaudeModel').value); refreshClaude(); });
     $('#sClaudeKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveClaudeKey(); } });
     $('#dlgForm').addEventListener('submit', () => {

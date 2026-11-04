@@ -52,4 +52,18 @@ eq('unreadable photo read by Claude: category follows the kind', [m.r.amount, m.
 eq('no key saved: plan B is not available', P.available(), false);
 eq('errors are explained in plain words', [P.explain({ status: 401 }).slice(0, 22), P.explain({ status: 429, message: 'Your credit balance is too low' }).slice(0, 27)], ['Anthropic rejected the', 'The API account has no cred']);
 eq('cost of a 1,500-token photo on Sonnet 5.5 is about 3 sen', +P.costRM('claude-sonnet-5-5', { input_tokens: 1500, output_tokens: 300 }).toFixed(3), 0.026);
+// Claude first: when is Claude's reading good enough to use as it is?
+const good = P.parseReply('{"isReceipt":true,"kind":"Petrol","merchant":"KEJAYAAN TEGUH ENT","date":"2026-10-29","amount":58.37,"currency":"MYR","receiptNo":"60770c","confidence":"high"}');
+eq('Claude first is on by default', P.first(), true);
+eq('a clear reading is used as it is', P.clean(good, {}), true);
+eq('not sure: the reader on this PC checks it too', P.clean(Object.assign({}, good, { confidence: 'low' }), {}), false);
+eq('no date: the reader on this PC checks it too', P.clean(Object.assign({}, good, { date: '' }), {}), false);
+eq('no amount: the reader on this PC checks it too', P.clean(Object.assign({}, good, { amount: '' }), {}), false);
+eq('a RM7 fuel reading looks wrong: checked too', P.clean(Object.assign({}, good, { amount: '7.00' }), {}), false);
+eq('RM7 for parking is fine', P.clean(Object.assign({}, good, { kind: 'Parking', amount: '7.00' }), {}), true);
+eq('not a receipt is never used', P.clean(Object.assign({}, good, { isReceipt: false }), {}), false);
+const rd = P.asReading(good);
+eq('as the line reading: date, amount, shop, number', [rd.date, rd.amount, rd.station, rd.receiptNo], ['2026-10-29', '58.37', 'KEJAYAAN TEGUH ENT', '60770c']);
+eq('Claude says Other: the line becomes Other', P.asReading(Object.assign({}, good, { kind: 'Other' })).category, 'Other');
+eq('Claude says Medical: the line becomes Medical', P.asReading(Object.assign({}, good, { kind: 'Medical' })).category, 'Medical');
 console.log(fails ? `${fails} FAILED` : 'all passed'); process.exit(fails ? 1 : 0);
