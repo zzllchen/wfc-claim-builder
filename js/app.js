@@ -286,6 +286,7 @@
     const tags = [
       o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
       o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
+      o.planB ? h('span', { class: 'tag hint', text: o.planB }) : null,       // plan B: why Claude was asked, or what looked odd
       o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null,       // gone once the amount is typed over
     ];
     const below = o.files.length ? h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x)))) : null;
@@ -745,10 +746,19 @@
         good: (t) => { const p = Petrol.parse(t, opts); return !!((p.amount || p.foreign) && p.date && p.sure !== false); },
       });
       if (!S.other.includes(item)) return;              // removed while waiting
-      const r = Petrol.best(parts.length ? parts : [text], opts);          // every reading votes, so one misread digit is outvoted
+      let r = Petrol.best(parts.length ? parts : [text], opts);          // every reading votes, so one misread digit is outvoted
       const verdict = Validate.judge(text, 'photo');
       // the stricter check can miss an amount the voting reader did find (a lost decimal point): then the photo stays
-      if (verdict.status !== 'ok' && !(r.amount && verdict.reason === Validate.MSG.noAmount)) { dropItem(item); reject(file, verdict.reason, verdict.force, verdict.mc); return; }
+      const unreadable = verdict.status !== 'ok' && !(r.amount && verdict.reason === Validate.MSG.noAmount);
+      // plan B: only when the normal reader could not read the photo, or what it read does not make sense, and only with a saved key
+      const canRetry = unreadable && (verdict.reason === Validate.MSG.photoUnreadable || verdict.reason === Validate.MSG.noAmount);
+      const why = !unreadable || canRetry ? PlanB.doubts(r, { category: r.category || guessCategory(text) || item.category }) : [];
+      const b = (canRetry || why.length) && PlanB.available() && !item.askedClaude ? await askClaude(item, file, r, why, mp) : null;
+      if (!S.other.includes(item)) return;
+      if (b && b.notReceipt) { dropItem(item); reject(file, b.reason, true); return; }
+      if (b && b.r && !(canRetry && !b.r.amount && !b.r.foreign)) { r = b.r; item.planB = b.note; }
+      else if (unreadable) { dropItem(item); reject(file, verdict.reason + (b ? (b.error ? ` Claude could not help: ${b.error}` : ' Claude could not read it either.') : ''), verdict.force, verdict.mc); return; }
+      else if (why.length) item.planB = 'Please check: ' + why.join('; ') + '.' + (b && b.error ? ` Claude could not help: ${b.error}` : '');
       if (!r.amount && r.foreign) {                     // a receipt in another currency is claimed in ringgit
         const c = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
         if (c) { r.amount = c.myr.toFixed(2); item.fx = c; }
@@ -760,13 +770,33 @@
       applyOcr(item, r);
       if (item.category === 'Accommodation' && !String(item.amount || '').trim()) item.hint = 'Hand-written bill: type the SUB TOTAL (not the deposit) and the check-in date';
       setOcr(item, 'done');
-      if (item.fx || item.hint || r.category) renderLines();       // a new type also moves the line to its place in the order
+      if (item.fx || item.hint || item.planB || r.category) renderLines();       // a new type also moves the line to its place in the order
     } catch (e) {
       console.warn('OCR failed', e);
       if (!S.other.includes(item)) return;
-      if (e && e.code === 'decode') { dropItem(item); reject(file, Validate.MSG.decode, true); }
-      else { item.ocrError = String((e && e.message) || e).slice(0, 220); setOcr(item, 'failed'); }
+      if (e && e.code === 'decode') { dropItem(item); reject(file, Validate.MSG.decode, true); return; }
+      item.ocrError = String((e && e.message) || e).slice(0, 220);
+      // the normal reader broke (not just a poor photo): plan B reads it instead, when a key is saved
+      const b = PlanB.available() && !item.askedClaude ? await askClaude(item, file, {}, ['the normal reader failed'], monthParts()) : null;
+      if (!S.other.includes(item)) return;
+      if (b && b.r && (b.r.amount || b.r.foreign)) {
+        applyOcr(item, b.r); item.planB = b.note; delete item.ocrError;
+        if (!b.r.amount) item.hint = `Receipt is in ${b.r.foreign.code} ${b.r.foreign.amount.toFixed(2)} – type the MYR amount from your card statement`;
+        setOcr(item, 'done'); renderLines();
+      } else setOcr(item, 'failed');
     }
+  }
+
+  /* plan B: ask Claude about one photo. Never throws -> { r, note } | { notReceipt, reason } | { error } */
+  async function askClaude(item, file, ocr, why, mp) {
+    item.askedClaude = true;
+    try {
+      const out = await PlanB.read(file, { month: mp && mp.key });
+      const c = out.reading;
+      if (!c.isReceipt) return { notReceipt: true, reason: `Claude looked at this photo and it does not seem to be a receipt${c.notes ? ': ' + c.notes.replace(/\.$/, '') : ''}. Attach the receipt itself, or add it anyway and type the details.` };
+      const m = PlanB.merge(ocr, c, why);
+      return { r: m.r, note: `Checked again with Claude. ${m.note ? m.note + ' ' : ''}${c.confidence === 'low' ? 'Claude was not sure either. ' : ''}Please check the photo.` };
+    } catch (e) { console.warn('Plan B failed', e); return { error: PlanB.explain(e) }; }
   }
 
   // any clinic, hospital, dental or health centre is Medical, by its words and by the big chains, so a name the tool has never seen still works
@@ -876,12 +906,12 @@
     if (rest.length) {
       const c = await onOther(rest);
       const plural = (n, s) => `${n} ${s}${n > 1 ? 's' : ''}`;
-      if (c.photos) found.push(cfg.ocr ? plural(c.photos, 'photo') + ' being checked (any that cannot be read will be refused below)' : plural(c.photos, 'photo') + ' (set as Petrol, not checked)');
-      if (c.invoices) found.push(plural(c.invoices, 'invoice / receipt PDF'));
+      if (c.photos) found.push(plural(c.photos, 'photo') + (cfg.ocr ? ' (reading…)' : ''));
+      if (c.invoices) found.push(plural(c.invoices, 'invoice / receipt'));
       if (c.hotel) found.push(plural(c.hotel, 'hotel receipt'));
-      if (c.unknown) found.push(plural(c.unknown, 'other file') + ' to fill in');
+      if (c.unknown) found.push(plural(c.unknown, 'other file'));
     }
-    if (found.length) fileNote('info', 'Added: ' + found.join(', ') + '.');      // refused files get their own red card, with the reason
+    if (found.length) fileNote('info', 'Added: ' + found.join(', '));      // refused files get their own red card, with the reason
   }
 
   function wireDrop() {
@@ -1277,8 +1307,29 @@
     refreshLoc();
   }
 
+  /* ---------- Claude backup reader (plan B): the key and model live in this browser only ---------- */
+  function refreshClaude(msg, bad) {
+    const sel = $('#sClaudeModel'), key = PlanB.apiKey();
+    // the privacy line on the Files step stays true: with a key saved, Claude may see a photo the computer cannot read
+    $('#privacyNote').textContent = key ? 'Your photos stay on this computer, unless it cannot read one.' : 'Your photos stay on this computer.';
+    if (!sel.options.length) Object.keys(PlanB.MODELS).forEach((k) => sel.append(h('option', { value: k, text: PlanB.MODELS[k].label })));
+    sel.value = PlanB.model();
+    $('#sClaudeKey').hidden = !!key; $('#sClaudeSave').hidden = !!key; $('#sClaudeForget').hidden = !key;
+    const st = $('#sClaudeStatus');
+    st.textContent = msg || (key ? 'On' : 'Off');
+    st.style.color = bad ? 'var(--bad)' : key && !msg ? 'var(--ok)' : '';
+  }
+  async function saveClaudeKey() {
+    const el = $('#sClaudeKey'), v = el.value.trim();
+    if (!/^sk-ant-/.test(v)) { refreshClaude('That is not a Claude key. It starts with sk-ant-', true); el.focus(); return; }
+    PlanB.setKey(v); el.value = ''; refreshClaude('Testing…');
+    try { const t = await PlanB.test(); refreshClaude('Connected. Claude backup is on.'); $('#sClaudeStatus').style.color = 'var(--ok)'; }
+    catch (e) { refreshClaude('Not working: ' + PlanB.explain(e), true); }
+  }
+
   /* ---------- settings dialog ---------- */
   function openSettings() {
+    refreshClaude();
     $('#sToName').value = cfg.toName; $('#sSignoff').value = cfg.signoff;
     $('#sHol').value = cfg.holidays;
     $('#sGmail').value = cfg.gmailClientId || '';
@@ -1332,6 +1383,7 @@
     $('#viewLeave').addEventListener('change', markNeededLeave);
 
     wireDrop();
+    refreshClaude();
     $('#ocrOn').checked = !!cfg.ocr;
     $('#ocrOn').addEventListener('change', () => { cfg.ocr = $('#ocrOn').checked; saveCfg(); });
 
@@ -1348,6 +1400,10 @@
     $('#sLocChange').addEventListener('click', changeFolder);
     $('#sLocForget').addEventListener('click', async () => { await Folder.forget(); refreshLoc(); });
     $('#sReset').addEventListener('click', () => { $('#sHol').value = TNG.DEFAULT_HOLIDAYS; });
+    $('#sClaudeSave').addEventListener('click', saveClaudeKey);
+    $('#sClaudeForget').addEventListener('click', () => { PlanB.setKey(''); refreshClaude(); });
+    $('#sClaudeModel').addEventListener('change', () => { PlanB.setModel($('#sClaudeModel').value); refreshClaude(); });
+    $('#sClaudeKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveClaudeKey(); } });
     $('#dlgForm').addEventListener('submit', () => {
       cfg.toName = $('#sToName').value.trim(); cfg.signoff = $('#sSignoff').value.trim();
       cfg.holidays = $('#sHol').value;

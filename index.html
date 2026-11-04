@@ -6,7 +6,7 @@
 <title>WFC Claim Builder</title>
 <meta name="theme-color" content="#1f4ad8">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f4ad8'/%3E%3Cpath d='M8 11l3 11 5-8 5 8 3-11' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=62">
+<link rel="stylesheet" href="css/style.css?v=64">
 </head>
 <body>
 <header class="top">
@@ -41,16 +41,16 @@
       <h2><span class="step">2</span>Add your files</h2>
       <label class="drop" id="dropAll">
         <b>Drop all your files here, or paste them</b>
-        <small>TNG statement, petrol receipt photos, invoices, hotel bills &mdash; any mix. They are sorted automatically.</small>
+        <small>TNG statement, receipts, invoices, hotel bills. Any mix.</small>
         <span class="keys"><kbd>Ctrl</kbd> + <kbd>V</kbd> to paste &middot; or click to browse</span>
         <span class="st" id="stAll"></span>
         <input type="file" id="fileAll" accept="image/*,application/pdf,.pdf" multiple>
       </label>
-      <label class="opts" style="margin-top:14px"><input type="checkbox" id="ocrOn" checked> Read petrol receipt photos automatically (slower the first time &mdash; always check the amber fields)</label>
-      <p class="hint">Everything is processed on this device &mdash; nothing is uploaded.</p>
+      <label class="opts" style="margin-top:14px"><input type="checkbox" id="ocrOn" checked> Read my receipt photos for me</label>
+      <p class="hint" id="privacyNote">Your photos stay on this computer.</p>
       <div class="notes" id="fileNotes"></div>
       <div class="notes" id="rejects"></div>
-      <p class="hint">No receipt file for an expense? <button class="link" id="btnHandLine" type="button">Add a line by hand instead</button></p>
+      <p class="hint">No receipt? <button class="link" id="btnHandLine" type="button">Add it by hand</button></p>
     </section>
 
     <section class="card pane" data-step="3" hidden>
@@ -152,6 +152,12 @@
       <p class="hint">Best-effort list for 2026 &mdash; check the Islamic holiday dates against the official gazette and add Selangor / one-off holidays. Add next year's dates here too.</p></div>
     <div class="sec"><label class="f">Google client ID (optional, for a Gmail draft with the zip attached)<input type="text" id="sGmail" spellcheck="false" autocomplete="off"></label>
       <p class="hint">One-time setup that lets the &ldquo;Create Gmail draft&rdquo; button put the zip into a draft in your own Gmail. The steps are in the README under &ldquo;Gmail draft with the zip attached&rdquo;. Leave it empty to keep the normal Gmail link.</p></div>
+    <div class="sec"><span class="lbl">Claude backup (optional)</span>
+      <div class="locrow"><input type="password" id="sClaudeKey" placeholder="Paste your Anthropic API key (sk-ant-&hellip;)" autocomplete="off" spellcheck="false" style="flex:1;min-width:220px">
+        <button class="ghost" type="button" id="sClaudeSave">Save and test</button>
+        <button class="ghost" type="button" id="sClaudeForget">Remove</button></div>
+      <div class="locrow"><select id="sClaudeModel" aria-label="Claude model"></select><b id="sClaudeStatus"></b></div>
+      <p class="hint">Optional. Used only when this computer cannot read a photo, or the result looks wrong (for example a RM7 petrol receipt). About RM 0.03 a photo. With no key, nothing is sent anywhere.</p></div>
     <div class="foot">
       <button class="ghost" type="button" id="sReset">Reset lists to defaults</button>
       <button class="primary" value="save" id="sSave">Save</button>
@@ -165,17 +171,18 @@
 <script src="assets/claim-base.js"></script>
 <script src="assets/leave-base.js"></script>
 <script src="assets/logo.js"></script>
-<script src="js/tng.js?v=62"></script>
-<script src="js/xlsx.js?v=62"></script>
-<script src="js/pdf.js?v=62"></script>
-<script src="js/receipts.js?v=62"></script>
-<script src="js/mail.js?v=62"></script>
-<script src="js/gmail.js?v=62"></script>
-<script src="js/folder.js?v=62"></script>
-<script src="js/fx.js?v=62"></script>
-<script src="js/petrol.js?v=62"></script>
-<script src="js/validate.js?v=62"></script>
-<script src="js/ocr.js?v=62"></script>
-<script src="js/app.js?v=62"></script>
+<script src="js/tng.js?v=64"></script>
+<script src="js/xlsx.js?v=64"></script>
+<script src="js/pdf.js?v=64"></script>
+<script src="js/receipts.js?v=64"></script>
+<script src="js/mail.js?v=64"></script>
+<script src="js/gmail.js?v=64"></script>
+<script src="js/folder.js?v=64"></script>
+<script src="js/fx.js?v=64"></script>
+<script src="js/petrol.js?v=64"></script>
+<script src="js/validate.js?v=64"></script>
+<script src="js/ocr.js?v=64"></script>
+<script src="js/planb.js?v=64"></script>
+<script src="js/app.js?v=64"></script>
 </body>
 </html>

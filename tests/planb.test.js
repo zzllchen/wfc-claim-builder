@@ -1,0 +1,55 @@
+/* node tests/planb.test.js  (when plan B should be asked, and how Claude's answer is read and merged; no network) */
+const P = require('../js/planb.js');
+let fails = 0;
+const eq = (name, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want); if (!ok) fails++; console.log((ok ? 'ok   ' : 'FAIL ') + name + (ok ? ' ' + JSON.stringify(got).slice(0, 100) : ` got ${JSON.stringify(got)} want ${JSON.stringify(want)}`)); };
+const today = new Date('2026-11-04T04:00:00Z');
+const d = (r, cat) => P.doubts(r, { category: cat || 'Petrol', today });
+
+// a normal fuel receipt raises no doubt, so Claude is not asked
+eq('normal fuel receipt: no doubts', d({ amount: '60.00', date: '2026-10-19', sure: true }), []);
+eq('normal fuel receipt, unsure flag null', d({ amount: '84.35', date: '2026-10-28', sure: null }), []);
+// the RM7 fuel receipt from the brief
+eq('RM7 fuel receipt: doubtful', d({ amount: '7.00', date: '2026-10-19' }).length, 1);
+eq('RM7 on a parking receipt is fine', d({ amount: '7.00', date: '2026-10-19' }, 'Parking'), []);
+eq('RM900 fuel: doubtful', /too big/.test(d({ amount: '900.00', date: '2026-10-19' })[0]), true);
+eq('no amount: doubtful', d({ amount: '', date: '2026-10-19' }), ['no amount found']);
+eq('foreign amount is not "no amount"', d({ amount: '', foreign: { code: 'USD', amount: 11 }, date: '2026-10-19' }), []);
+eq('amount that does not add up: doubtful', d({ amount: '60.00', date: '2026-10-19', sure: false }).length, 1);
+eq('no date: doubtful', d({ amount: '60.00', date: '' }), ['no date found']);
+eq('future date: doubtful', /looks wrong/.test(d({ amount: '60.00', date: '2026-12-25' })[0]), true);
+eq('date 5 months ago: doubtful', /looks wrong/.test(d({ amount: '60.00', date: '2026-05-01' })[0]), true);
+eq('date a month ago: fine', d({ amount: '60.00', date: '2026-10-01' }), []);
+eq('missing shop name or receipt number alone is NOT a doubt', d({ amount: '60.00', date: '2026-10-19', station: '', receiptNo: '' }), []);
+eq('several doubts at once', d({ amount: '5.00', date: '' }).length, 2);
+
+// Claude's answer
+let c = P.parseReply('Here you go: {"isReceipt": true, "kind": "Petrol", "merchant": "Kejayaan Teguh Enterprise", "date": "2026-10-19", "amount": 70.5, "currency": "MYR", "receiptNo": "257947", "confidence": "high", "notes": ""} done');
+eq('reply parsed', [c.isReceipt, c.kind, c.merchant, c.date, c.amount, c.receiptNo, c.confidence], [true, 'Petrol', 'Kejayaan Teguh Enterprise', '2026-10-19', '70.50', '257947', 'high']);
+c = P.parseReply('{"isReceipt": true, "kind": "Other", "date": "2026-02-31", "amount": "1,234.50", "currency": "RM"}');
+eq('impossible date dropped, comma amount and RM accepted', [c.date, c.amount], ['', '1234.50']);
+c = P.parseReply('{"isReceipt": true, "date": "2026-10-19", "amount": 11, "currency": "USD"}');
+eq('USD amount is kept as foreign, never as ringgit', [c.amount, c.foreign], ['', { code: 'USD', amount: 11 }]);
+c = P.parseReply('{"isReceipt": false, "notes": "a medical certificate"}');
+eq('not a receipt', [c.isReceipt, c.amount, c.notes], [false, '', 'a medical certificate']);
+eq('garbage reply is rejected', P.parseReply('sorry, I cannot'), null);
+eq('negative or zero amount ignored', P.parseReply('{"amount": -5}').amount, '');
+
+// merging with the normal reading
+const ocr = { amount: '7.00', date: '2026-10-19', station: '', receiptNo: '', category: '', sure: null, found: true };
+let m = P.merge(ocr, P.parseReply('{"isReceipt":true,"kind":"Petrol","merchant":"BE Petrol Station","date":"2026-10-19","amount":70,"receiptNo":"88123"}'), ['RM7.00 looks too small for petrol']);
+eq('Claude corrects 7.00 to 70.00 and fills the shop and number', [m.r.amount, m.r.station, m.r.receiptNo], ['70.00', 'BE Petrol Station', '88123']);
+eq('the note says what changed', m.note, 'Amount was RM7.00, now RM70.00.');
+m = P.merge(ocr, P.parseReply('{"isReceipt":true,"date":"2026-10-19","amount":7}'), ['RM7.00 looks too small']);
+eq('Claude agrees: amount kept, note says so', [m.r.amount, m.note], ['7.00', 'Claude agrees with RM7.00.']);
+m = P.merge({ amount: '60.00', date: '', station: 'X', found: true }, P.parseReply('{"isReceipt":true,"date":"2026-10-20","amount":60}'), ['no date found']);
+eq('missing date filled from Claude', m.r.date, '2026-10-20');
+m = P.merge({ amount: '60.00', date: '2026-10-19', station: 'Real Name' }, P.parseReply('{"isReceipt":true,"date":"2026-10-21","merchant":"Other Name","amount":60}'), []);
+eq('a date and name the normal reader already has are kept when nothing was doubted', [m.r.date, m.r.station], ['2026-10-19', 'Real Name']);
+m = P.merge({ amount: '', date: '', station: '', receiptNo: '' }, P.parseReply('{"isReceipt":true,"kind":"Medical","merchant":"Klinik Putra Care","date":"2026-10-10","amount":75}'), ['no amount found']);
+eq('unreadable photo read by Claude: category follows the kind', [m.r.amount, m.r.category, m.r.station], ['75.00', 'Medical', 'Klinik Putra Care']);
+
+// the safety limits
+eq('no key saved: plan B is not available', P.available(), false);
+eq('errors are explained in plain words', [P.explain({ status: 401 }).slice(0, 22), P.explain({ status: 429, message: 'Your credit balance is too low' }).slice(0, 27)], ['Anthropic rejected the', 'The API account has no cred']);
+eq('cost of a 1,500-token photo on Sonnet 5.5 is about 3 sen', +P.costRM('claude-sonnet-5-5', { input_tokens: 1500, output_tokens: 300 }).toFixed(3), 0.026);
+console.log(fails ? `${fails} FAILED` : 'all passed'); process.exit(fails ? 1 : 0);
