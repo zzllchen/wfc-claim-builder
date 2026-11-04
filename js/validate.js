@@ -7,7 +7,8 @@
   'use strict';
 
   const alnum = (s) => (s.match(/[A-Za-z0-9]/g) || []).length;
-  const MONEY = /(?<![\d.,])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\s?\.\s?|,)\d{2}(?!\d)/;      // OCR may leave a space round the point
+  // OCR may leave a space round the point, or lose it after RM ("KM49 91", "RMS8 . 37", "RM74 93")
+  const MONEY = /(?<![\d.,])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\s?[.,]\s?)\d{2}(?!\d)|\b[RK]M\s?[0-9OoSsIl|BGZ]{1,5}(?:\s?[.,]\s?|\s)[0-9OoSsIl|BGZ]{2}(?![0-9A-Za-z])/;
   const WORDS_AMOUNT = /\b(?:ringgit(?:\s+malaysia)?|rm)\s+(?:[a-z\-]+\s+){1,9}?only\b/i;        // "RM SEVENTY FIVE ONLY" on clinic receipts
   const RECEIPT_WORDS =/\b(receipt|invoice|invois|resit|bill|payment|paid|total|amount|jumlah|bayar|folio|booking|order|subtotal|charged)\b/i;
 

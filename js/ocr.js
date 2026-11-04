@@ -33,8 +33,9 @@
         const cfg = {
           workerPath: abs('vendor/tesseract/worker.min.js'),
           corePath: abs('vendor/tesseract'),
-          langPath: abs('vendor/tesseract/lang'),
+          langPath: abs('vendor/tesseract/lang-best'),     // the high-accuracy model; a new folder so no browser serves the old small one from its cache
           gzip: true,
+          cachePath: 'wfc-eng-best-1',               // the model is the high-accuracy one; a new cache name so browsers drop the old small model
         };
         if (safeMode) {
           cfg.workerPath = await localCopy('vendor/tesseract/worker.min.js');
@@ -82,60 +83,118 @@
     const c = document.createElement('canvas');
     c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
     c.getContext('2d', { willReadFrequently: true }).drawImage(bmp, 0, 0, c.width, c.height);
-    const box = paperBox(c);
-    let crop = null;
-    if (box) {                                   // the paper alone, so keys, a desk or a sticker beside it are never read as receipt text
-      crop = document.createElement('canvas');
-      // cut from the original photo, not the shrunken copy, so thin dot-matrix print keeps its detail
-      const k = bmp.width / c.width, sw = box.w * k, sh = box.h * k;
-      const up = Math.min(2.5, 2800 / Math.max(sw, sh));                         // below 1 shrinks a huge crop, above 1 enlarges a small one
-      crop.width = Math.round(sw * up); crop.height = Math.round(sh * up);
-      crop.getContext('2d', { willReadFrequently: true }).drawImage(bmp, box.x * k, box.y * k, sw, sh, 0, 0, crop.width, crop.height);
-      enhance(crop);
-    }
-    return { full: enhance(c), crop };
+    const crop = paperCrop(bmp, c);               // the paper alone, cut from the full-size photo, straightened, everything else whitened
+    return { full: enhance(c), crop: crop ? enhance(crop) : null };
   }
 
-  /* Where the paper is: a receipt photographed on a keyboard or a desk is a bright strip in a darker picture. Looks at a small
-     copy, finds the longest run of mostly-bright columns, then of rows inside it. Returns null unless that is clearly a part
-     of the picture (not nearly all of it, not a sliver), so a plain photo of paper is left whole. */
-  function paperBox(c) {
-    const W = 240, H = Math.max(1, Math.round((c.height * W) / c.width));
-    const s = document.createElement('canvas'); s.width = W; s.height = H;
-    const sc = s.getContext('2d', { willReadFrequently: true });
+  const newCanvas = (w, h) => { const r = document.createElement('canvas'); r.width = Math.max(1, Math.round(w)); r.height = Math.max(1, Math.round(h)); return r; };
+
+  /* Finds the paper in a photo: a receipt on a keyboard, a desk or a lap is the biggest bright, compact patch. Works on a small
+     copy: split bright from dark (Otsu), shave thin links with two erosions, take the biggest paper-shaped patch, grow it back.
+     Returns { maskCanvas, W, H, box, tilt } in small-copy coordinates, or null when there is no clear paper (a plain photo of
+     paper fills the frame, a scan has no background). */
+  function findPaper(c) {
+    const W = 300, H = Math.max(1, Math.round((c.height * W) / c.width)), n = W * H;
+    const s = newCanvas(W, H), sc = s.getContext('2d', { willReadFrequently: true });
     sc.drawImage(c, 0, 0, W, H);
-    const d = sc.getImageData(0, 0, W, H).data, g = new Uint8Array(W * H), hist = new Uint32Array(256);
-    for (let i = 0; i < W * H; i++) { g[i] = (d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114) | 0; hist[g[i]]++; }
-    // Otsu: the grey that best splits the picture into dark and bright
+    const d = sc.getImageData(0, 0, W, H).data, g = new Uint8Array(n), hist = new Uint32Array(256);
+    for (let i = 0; i < n; i++) { g[i] = (d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114) | 0; hist[g[i]]++; }
     let sum = 0; for (let v = 0; v < 256; v++) sum += v * hist[v];
     let wB = 0, sumB = 0, best = 0, thr = 128;
     for (let v = 0; v < 256; v++) {
       wB += hist[v]; if (!wB) continue;
-      const wF = W * H - wB; if (!wF) break;
+      const wF = n - wB; if (!wF) break;
       sumB += v * hist[v];
       const mB = sumB / wB, mF = (sum - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
       if (between > best) { best = between; thr = v; }
     }
-    const run = (frac, len) => {                  // longest stretch where frac[i] >= 0.4
-      let bestS = -1, bestL = 0, st = -1;
-      for (let i = 0; i <= len; i++) {
-        const on = i < len && frac[i] >= 0.4;
-        if (on && st < 0) st = i;
-        if (!on && st >= 0) { if (i - st > bestL) { bestL = i - st; bestS = st; } st = -1; }
+    const bright = new Uint8Array(n); for (let i = 0; i < n; i++) bright[i] = g[i] > thr ? 1 : 0;
+    const shave = (a) => { const b = new Uint8Array(n); for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; b[i] = a[i] && a[i - 1] && a[i + 1] && a[i - W] && a[i + W] ? 1 : 0; } return b; };
+    const grow = (a, within) => { const b = new Uint8Array(n); for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; b[i] = (a[i] || a[i - 1] || a[i + 1] || a[i - W] || a[i + W]) && (!within || within[i]) ? 1 : 0; } return b; };
+    const core = shave(shave(bright));
+    // label the patches
+    const lab = new Int32Array(n), stack = new Int32Array(n), parts = [];
+    for (let i0 = 0; i0 < n; i0++) {
+      if (!core[i0] || lab[i0]) continue;
+      const id = parts.length + 1; let sp = 0, area = 0, x0 = W, x1 = 0, y0 = H, y1 = 0;
+      stack[sp++] = i0; lab[i0] = id;
+      while (sp) {
+        const i = stack[--sp]; area++; const x = i % W, y = (i / W) | 0;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        const nb = [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1];
+        for (const j of nb) if (j >= 0 && core[j] && !lab[j]) { lab[j] = id; stack[sp++] = j; }
       }
-      return bestL ? [bestS, bestS + bestL] : null;
-    };
-    const col = new Float32Array(W);
-    for (let x = 0; x < W; x++) { let n = 0; for (let y = 0; y < H; y++) if (g[y * W + x] > thr) n++; col[x] = n / H; }
-    const cx = run(col, W); if (!cx) return null;
-    const row = new Float32Array(H);
-    for (let y = 0; y < H; y++) { let n = 0; for (let x = cx[0]; x < cx[1]; x++) if (g[y * W + x] > thr) n++; row[y] = n / (cx[1] - cx[0]); }
-    const ry = run(row, H); if (!ry) return null;
-    const area = ((cx[1] - cx[0]) * (ry[1] - ry[0])) / (W * H);
-    if (area < 0.12 || area > 0.8 || cx[1] - cx[0] < W * 0.15) return null;
-    const mx = Math.round(W * 0.03), my = Math.round(H * 0.03), k = c.width / W;
-    const x0 = Math.max(0, cx[0] - mx), x1 = Math.min(W, cx[1] + mx), y0 = Math.max(0, ry[0] - my), y1 = Math.min(H, ry[1] + my);
-    return { x: Math.round(x0 * k), y: Math.round(y0 * k), w: Math.round((x1 - x0) * k), h: Math.round((y1 - y0) * k) };
+      parts.push({ id, area, x0, x1, y0, y1 });
+    }
+    // the biggest bright patch that is not the whole picture
+    const pick = parts.filter((p) => p.area >= n * 0.05).sort((a, b) => b.area - a.area)[0];
+    if (!pick || pick.area > n * 0.9) return null;
+    let mask = new Uint8Array(n); for (let i = 0; i < n; i++) mask[i] = lab[i] === pick.id ? 1 : 0;
+    for (let k = 0; k < 3; k++) mask = grow(mask, bright);        // back to the true edge of the paper
+    // holes inside the paper (a QR code, a stamp) belong to it: whatever dark area the picture border cannot reach
+    const reach = new Uint8Array(n), st2 = new Int32Array(n); let sp2 = 0;
+    const seed = (i) => { if (!mask[i] && !reach[i]) { reach[i] = 1; st2[sp2++] = i; } };
+    for (let x = 0; x < W; x++) { seed(x); seed((H - 1) * W + x); }
+    for (let y = 0; y < H; y++) { seed(y * W); seed(y * W + W - 1); }
+    while (sp2) {
+      const i = st2[--sp2], x = i % W, y = (i / W) | 0;
+      if (x > 0) seed(i - 1); if (x < W - 1) seed(i + 1); if (y > 0) seed(i - W); if (y < H - 1) seed(i + W);
+    }
+    for (let i = 0; i < n; i++) if (!mask[i] && !reach[i]) mask[i] = 1;
+    // trim what clings to the paper (a sticker, a desk edge): keep the columns, then rows, that the paper mostly fills
+    {
+      let bx0 = W, bx1 = 0, by0 = H, by1 = 0;
+      for (let i = 0; i < n; i++) if (mask[i]) { const x = i % W, y = (i / W) | 0; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+      const bh = by1 - by0 + 1; let L = -1, R = -1;
+      for (let x = bx0; x <= bx1; x++) { let k = 0; for (let y = by0; y <= by1; y++) if (mask[y * W + x]) k++; if (k / bh >= 0.5) { if (L < 0) L = x; R = x; } }
+      if (L < 0) return null;
+      let T = -1, B = -1;
+      for (let y = by0; y <= by1; y++) { let k = 0; for (let x = L; x <= R; x++) if (mask[y * W + x]) k++; if (k / (R - L + 1) >= 0.5) { if (T < 0) T = y; B = y; } }
+      if (T < 0) return null;
+      for (let i = 0; i < n; i++) { const x = i % W, y = (i / W) | 0; if (mask[i] && (x < L || x > R || y < T || y > B)) mask[i] = 0; }
+    }
+    for (let k = 0; k < 2; k++) mask = grow(mask, null);           // and a little beyond, so no paper edge is cut
+    // box and long axis (the tilt of a long strip)
+    let cnt = 0, mx = 0, my = 0, x0 = W, x1 = 0, y0 = H, y1 = 0;
+    for (let i = 0; i < n; i++) if (mask[i]) { const x = i % W, y = (i / W) | 0; cnt++; mx += x; my += y; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (cnt < n * 0.05) return null;
+    mx /= cnt; my /= cnt;
+    let cxx = 0, cyy = 0, cxy = 0;
+    for (let i = 0; i < n; i++) if (mask[i]) { const x = (i % W) - mx, y = ((i / W) | 0) - my; cxx += x * x; cyy += y * y; cxy += x * y; }
+    const theta = (0.5 * Math.atan2(2 * cxy, cxx - cyy) * 180) / Math.PI;       // long axis, degrees from the x axis (y down)
+    const half = (cxx + cyy) / 2, spread = Math.sqrt(((cxx - cyy) / 2) ** 2 + cxy * cxy);
+    const longness = Math.sqrt((half + spread) / Math.max(1e-6, half - spread));
+    let tilt = 0;
+    if (longness >= 1.6) { tilt = ((theta + 45 + 360) % 90) - 45; if (Math.abs(tilt) < 2 || Math.abs(tilt) > 35) tilt = 0; }   // only a long strip, only a real tilt
+    const maskCanvas = newCanvas(W, H), mctx = maskCanvas.getContext('2d');
+    const md = mctx.createImageData(W, H);
+    for (let i = 0; i < n; i++) { const v = mask[i] ? 0 : 255; md.data[i * 4] = md.data[i * 4 + 1] = md.data[i * 4 + 2] = v; md.data[i * 4 + 3] = 255; }
+    mctx.putImageData(md, 0, 0);                  // white outside the paper, black on it
+    const mg = 2, bx = Math.max(0, x0 - mg), by = Math.max(0, y0 - mg);
+    return { maskCanvas, W, H, box: { x: bx, y: by, w: Math.min(W, x1 + mg) - bx, h: Math.min(H, y1 + mg) - by }, tilt };
+  }
+
+  /* The paper cut out of the original full-size photo: enlarged or shrunk so the print is about the size the engine reads best,
+     everything that is not paper painted white, and a tilted strip turned upright. */
+  function paperCrop(bmp, c) {
+    const f = findPaper(c); if (!f) return null;
+    const kx = bmp.width / f.W, ky = bmp.height / f.H;
+    const sx = f.box.x * kx, sy = f.box.y * ky, sw = f.box.w * kx, sh = f.box.h * ky;
+    const up = Math.min(2.5, 2800 / Math.max(sw, sh));
+    let r = newCanvas(sw * up, sh * up);
+    const ctx = r.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, r.width, r.height);
+    ctx.globalCompositeOperation = 'lighten';      // the lighter of photo and mask: outside the paper becomes white, the paper is untouched
+    ctx.drawImage(f.maskCanvas, f.box.x, f.box.y, f.box.w, f.box.h, 0, 0, r.width, r.height);
+    ctx.globalCompositeOperation = 'source-over';
+    if (f.tilt) {
+      const rad = (-f.tilt * Math.PI) / 180, cs = Math.abs(Math.cos(rad)), sn = Math.abs(Math.sin(rad));
+      const t = newCanvas(r.width * cs + r.height * sn, r.width * sn + r.height * cs), tctx = t.getContext('2d', { willReadFrequently: true });
+      tctx.fillStyle = '#fff'; tctx.fillRect(0, 0, t.width, t.height);
+      tctx.translate(t.width / 2, t.height / 2); tctx.rotate(rad); tctx.drawImage(r, -r.width / 2, -r.height / 2);
+      r = t;
+    }
+    return r;
   }
 
   /* One reading of the picture at one page layout: the text and how sure the engine is (0-100). */
@@ -168,7 +227,7 @@
      good pass, or every pass joined together so the parser can pick from all of them. */
   async function recognize(prep, opts) {
     const canvas = prep.crop || prep.full;       // the paper alone when it could be found, else the whole picture
-    const texts = [];
+    const texts = opts.collect || [];             // the caller may want every reading, not only the text returned
     const ok = (t) => !opts.good || opts.good(t);
     const attempt = async (cv, psm) => {
       try { return await pass(cv, psm); }
@@ -180,10 +239,11 @@
       }
     };
     let cv = canvas;
-    const first = await attempt(cv, '4');
+    const order = prep.crop ? ['6', '4', '11'] : ['4', '6', '11'];     // on a clean cut-out the block layout reads best
+    const first = await attempt(cv, order[0]);
     texts.push(first.text);
     if (ok(first.text)) return first.text;
-    if (first.conf < 60 || alnumCount(first.text) < 60) {      // a poor first look: the paper may be sideways or upside down in the frame
+    if (prep.turnable !== false && (first.conf < 60 || alnumCount(first.text) < 60)) {      // a poor first look of a PHOTO: the paper may be sideways or upside down in the frame
       let best = { cv: canvas, conf: first.conf };
       for (const deg of [90, 270, 180]) {
         const r = turned(canvas, deg);
@@ -195,7 +255,7 @@
       }
       cv = best.cv;                                             // carry on with the way up that read best
     }
-    for (const psm of ['6', '11']) {
+    for (const psm of order.slice(1)) {
       const res = await attempt(cv, psm);
       if (!res) break;
       texts.push(res.text);
@@ -217,7 +277,7 @@
   /* photo file -> recognised text */
   const read = (file, opts) => queue(async () => recognize(await prepare(file), opts || {}), opts);
   /* a canvas (e.g. a rendered PDF page) -> recognised text */
-  const readCanvas = (canvas, opts) => queue(async () => recognize({ full: enhance(canvas), crop: null }, opts || {}), opts);
+  const readCanvas = (canvas, opts) => queue(async () => recognize({ full: enhance(canvas), crop: null, turnable: false }, opts || {}), opts);
 
   root.OCR = { read, readCanvas, setSafeMode: (on) => { safeMode = !!on; return resetWorker(); } };
 })(window);

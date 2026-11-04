@@ -27,6 +27,9 @@
     let m;
     // OCR reads the letter O as a zero inside month names ("19/0ct/2026"), sometimes with a stray extra one ("0Oct")
     text = String(text).replace(/(\d{1,2}\s*[-\/.\s]?\s*)([A-Za-z0]{3,9})(?=\s*[-\/,.\s]?\s*\d{4})/g, (all, pre, mon) => pre + mon.replace(/0/g, 'o'));
+    // dot-matrix print often loses the first letter of a month ("11CT2026" for 11OCT2026)
+    const LOST = { CT: 'OCT', EC: 'DEC', OV: 'NOV', EB: 'FEB', UG: 'AUG', EP: 'SEP' };
+    text = text.replace(/(\d{1,2})\s?(CT|EC|OV|EB|UG|EP)(?=\s?\d{4})/gi, (all, d, f) => d + LOST[f.toUpperCase()]);
     const dmy = /(?<!\d)(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{4}|\d{2})(?!\d)/g;
     while ((m = dmy.exec(text))) {
       const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
@@ -44,7 +47,13 @@
   }
 
   // 12.34 but not litres ("20.12L"), which sit on the same line as the price. OCR often puts a space round the point ("RM116 .68")
-  const MONEY = /(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s?\.\s?|,)(\d{2})(?!\d)(?!\s*(?:l|ltr|litres?|liters?)\b)/gi;
+  const MONEY = /(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s?[.,]\s?)(\d{2})(?!\d)(?!\s*(?:l|ltr|litres?|liters?)\b)/gi;
+  // "RMS8 . 37", "RMG1. 40", "KM49 91", "-RM74 93": after RM, letters that are really digits (S 5, G 6, O 0, I 1, B 8, Z 2) and a point
+  // the print lost are put right, so "RM74.93" can be read
+  const LIKE = { O: '0', o: '0', S: '5', s: '5', I: '1', l: '1', '|': '1', B: '8', G: '6', Z: '2' };
+  const digits = (t) => t.replace(/[OoSsIl|BGZ]/g, (c) => LIKE[c]);
+  const normMoney = (text) => String(text).replace(/\b[RK]M\s?([0-9OoSsIl|BGZ]{1,5})(?:\s?[.,]\s?|\s)([0-9OoSsIl|BGZ]{2})(?![0-9A-Za-z])/g, (all, a, b) => 'RM' + digits(a) + '.' + digits(b));
+  let sureFlag = null;     // set by amount(): false when a subsidy receipt's TOTAL does not equal item minus subsidy (a digit was misread)
   const moneyIn = (s) => {
     const out = [];
     let m;
@@ -82,13 +91,14 @@
   /* A subsidy / discount line ("Budi95 Subsidy -RM56.68") comes off the item line above it. The amount paid is the figure
      AFTER it, so the item line on its own (RM116.68) is never taken as the amount. */
   const DEDUCT_WORD = /\b(subsid\w*|budi\w*|discount|diskaun|rebate|voucher|promo\w*)/i;
-  const DEDUCT_SKIP = /\b(price|harga|information|info)\b/i;
+  const DEDUCT_SKIP = /\b(price|harga|information|info|details?|scan|e-?invoice|\w*nvoice\w*|balance|bal)\b/i;      // headings and the footer "Scan for E-Invoice & Subsidy Details" are not a discount
   const SUBSIDY_WORD = /subsid|budi|discount|diskaun|rebate/i;
   const MINUS_AMT = /[-–—~]\s*(?:RM|MYR)?\s*\d/i;
 
   /* the amount paid: a TOTAL / AMOUNT line, never cash given or change */
   function amount(text) {
-    const lines = text.split(/\r?\n/);
+    sureFlag = null;
+    const lines = normMoney(text).split(/\r?\n/);
     const skip = /\b(change|baki|cash|tunai|tender|tendered|received|diterima|rounding|sst|gst|tax|price|harga|volume|liter|litre|qty|deposit)\b/i;   // a deposit is never part of the claim
     const NOT_AMOUNT = /\b(tarikh|date|tel|h\/p|k\/p|passport|booking|check|phone|fax)\b/i;      // a figure on these lines is a date or a phone number misread, never the total
     // the nearest line with text above / below line i (OCR leaves blank lines, and often reads the amounts column before the labels)
@@ -124,7 +134,8 @@
       if (!DEDUCT_WORD.test(ln) || DEDUCT_SKIP.test(ln)) return;
       const all = moneyIn(ln), vals = all.filter((v) => v > 0);
       if (vals.length) vals.forEach((v) => cuts.add(v));
-      else if (!all.length && (MINUS_AMT.test(ln) || SUBSIDY_WORD.test(ln))) unreadable = true;   // "Budios subsidy -RMS€ 68": there, but garbled
+      // "Budios subsidy -RMS€ 68": there, but garbled. The word alone is not enough (the footer says "Subsidy Details"): an RM sign or a minus must follow it
+      else if (!all.length && (MINUS_AMT.test(ln) || /(?:subsid|budi|discount|diskaun|rebate)\w*[^A-Za-z]{0,6}[-–—~]?\s*(?:RM|MYR)/i.test(ln))) unreadable = true;
     });
     const discounted = cuts.size > 0 || unreadable;
     let gross = null, net = null;
@@ -146,7 +157,7 @@
         let labelled;
         if (discounted) {
           const below = gross != null ? f.filter((v) => v < gross - 0.05) : f;       // the figures after the discount
-          if (below.length) labelled = below[below.length - 1];
+          if (below.length) { labelled = below[below.length - 1]; if (net != null) sureFlag = Math.abs(labelled - net) <= 0.05; }
           else if (net != null) labelled = net;
           else return paid;                                                         // only the pre-discount figure was readable
         } else labelled = Math.max.apply(null, f);
@@ -216,6 +227,14 @@
 
   const words = (s) => s.toUpperCase().split(/[^A-Z0-9]+/).filter((w) => w.length >= 4);
 
+  function editDistance(a, b) {
+    const d = [];
+    for (let i = 0; i <= a.length; i++) { d[i] = [i]; }
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  }
+
   /* station: a station seen before if its name appears in the text, else the first name-like line */
   function station(text, known) {
     const up = text.toUpperCase();
@@ -225,7 +244,10 @@
       if (!ws.length) return;
       // OCR often drops the first or last letters ("JAYAAN TEGUH ENT" for KEJAYAAN TEGUH ENTERPRISE), so a long word also counts
       // when all but its first two or last two letters are there
-      const hits = ws.filter((w) => up.includes(w) || (w.length >= 7 && (up.includes(w.slice(2)) || up.includes(w.slice(0, -2))))).length;
+      // (and one wrong letter is allowed: TEGUM for TEGUH)
+      const here = words(text);
+      const close = (w) => w.length >= 5 && here.some((x) => Math.abs(x.length - w.length) <= 1 && editDistance(x, w) <= 1);
+      const hits = ws.filter((w) => up.includes(w) || (w.length >= 7 && (up.includes(w.slice(2)) || up.includes(w.slice(0, -2)))) || close(w)).length;
       if (hits / ws.length >= 0.6 && hits > bestHits) { best = name; bestHits = hits; }
     });
     if (best) return best;
@@ -310,7 +332,42 @@
       station: stationName || station(text, opts.stations),
       receiptNo: receiptNo(text),
       category,
+      sure: foreign ? null : sureFlag,              // false: the amount does not add up (item - subsidy != TOTAL), so a digit was probably misread
     };
+    out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
+    return out;
+  }
+
+  /* Several readings of one receipt (each page layout, each way up) are read one by one and the fields voted on: a digit the engine
+     misread in one reading is outvoted by the others, and a reading whose amount adds up (item - subsidy = TOTAL) counts triple. */
+  function best(texts, opts) {
+    const rs = (texts || []).map((t) => parse(t, opts));
+    if (!rs.length) return parse('', opts);
+    const vote = (key, usable) => {
+      const c = new Map();
+      rs.forEach((r, i) => {
+        const v = r[key];
+        if (!v || (usable && !usable(r))) return;
+        const e = c.get(v) || { n: 0, first: i };
+        e.n += r.sure === true ? 3 : 1;
+        c.set(v, e);
+      });
+      return Array.from(c.entries()).sort((a, b) => b[1].n - a[1].n || a[1].first - b[1].first).map((x) => x[0]);
+    };
+    const known = ((opts && opts.stations) || []).map((s) => s.toLowerCase());
+    // the shop name: a saved shop beats everything; then the reading that also found the amount and date; then the most word-like
+    const score = (name, r) => (known.includes(name.toLowerCase()) ? 100 : 0) + (r.amount ? 10 : 0) + (r.date ? 10 : 0)
+      + 5 * ((name.match(/[A-Za-z]/g) || []).length / Math.max(1, name.length)) + Math.min(5, name.split(/\s+/).filter((w) => w.length >= 3).length);
+    const stations = rs.filter((r) => r.station).map((r) => [r.station, score(r.station, r)]).sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+    const out = Object.assign({}, rs.find((r) => r.found) || rs[0], {
+      amount: vote('amount', (r) => r.sure !== false)[0] || vote('amount')[0] || '',
+      date: vote('date')[0] || '',
+      station: stations[0] || '',
+      receiptNo: vote('receiptNo')[0] || '',
+      category: (rs.find((r) => r.category) || {}).category || '',
+      foreign: (rs.find((r) => r.foreign) || {}).foreign || null,
+    });
+    out.sure = rs.some((r) => r.amount === out.amount && r.sure === true) ? true : rs.some((r) => r.amount === out.amount && r.sure === false) ? false : null;
     out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
     return out;
   }
@@ -330,5 +387,5 @@
     };
   }
 
-  return { parse, dates, amount, station, receiptNo, inWords, mc, foreignTotal, foreignAmounts, stripForeign, myrCharged };
+  return { parse, best, dates, amount, station, receiptNo, inWords, mc, foreignTotal, foreignAmounts, stripForeign, myrCharged };
 });

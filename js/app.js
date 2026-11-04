@@ -680,7 +680,7 @@
   }
 
   // dealers seen on past claims, so a receipt reading "KEJAYAAN TEGUH ENT" is named the way the team already writes it
-  const SEED_STATIONS = ['Kejayaan Teguh Enterprise', 'Legasi Puncak', 'BE Petrol Station', 'R & Z Aktiviti Enterprise', 'PS Taman Tenaga',
+  const SEED_STATIONS = ['Kejayaan Teguh Enterprise', 'Klinik Putra Care', 'Legasi Puncak', 'BE Petrol Station', 'R & Z Aktiviti Enterprise', 'PS Taman Tenaga',
     'MNR Synergy', 'Mickey Puchong Petrol Station', 'Setar Quay Sdn Bhd', 'Stesen Minyak Jasa Tuah'];
   const stations = () => store.get('wfc-stations', []).concat(SEED_STATIONS);
   function rememberStation(name) {
@@ -738,14 +738,17 @@
     try {
       const mp = monthParts();
       const opts = { month: mp && mp.key, stations: stations() };
+      const parts = [];
       const text = await OCR.read(file, {
+        collect: parts,
         onStart: () => setOcr(item, 'reading'),
-        good: (t) => { const p = Petrol.parse(t, opts); return !!((p.amount || p.foreign) && p.date); },
+        good: (t) => { const p = Petrol.parse(t, opts); return !!((p.amount || p.foreign) && p.date && p.sure !== false); },
       });
       if (!S.other.includes(item)) return;              // removed while waiting
+      const r = Petrol.best(parts.length ? parts : [text], opts);          // every reading votes, so one misread digit is outvoted
       const verdict = Validate.judge(text, 'photo');
-      if (verdict.status !== 'ok') { dropItem(item); reject(file, verdict.reason, verdict.force, verdict.mc); return; }
-      const r = Petrol.parse(text, opts);
+      // the stricter check can miss an amount the voting reader did find (a lost decimal point): then the photo stays
+      if (verdict.status !== 'ok' && !(r.amount && verdict.reason === Validate.MSG.noAmount)) { dropItem(item); reject(file, verdict.reason, verdict.force, verdict.mc); return; }
       if (!r.amount && r.foreign) {                     // a receipt in another currency is claimed in ringgit
         const c = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
         if (c) { r.amount = c.myr.toFixed(2); item.fx = c; }
