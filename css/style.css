@@ -286,3 +286,34 @@ dialog .sec { display: grid; gap: 6px; }
   .ldetails { grid-template-columns: 1fr 1fr; }
   .ldetails .nm { grid-column: 1 / -1; }
 }
+
+/* the Claude panel */
+#btnAi { display: inline-flex; align-items: center; gap: 8px; }
+.aidot { width: 9px; height: 9px; border-radius: 50%; background: #b8c0ce; display: inline-block; }
+.aidot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(6, 118, 71, .18); }
+.aidot.saved { background: #e6a700; }
+.aidot.bad { background: var(--bad); }
+#aiDlg form { gap: 14px; }
+.aihd { display: flex; align-items: center; justify-content: space-between; }
+.aix { border: 0; background: none; font-size: 24px; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px 8px; }
+.aicard { border: 1px solid var(--line-2); border-radius: 14px; padding: 16px 18px; display: grid; gap: 10px; }
+.aihead { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
+.aistat { border-radius: 999px; padding: 4px 12px; font-weight: 650; font-size: 13px; background: #eef1f7; color: var(--muted); }
+.aistat.ok { background: var(--ok-bg); color: var(--ok); }
+.aistat.saved, .aistat.wait { background: var(--warn-bg); color: var(--warn); }
+.aistat.bad { background: var(--bad-bg); color: var(--bad); }
+.aicard small { color: var(--muted); font-size: 13px; }
+.aicard small.bad, .aimsg.bad { color: var(--bad); }
+.aimsg { margin: 0; font-size: 13.5px; } .aimsg.ok { color: var(--ok); }
+.airow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.airow input[type=password] { flex: 1; min-width: 220px; }
+.aikey { color: var(--ok); font-weight: 600; flex: 1; }
+.aia { color: var(--blue); cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.aisteps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; display: grid; gap: 4px; }
+.aispend { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .aispend b { color: var(--ink); }
+.aitip { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-2); text-align: center; font-size: 12px; line-height: 16px; cursor: help; }
+.aimodes { display: grid; gap: 8px; }
+.aimode { display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid var(--line-2); border-radius: 12px; padding: 10px 14px; cursor: pointer; }
+.aimode.on { border-color: var(--blue); background: var(--blue-50); }
+.aimode.dim { opacity: .55; cursor: default; }
+.aimode span { display: grid; gap: 2px; } .aimode small { color: var(--muted); font-size: 13px; }

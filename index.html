@@ -6,12 +6,13 @@
 <title>WFC Claim Builder</title>
 <meta name="theme-color" content="#1f4ad8">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f4ad8'/%3E%3Cpath d='M8 11l3 11 5-8 5 8 3-11' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=81">
+<link rel="stylesheet" href="css/style.css?v=82">
 </head>
 <body>
 <header class="top">
   <div class="wrap">
     <div class="brand"><img id="brandLogo" alt="WFC Systems"><span>Claim Builder</span></div>
+    <button class="ghost" id="btnAi" type="button"></button>
     <button class="ghost" id="btnSettings" type="button">Settings</button>
   </div>
 </header>
@@ -152,13 +153,6 @@
       <p class="hint">Best-effort list for 2026 &mdash; check the Islamic holiday dates against the official gazette and add Selangor / one-off holidays. Add next year's dates here too.</p></div>
     <div class="sec"><label class="f">Google client ID (optional, for a Gmail draft with the zip attached)<input type="text" id="sGmail" spellcheck="false" autocomplete="off"></label>
       <p class="hint">One-time setup that lets the &ldquo;Create Gmail draft&rdquo; button put the zip into a draft in your own Gmail. The steps are in the README under &ldquo;Gmail draft with the zip attached&rdquo;. Leave it empty to keep the normal Gmail link.</p></div>
-    <div class="sec"><span class="lbl">Claude backup (optional)</span>
-      <div class="locrow"><input type="password" id="sClaudeKey" placeholder="Paste your Anthropic API key (sk-ant-&hellip;)" autocomplete="off" spellcheck="false" style="flex:1;min-width:220px">
-        <button class="ghost" type="button" id="sClaudeSave">Save and test</button>
-        <button class="ghost" type="button" id="sClaudeForget">Remove</button></div>
-      <div class="locrow"><select id="sClaudeModel" aria-label="Claude model"></select><b id="sClaudeStatus"></b></div>
-      <label class="opts" id="sClaudeFirstRow" hidden><input type="checkbox" id="sClaudeFirst" checked> Claude reads camera photos first (they can be blurry)</label>
-      <p class="hint">Optional. With a key, Claude reads each camera photo first (about RM 0.03 each) and this computer double-checks anything Claude is unsure about. PDFs are always read on this computer, and screenshots are read here first. Untick the box to use Claude only when this computer cannot read a photo or the result looks wrong. With no key, nothing is sent anywhere.</p></div>
     <div class="foot">
       <button class="ghost" type="button" id="sReset">Reset lists to defaults</button>
       <button class="primary" value="save" id="sSave">Save</button>
@@ -172,18 +166,19 @@
 <script src="assets/claim-base.js"></script>
 <script src="assets/leave-base.js"></script>
 <script src="assets/logo.js"></script>
-<script src="js/tng.js?v=81"></script>
-<script src="js/xlsx.js?v=81"></script>
-<script src="js/pdf.js?v=81"></script>
-<script src="js/receipts.js?v=81"></script>
-<script src="js/mail.js?v=81"></script>
-<script src="js/gmail.js?v=81"></script>
-<script src="js/folder.js?v=81"></script>
-<script src="js/fx.js?v=81"></script>
-<script src="js/petrol.js?v=81"></script>
-<script src="js/validate.js?v=81"></script>
-<script src="js/ocr.js?v=81"></script>
-<script src="js/planb.js?v=81"></script>
-<script src="js/app.js?v=81"></script>
+<script src="js/tng.js?v=82"></script>
+<script src="js/xlsx.js?v=82"></script>
+<script src="js/pdf.js?v=82"></script>
+<script src="js/receipts.js?v=82"></script>
+<script src="js/mail.js?v=82"></script>
+<script src="js/gmail.js?v=82"></script>
+<script src="js/folder.js?v=82"></script>
+<script src="js/fx.js?v=82"></script>
+<script src="js/petrol.js?v=82"></script>
+<script src="js/validate.js?v=82"></script>
+<script src="js/ocr.js?v=82"></script>
+<script src="js/planb.js?v=82"></script>
+<script src="js/aipanel.js?v=82"></script>
+<script src="js/app.js?v=82"></script>
 </body>
 </html>

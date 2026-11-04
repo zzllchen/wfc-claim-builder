@@ -25,9 +25,13 @@
   };
   const apiKey = () => ls.get(KEY);
   const model = () => (MODELS[ls.get(MODEL)] ? ls.get(MODEL) : DEFAULT_MODEL);
-  const available = () => !!apiKey() && calls < MAX_CALLS;
+  const MODE = 'wfc-claude-mode', SPEND = 'wfc-claude-spend', TESTED = 'wfc-claude-tested';
+  // when Claude reads: 'first' = camera photos go to Claude first, 'backup' = only when the reader on this PC fails or doubts, 'off' = never
+  const mode = () => { const m = ls.get(MODE); return m === 'backup' || m === 'off' || m === 'first' ? m : (ls.get(FIRST) === '0' ? 'backup' : 'first'); };
+  const setMode = (m) => { ls.set(MODE, m); ls.set(FIRST, ''); };
+  const available = () => !!apiKey() && mode() !== 'off' && calls < MAX_CALLS;
   // Claude reads every photo first (the default once a key is saved); switched off, it is only asked when the reader on this PC fails or doubts
-  const first = () => ls.get(FIRST) !== '0';
+  const first = () => mode() === 'first';
 
   /* ---------- when is the normal reading doubtful? ---------- */
   // a believable amount for each kind of claim, in ringgit
@@ -158,14 +162,35 @@ Rules:
     if (j.stop_reason === 'refusal') throw new Error('Claude declined to read this photo.');
     const reading = parseReply((j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n'));
     if (!reading) throw new Error('Claude answered, but not in a form the tool could read.');
-    return { reading, usage: j.usage, costRM: costRM(m, j.usage) };
+    const rm = costRM(m, j.usage); addSpend(rm);
+    return { reading, usage: j.usage, costRM: rm };
   }
   // a one-word question: does the key work with this model?
   async function test() {
     const key = apiKey(); if (!key) throw new Error('No Claude key saved.');
     const t0 = Date.now(), m = model();
     const j = await post({ model: m, max_tokens: 200, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'Reply with the single word: ready' }] }, key);
-    return { ok: true, model: m, ms: Date.now() - t0, costRM: costRM(m, j.usage) };
+    const rm = costRM(m, j.usage); addSpend(rm);
+    return { ok: true, model: m, ms: Date.now() - t0, costRM: rm };
+  }
+  // what Claude has cost this month on this PC (an estimate from the token counts), the last test of the key, and the state of the connection
+  const monthKey = () => new Date().toISOString().slice(0, 7);
+  function spend() { try { const o = JSON.parse(ls.get(SPEND) || '{}'); return o.m === monthKey() ? (+o.rm || 0) : 0; } catch (e) { return 0; } }
+  function addSpend(rm) { if (rm > 0) ls.set(SPEND, JSON.stringify({ m: monthKey(), rm: spend() + rm })); }
+  const resetSpend = () => ls.set(SPEND, '');
+  function tested() { try { return JSON.parse(ls.get(TESTED) || 'null'); } catch (e) { return null; } }
+  const tail = () => apiKey().slice(-4);
+  // 'none' no key, 'off' switched off, 'saved' key not tested (with this model), 'ok' last test passed, 'bad' last test failed
+  function state() {
+    if (!apiKey()) return 'none';
+    if (mode() === 'off') return 'off';
+    const t = tested();
+    if (!t || t.tail !== tail() || t.model !== model()) return 'saved';
+    return t.ok ? 'ok' : 'bad';
+  }
+  async function runTest() {
+    try { const r = await test(); ls.set(TESTED, JSON.stringify({ ok: true, at: Date.now(), ms: r.ms, model: r.model, tail: tail() })); return r; }
+    catch (e) { ls.set(TESTED, JSON.stringify({ ok: false, at: Date.now(), msg: explain(e), model: model(), tail: tail() })); throw e; }
   }
   function explain(e) {
     const m = (e && e.message) || String(e), st = e && e.status;
@@ -177,6 +202,6 @@ Rules:
     return m;
   }
 
-  return { doubts, parseReply, merge, asReading, clean, read, test, explain, available, first, setFirst: (on) => ls.set(FIRST, on ? '' : '0'), apiKey, model, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
+  return { doubts, parseReply, merge, asReading, clean, read, test, runTest, explain, available, first, mode, setMode, spend, addSpend, resetSpend, tested, state, apiKey, model, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
     setKey: (v) => ls.set(KEY, v), setModel: (v) => ls.set(MODEL, v), resetCalls: () => { calls = 0; } };
 });

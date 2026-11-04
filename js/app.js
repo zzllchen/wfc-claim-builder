@@ -1368,30 +1368,8 @@
     refreshLoc();
   }
 
-  /* ---------- Claude backup reader (plan B): the key and model live in this browser only ---------- */
-  function refreshClaude(msg, bad) {
-    const sel = $('#sClaudeModel'), key = PlanB.apiKey();
-    // the privacy line on the Files step stays true: with a key saved, Claude may see a photo the computer cannot read
-    $('#privacyNote').textContent = !key ? 'Your photos stay on this computer.' : PlanB.first() ? 'Camera photos are sent to Claude to be read (a key is saved on this computer). PDFs stay on this computer.' : 'Your photos stay on this computer, unless it cannot read one.';
-    if (!sel.options.length) Object.keys(PlanB.MODELS).forEach((k) => sel.append(h('option', { value: k, text: PlanB.MODELS[k].label })));
-    sel.value = PlanB.model();
-    $('#sClaudeFirstRow').hidden = !key; $('#sClaudeFirst').checked = PlanB.first();
-    $('#sClaudeKey').hidden = !!key; $('#sClaudeSave').hidden = !!key; $('#sClaudeForget').hidden = !key;
-    const st = $('#sClaudeStatus');
-    st.textContent = msg || (key ? 'On' : 'Off');
-    st.style.color = bad ? 'var(--bad)' : key && !msg ? 'var(--ok)' : '';
-  }
-  async function saveClaudeKey() {
-    const el = $('#sClaudeKey'), v = el.value.trim();
-    if (!/^sk-ant-/.test(v)) { refreshClaude('That is not a Claude key. It starts with sk-ant-', true); el.focus(); return; }
-    PlanB.setKey(v); el.value = ''; refreshClaude('Testing…');
-    try { const t = await PlanB.test(); refreshClaude('Connected. Claude backup is on.'); $('#sClaudeStatus').style.color = 'var(--ok)'; }
-    catch (e) { refreshClaude('Not working: ' + PlanB.explain(e), true); }
-  }
-
   /* ---------- settings dialog ---------- */
   function openSettings() {
-    refreshClaude();
     $('#sToName').value = cfg.toName; $('#sSignoff').value = cfg.signoff;
     $('#sHol').value = cfg.holidays;
     $('#sGmail').value = cfg.gmailClientId || '';
@@ -1445,7 +1423,6 @@
     $('#viewLeave').addEventListener('change', markNeededLeave);
 
     wireDrop();
-    refreshClaude();
     $('#ocrOn').checked = !!cfg.ocr;
     $('#ocrOn').addEventListener('change', () => { cfg.ocr = $('#ocrOn').checked; saveCfg(); });
 
@@ -1462,11 +1439,6 @@
     $('#sLocChange').addEventListener('click', changeFolder);
     $('#sLocForget').addEventListener('click', async () => { await Folder.forget(); refreshLoc(); });
     $('#sReset').addEventListener('click', () => { $('#sHol').value = TNG.DEFAULT_HOLIDAYS; });
-    $('#sClaudeSave').addEventListener('click', saveClaudeKey);
-    $('#sClaudeForget').addEventListener('click', () => { PlanB.setKey(''); refreshClaude(); });
-    $('#sClaudeFirst').addEventListener('change', () => { PlanB.setFirst($('#sClaudeFirst').checked); refreshClaude(); });
-    $('#sClaudeModel').addEventListener('change', () => { PlanB.setModel($('#sClaudeModel').value); refreshClaude(); });
-    $('#sClaudeKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveClaudeKey(); } });
     $('#dlgForm').addEventListener('submit', () => {
       cfg.toName = $('#sToName').value.trim(); cfg.signoff = $('#sSignoff').value.trim();
       cfg.holidays = $('#sHol').value;
