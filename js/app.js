@@ -1486,6 +1486,16 @@
     $('#dlg').showModal();
   }
 
+  /* On this PC's own copy (localhost), when no dashboard is set yet and the local claims inbox is running, link to it by itself:
+     the demo then works however the page was opened. Nothing happens on the live site or when the inbox is not running. */
+  function autoLinkDash() {
+    if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || dashApi()) return;
+    const api = 'http://localhost:8787/api';
+    fetch(api + '?action=ping', { cache: 'no-store' }).then((r) => r.json()).then((j) => {
+      if (j && j.ok && j.service === 'wfc-claims' && !dashApi()) { cfg.dashApi = api; saveCfg(); refreshDash(); }
+    }).catch(() => { /* no local inbox: stay email-only */ });
+  }
+
   /* the tick box under Save my claim only exists when there is a dashboard to send to */
   function refreshDash() {
     $('#dashOpt').hidden = !dashApi();
@@ -1540,7 +1550,7 @@
     wireDrop();
     $('#ocrOn').checked = !!cfg.ocr;
     $('#ocrOn').addEventListener('change', () => { cfg.ocr = $('#ocrOn').checked; saveCfg(); });
-    refreshDash();
+    refreshDash(); autoLinkDash();
     $('#sendDash').addEventListener('change', () => { cfg.sendDash = $('#sendDash').checked; saveCfg(); });
 
     $('#btnAddLine').addEventListener('click', () => {      // a line typed by hand: no file needed
