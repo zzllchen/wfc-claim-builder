@@ -50,6 +50,12 @@
   cfg.fromEmail = ''; cfg.toEmail = DEFAULTS.toEmail;      // ignore anything an earlier version saved
   const gmailClientId = () => String(cfg.gmailClientId || DEFAULTS.gmailClientId || '').trim();
   const dashApi = () => String(cfg.dashApi || DEFAULTS.dashApi || '').trim();
+  // the demo launcher opens this page with ?dash=http://localhost:8787/api. Only a localhost address is accepted, so a link from someone else can never point claims at another server
+  (function () {
+    const q = new URLSearchParams(location.search).get('dash');
+    if (q && /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\/api$/.test(q)) { cfg.dashApi = q; store.set('wfc-claim-cfg', Object.assign({}, cfg, { fromEmail: '', toEmail: '' })); }
+    if (q) history.replaceState(null, '', location.pathname + location.hash);
+  })();
   // who the email is from and who gets it are chosen fresh on every visit: sender blank (pick from the list), receiver the accountant
   const saveCfg = () => store.set('wfc-claim-cfg', Object.assign({}, cfg, { fromEmail: '', toEmail: '' }));
 

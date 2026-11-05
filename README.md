@@ -55,6 +55,7 @@ When an **accountant's dashboard address** is set (Settings, or built in as `DEF
 - A tick box *Also show it on the accountant's dashboard* appears under **Save my claim** only when an address is set. With no address nothing is sent and nothing shows.
 - Saving the same month again replaces the earlier version on the dashboard, and its status goes back to *New*.
 - Files over 7 MB are left out (the page names them); they are still in the zip.
+- For a local demo, open the page as `.../?dash=http://localhost:8787/api` (the dashboard project's `Start Demo.bat` does this). Only `http://localhost` / `127.0.0.1` addresses are accepted from a link, so a link can never send claims to another server.
 - No login yet, by design for the demo. See the dashboard project's README, "Before real use".
 - Code: `js/accounts.js` (sender), test: `node tests/accounts.test.js`.
 
