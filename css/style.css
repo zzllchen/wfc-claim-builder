@@ -340,3 +340,8 @@ dialog .sec { display: grid; gap: 6px; }
   .topbtns .quiet .lbl { display: none; }       /* just the arrow on a phone: the tooltip and the confirm say what it does */
   .topsep { display: none; }
 }
+
+/* the line under a saved claim that says whether it also reached the accountant's dashboard */
+.dashstat:not(:empty) { margin: 10px 0 4px; display: grid; gap: 8px; }
+.dashstat .link { color: inherit; text-decoration: underline; padding: 0 2px; }
+.opts[hidden] { display: none; }

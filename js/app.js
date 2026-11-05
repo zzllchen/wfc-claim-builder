@@ -43,10 +43,13 @@
     claimant: '', signature: '', fromEmail: '', toEmail: 'agnes@yutech.com.my',      // the accountant; anyone can type over it
     toName: '', signoff: '', ocr: true, holidays: TNG.DEFAULT_HOLIDAYS,
     gmailClientId: '561844027130-njr633b0hh2d5mciu0o8r0be6plrovt7.apps.googleusercontent.com',      // the team's Google client ID (public, not a secret), so nobody has to paste it in Settings
+    dashApi: '',          // the accountant's dashboard (the WFC Claims inbox). Empty = email only. Set it once the inbox is online, so nobody has to paste it
+    sendDash: true,
   };
   const cfg = Object.assign({}, DEFAULTS, store.get('wfc-claim-cfg', {}));
   cfg.fromEmail = ''; cfg.toEmail = DEFAULTS.toEmail;      // ignore anything an earlier version saved
   const gmailClientId = () => String(cfg.gmailClientId || DEFAULTS.gmailClientId || '').trim();
+  const dashApi = () => String(cfg.dashApi || DEFAULTS.dashApi || '').trim();
   // who the email is from and who gets it are chosen fresh on every visit: sender blank (pick from the list), receiver the accountant
   const saveCfg = () => store.set('wfc-claim-cfg', Object.assign({}, cfg, { fromEmail: '', toEmail: '' }));
 
@@ -1090,6 +1093,41 @@
     }
   }
 
+  /* ---------- the accountant's dashboard ---------- */
+  /* shows the state of the send in the saved-claim box: sending... / done / could not (with Try again). Nothing here can stop the email. */
+  function paintDash(box, p) {
+    if (!box) return;
+    box.textContent = '';
+    const d = p.dash;
+    if (!d) return;
+    if (d.state === 'busy') box.append(h('div', { class: 'note info', text: d.text }));
+    else if (d.state === 'ok') {
+      box.append(h('div', { class: 'note ok', text: d.text }));
+      if (d.skipped && d.skipped.length) box.append(h('div', { class: 'note warn', text: `${d.skipped.length} file${d.skipped.length > 1 ? 's were' : ' was'} too big for the dashboard (still in the zip): ${d.skipped.join(', ')}` }));
+    } else box.append(h('div', { class: 'note warn' }, d.text + ' ', h('button', { class: 'link', type: 'button', text: 'Try again', onclick: d.retry })));
+  }
+
+  function pushToDashboard(pack, claim, entries) {
+    const api = dashApi();
+    pack.dash = null;
+    if (!api || !$('#sendDash').checked) return Promise.resolve();
+    const run = async () => {
+      const set = (d) => { pack.dash = Object.assign({ retry: run }, d); paintDash(pack.dashEl, pack); };
+      set({ state: 'busy', text: "Sending to the accountant's dashboard…" });
+      try {
+        const r = await Accounts.send({
+          api, claim, files: entries.map((e) => ({ name: e.path, data: e.data, kind: e.kind, line: e.line })),
+          onProgress: (p) => set({ state: 'busy', text: `Sending to the accountant's dashboard… ${Math.min(p.done, p.total - 1)} of ${p.total - 1} files` }),
+        });
+        set({ state: 'ok', text: "Also on the accountant's dashboard." + (r.version > 1 ? ' (This replaces the earlier version of this claim.)' : ''), skipped: r.skipped });
+      } catch (e) {
+        console.error(e);
+        set({ state: 'bad', text: `Could not put it on the accountant's dashboard (${(e && e.message) || e}). Your claim is saved and the email still works.` });
+      }
+    };
+    return run();
+  }
+
   async function buildPack() {
     S.showErrors = true;
     const { lines: raw, tv } = compileLines();
@@ -1119,19 +1157,20 @@
       const zip = new JSZip();
       const root = zip.folder(folder);
       const entries = [];
-      const add = (path, data) => { root.file(path, data); entries.push({ path, data, size: data.size != null ? data.size : data.byteLength }); };
+      // kind / line say what a file is, for the accountant's dashboard (line = the number of the claim line a receipt belongs to)
+      const add = (path, data, kind, line) => { root.file(path, data); entries.push({ path, data, size: data.size != null ? data.size : data.byteLength, kind: kind || 'other', line: line || 0 }); };
 
-      add(`WFC - ${tag} Claim form.xlsx`, xlsx.data);
-      add(`WFC - ${tag} Claim form.pdf`, pdf);
+      add(`WFC - ${tag} Claim form.xlsx`, xlsx.data, 'form-xlsx');
+      add(`WFC - ${tag} Claim form.pdf`, pdf, 'form-pdf');
 
       if (S.tng) {
-        add(safe(S.tng.file.name), S.tng.buf);
+        add(safe(S.tng.file.name), S.tng.buf, 'tng');
         add('TNG toll check list.pdf', ClaimPdf.tollBreakdown({
           claimant, monthLabel: monthLabel(mp), serial: S.tng.header.serial, period: S.tng.header.periodText,
           rows: tv.rows.map((r) => Object.assign({}, r, { why: tripWhy(r) })),
           total: num((raw.find((l) => l.kind === 'toll') || {}).amount), calculatedToll: tv.toll,          // what is claimed (may be typed over) vs what the ticks add up to
           parkingTotal: num((raw.find((l) => l.kind === 'parking') || {}).amount), calculatedParking: tv.parking,
-        }));
+        }), 'tollcheck');
       }
 
       const shrink = $('#shrink').checked;
@@ -1144,8 +1183,8 @@
           const suffix = l.files.length > 1 ? String.fromCharCode(97 + k) : '';
           const stem = safe(`Receipt ${n}${suffix} - ${l.category} - ${ClaimPdf.fmtDate(l.date).replace(/\//g, '-')}`);
           const small = shrink ? await shrinkImage(f) : null;
-          if (small) add(`${stem}.jpg`, small);
-          else add(`${stem}.${ext(f.name)}`, f);
+          if (small) add(`${stem}.jpg`, small, 'receipt', i + 1);
+          else add(`${stem}.${ext(f.name)}`, f, 'receipt', i + 1);
         }
       }
 
@@ -1160,6 +1199,11 @@
       };
       renderPack('claim');
       $('#pack').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // the email is still how the zip travels; this also puts the claim on the accountant's dashboard
+      pushToDashboard(S.packs.claim, {
+        claimant, month: mp.key, lines: claimLines.map((l) => Object.assign({}, l, { amount: round2(l.amount) })),
+        from: $('#fromEmail').value.trim(), to: $('#toEmail').value.trim(), subject: $('#subject').value,
+      }, entries);
     } catch (e) {
       console.error(e);
       notes.append(h('div', { class: 'note bad', text: 'Could not save the claim: ' + (e.message || e) }));
@@ -1347,9 +1391,12 @@
     if (!p) { box.hidden = true; return; }
     box.hidden = false;
     box.textContent = '';
+    const dashBox = kind === 'claim' ? h('div', { class: 'dashstat' }) : null;
+    if (dashBox) { p.dashEl = dashBox; paintDash(dashBox, p); }
     box.append(h('div', {},
       h('h3', { text: p.title }),
       p.savedTo ? h('div', { class: 'note ok', text: 'Saved to ' + p.savedTo + (kind === 'claim' ? ' (the zip is next to it)' : '') }) : h('div', { class: 'note info', text: 'Downloaded to your Downloads folder.' }),
+      dashBox,
       p.stale ? h('div', { class: 'note warn', text: `You changed something after saving – save again before sending.` }) : null,
       p.blob.size / 1048576 > 24 ? h('div', { class: 'note warn', text: 'This is over 24 MB, which Gmail may refuse. Tick "Shrink photos" and save again, or send it by link.' }) : null,
       h('ul', {}, p.entries.map((e) => h('li', { text: `${e.path} (${sizeText(e.size)})` })))));
@@ -1426,8 +1473,16 @@
     $('#sHol').value = cfg.holidays;
     $('#sGmail').value = cfg.gmailClientId || '';
     $('#sGmail').placeholder = DEFAULTS.gmailClientId || '1234567890-abc123.apps.googleusercontent.com';
+    $('#sDash').value = cfg.dashApi || '';
+    $('#sDash').placeholder = DEFAULTS.dashApi || 'https://script.google.com/macros/s/…/exec';
     refreshLoc();
     $('#dlg').showModal();
+  }
+
+  /* the tick box under Save my claim only exists when there is a dashboard to send to */
+  function refreshDash() {
+    $('#dashOpt').hidden = !dashApi();
+    $('#sendDash').checked = cfg.sendDash !== false;
   }
 
   /* ---------- init ---------- */
@@ -1478,6 +1533,8 @@
     wireDrop();
     $('#ocrOn').checked = !!cfg.ocr;
     $('#ocrOn').addEventListener('change', () => { cfg.ocr = $('#ocrOn').checked; saveCfg(); });
+    refreshDash();
+    $('#sendDash').addEventListener('change', () => { cfg.sendDash = $('#sendDash').checked; saveCfg(); });
 
     $('#btnAddLine').addEventListener('click', () => {      // a line typed by hand: no file needed
       const item = { id: uid(), kind: 'other', manual: true, files: [], category: '', name: '', date: '', receiptNo: '', amount: '', auto: {} };
@@ -1496,7 +1553,8 @@
       cfg.toName = $('#sToName').value.trim(); cfg.signoff = $('#sSignoff').value.trim();
       cfg.holidays = $('#sHol').value;
       cfg.gmailClientId = $('#sGmail').value.trim();
-      saveCfg(); S.touched.body = false; S.touched.lBody = false; renderLines(); refreshLeaveEmail();
+      cfg.dashApi = $('#sDash').value.trim();
+      saveCfg(); refreshDash(); S.touched.body = false; S.touched.lBody = false; renderLines(); refreshLeaveEmail();
       ['claim', 'leave'].forEach((k) => { if (S.packs[k]) renderPack(k); });       // so the Gmail draft button appears or goes
     });
 

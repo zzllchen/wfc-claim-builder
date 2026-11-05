@@ -48,6 +48,16 @@ The expense claim is four steps, one form on screen at a time. The circles at th
    - *Download .eml draft* opens in Outlook / Apple Mail with the zip already attached.
    - *Share...* (phones) hands the zip to the Gmail app.
 
+## The accountant's dashboard (optional)
+
+When an **accountant's dashboard address** is set (Settings, or built in as `DEFAULTS.dashApi` in `js/app.js`), **Save my claim** also puts the claim on the dashboard site (the separate *WFC Claims Dashboard* project): the claim's lines, the claim form, the TNG statement, the toll check list and each receipt. The email with the zip is unchanged, and the dashboard cannot stop the email: if it is unreachable the page says so and offers **Try again**.
+
+- A tick box *Also show it on the accountant's dashboard* appears under **Save my claim** only when an address is set. With no address nothing is sent and nothing shows.
+- Saving the same month again replaces the earlier version on the dashboard, and its status goes back to *New*.
+- Files over 7 MB are left out (the page names them); they are still in the zip.
+- No login yet, by design for the demo. See the dashboard project's README, "Before real use".
+- Code: `js/accounts.js` (sender), test: `node tests/accounts.test.js`.
+
 ## Gmail draft with the zip attached
 
 A web page cannot attach a file to Gmail through a link, so this button uses the Gmail API with the person's own Google sign-in. The permission asked for is "Manage drafts and send emails" (`gmail.compose`); it cannot read the mailbox. It needs a Google **client ID** (a public value, not a secret). Set it up once for the whole team:
@@ -103,6 +113,7 @@ js/petrol.js        turns the OCR text into date / amount / station / receipt no
 js/receipts.js      reads invoice / receipt PDFs
 js/mail.js          Gmail link and .eml draft
 js/gmail.js         one-click Gmail draft with the zip attached (Google sign-in + Gmail API)
+js/accounts.js      sends a saved claim to the accountant's dashboard inbox (optional)
 js/folder.js        remembered save folder (File System Access API)
 assets/             base claim form (from the October form) and logo, embedded as data
 vendor/             pdf.js, JSZip, jsPDF (bundled, no internet needed)
