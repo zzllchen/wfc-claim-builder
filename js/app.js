@@ -1357,7 +1357,8 @@
           text = s.hasText ? s.text : await OCR.readCanvas(await Receipts.renderFirstPage(await file.arrayBuffer()));
         } else {
           notes.append(h('div', { class: 'note info', text: `Reading ${file.name}…` }));
-          text = await OCR.read(file);
+          // a photo of an MC is often sideways: say what a good reading holds (the title), so the reader turns the photo until it finds it
+          text = await OCR.read(file, { good: Petrol.isMcText, turnIfMissing: true, rescue: false });
           notes.lastChild.remove();
         }
       } catch (e) { refuse(file, e && e.code === 'decode' ? Validate.MSG.decode : "Couldn't read this file. Please attach a clearer copy."); continue; }

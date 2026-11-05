@@ -597,12 +597,19 @@
   }
 
   /* Medical certificate (MC): -> { mcNo, from, to, diagnosis } or null when the text isn't one. A photo can hold several. */
+  // the title, read loosely (one wrong letter is fine), or wording only an MC has, for when the title is the line the engine misread
+  const MC_TITLE = /medic\w{0,3}\s+cert\w{2,}/i;
+  const MC_PHRASES = /certify\s+that\s+i\s+have\s+examined|unfit\s+for\s+the\s+proper\s+performance|not\s+valid\s+in\s+court|to\s+be\s+re-?examined/i;
+  const isMcText = (t) => MC_TITLE.test(String(t || '')) || MC_PHRASES.test(String(t || ''));
+
   function mc(text) {
     const t = String(text || '');
-    if (!/medical\s+certificate/i.test(t)) return null;
+    if (!isMcText(t)) return null;
     const ds = dates(t).sort();
     const no = /\bMC\s?-?(\d{3,7})\b/i.exec(t);
-    const dx = /diagnosis[\s:.\-]*([A-Za-z][A-Za-z ]{2,30})/i.exec(t);
+    let dx = /diagnosis[\s:.\-]*([A-Za-z][A-Za-z ]{2,30})/i.exec(t);
+    // the "Diagnosis:" label is often the word the engine loses; the complaint itself still stands alone on a line
+    if (!dx) dx = /^[ \t]*((?:acute |viral )?(?:headache|migraine|fever|flu|influenza|cough(?: and cold)?|cold|urti|gastritis|gastroenteritis|food poisoning|diarrh?oea|vomiting|sore throat|tonsillitis|back ?pain|body ?ache|dizziness|giddiness|dengue|covid[- ]?19))(?=[ \t]{2,}\S|[ \t]*$)/im.exec(t);      // alone on its line, or followed by a gap and stray marks from the next column
     return {
       mcNo: no ? 'MC' + no[1] : '',
       from: ds[0] || '',
@@ -627,5 +634,5 @@
     return Array.from(out, ([id, why]) => ({ id, why }));
   }
 
-  return { parse, best, orderCheck, dates, datesDetailed, amount, station, receiptNo, inWords, mc, foreignTotal, foreignAmounts, stripForeign, myrCharged, fuelFacts, fuelTotal, snapTotal };
+  return { parse, best, orderCheck, dates, datesDetailed, amount, station, receiptNo, inWords, mc, isMcText, foreignTotal, foreignAmounts, stripForeign, myrCharged, fuelFacts, fuelTotal, snapTotal };
 });

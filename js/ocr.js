@@ -324,7 +324,7 @@
       if (opts.enough && opts.enough(texts)) return texts.join('\n');       // an amount and a date were found: the slower page layouts below add nothing
     }
     const upright = /total|jumlah|invoice|receipt|subsid|petronas|RM\s?\d/i.test(first.text) && alnumCount(first.text) > 150;      // the words of a receipt, the right way up: no need to try it sideways
-    if (prep.turnable !== false && !upright && (first.conf < 60 || alnumCount(first.text) < 60)) {      // a poor first look of a PHOTO: the paper may be sideways or upside down in the frame
+    if (prep.turnable !== false && !upright && (opts.turnIfMissing || first.conf < 60 || alnumCount(first.text) < 60)) {      // turnIfMissing: the caller knows what it must find (the MC title), so a sideways page of big print is turned even when the engine feels sure      // a poor first look of a PHOTO: the paper may be sideways or upside down in the frame
       let best = { cv: canvas, conf: first.conf };
       for (const deg of [90, 270, 180]) {
         const r = turned(canvas, deg);
