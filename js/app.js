@@ -283,11 +283,12 @@
         S.other.filter((x) => x !== o).map((x) => h('option', { value: x.id, text: `${x.category || 'Line'} · ${x.name || (x.files[0] && x.files[0].file.name) || 'typed line'}`.slice(0, 48) })));
       fields.push(h('label', { class: 'f mg' }, h('span', { text: 'Same receipt as another line? Attach this file to it' }), sel));
     }
+    // what Claude said, or what looked odd, lives in the details so the line itself stays tidy (the "Please check" status on top is enough)
+    const notes = [o.planB, o.dateWarn].filter(Boolean);
+    if (notes.length) fields.push(h('div', { class: 'ainote' }, h('b', { text: 'About this reading' }), notes.map((t) => h('span', { text: t }))));
     const tags = [
       o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
       o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
-      o.planB ? h('span', { class: 'tag hint', text: o.planB }) : null,       // plan B: why Claude was asked, or what looked odd
-      o.dateWarn ? h('span', { class: 'tag hint', text: o.dateWarn }) : null,
       o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null,       // gone once the amount is typed over
     ];
     const below = o.files.length ? h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x)))) : null;

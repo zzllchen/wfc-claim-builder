@@ -317,3 +317,7 @@ dialog .sec { display: grid; gap: 6px; }
 .aimode.on { border-color: var(--blue); background: var(--blue-50); }
 .aimode.dim { opacity: .55; cursor: default; }
 .aimode span { display: grid; gap: 2px; } .aimode small { color: var(--muted); font-size: 13px; }
+
+/* what Claude said about a reading, inside Edit details */
+.ldetails .ainote { grid-column: 1 / -1; display: grid; gap: 4px; background: var(--blue-50); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--muted); }
+.ldetails .ainote b { color: var(--ink); font-size: 12.5px; }
