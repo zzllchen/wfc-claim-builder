@@ -13,6 +13,10 @@ In the **Save and email** step each person picks their own email from the **From
 - **Windows, quickest:** double-click `Start.bat` (needs Python) and the page opens at http://localhost:8080/.
 - **For all staff:** put this whole folder on any static host (Netlify Drop, GitHub Pages, a company web server, SharePoint site). No server code, no build step.
 
+## A refresh does not lose your claim
+
+The unfinished claim (the form boxes, the TNG statement, every line with its files, the ticks and typed-over amounts, and the step you were on) is kept on this computer, in the browser, a moment after every change (`js/draft.js`). Refresh, close the tab or come back tomorrow and it is put back, with a note at the top. **Start over** (top bar, or in that note) removes everything on the page and the kept copy, and sets the page to the first visit (the claimant name stays). The kept copy is removed after 30 days. Nothing leaves the computer. Photos that were still being read when the page closed are read again.
+
 ## What it does
 
 The expense claim is four steps, one form on screen at a time. The circles at the top (1 Details, 2 Files, 3 Check, 4 Save and email) turn green as each step is filled in completely, and the line between them turns green too. Click any circle to jump to that step, or use the Back / Next buttons. **Save my claim stays locked until all four are green**; the note under it lists what is still missing, with a link to that step.

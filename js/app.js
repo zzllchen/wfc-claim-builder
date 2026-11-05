@@ -31,7 +31,7 @@
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
   };
-  const uid = (() => { let n = 0; return () => 'i' + (++n); })();
+  const uid = (() => { let n = 0; const t = Date.now().toString(36); return () => 'i' + t + (++n); })();
   const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
   const localIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const safe = (s) => String(s).replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
@@ -151,12 +151,62 @@
   }
 
   /* start over: every line and file off this page (the originals on the PC are not touched) */
-  function clearAll() {
-    if (!window.confirm('Remove every line and file from this page?\n\nYour original files on this PC are not touched.')) return;
+  function clearAll(silent) {
+    if (silent !== true && !window.confirm('Remove every line and file from this page?\n\nYour original files on this PC are not touched.')) return;
     S.other.forEach((o) => o.files.forEach((x) => URL.revokeObjectURL(x.url)));
     if (S.tng) URL.revokeObjectURL(S.tng.url);
     S.other = []; S.tng = null; S.overrides.clear(); S.edits = { toll: {}, parking: {} }; S.showTrips = false; S.open.clear();
     renderLines(); refreshStatus();
+  }
+
+  /* ---------- an unfinished claim survives a refresh ---------- */
+  // what is kept: the form boxes, the TNG statement, every line with its files, the ticks and typed-over amounts, and the step you were on
+  function draftSnapshot() {
+    if (S.restoring) return undefined;                       // still putting the old draft back: do not overwrite it
+    if (!S.tng && !S.other.length) return null;              // nothing to keep
+    return {
+      v: 1, savedAt: Date.now(), step: S.step, touchedMonth: !!S.touched.month,
+      form: { month: $('#month').value, claimant: $('#claimant').value, signature: $('#signature').value, daysOff: $('#daysOff').value },
+      tng: S.tng ? { file: S.tng.file } : null, overrides: Array.from(S.overrides), edits: S.edits,
+      other: S.other.map((o) => ({ id: o.id, kind: o.kind, manual: !!o.manual, category: o.category || '', name: o.name || '', date: o.date || '', receiptNo: o.receiptNo || '',
+        amount: o.amount == null ? '' : String(o.amount), auto: Object.assign({}, o.auto), hint: o.hint || '', planB: o.planB || '', bal: o.bal || null, fx: o.fx || null,
+        invoiceNo: o.invoiceNo || '', ocr: o.ocr || '', askedClaude: !!o.askedClaude, files: o.files.map((x) => x.file) })),
+    };
+  }
+  const keepDraft = () => { if (!S.restoring) Draft.schedule(draftSnapshot); };
+  async function restoreDraft() {
+    const d = await Draft.load();
+    if (!d || (!d.tng && !(d.other && d.other.length))) { S.restoring = false; return; }
+    S.restoring = true;
+    try {
+      if (d.tng && d.tng.file) await onTng([d.tng.file]);
+      const f = d.form || {};
+      if (f.month) $('#month').value = f.month;
+      if (f.claimant) { $('#claimant').value = f.claimant; cfg.claimant = f.claimant; }
+      if (f.signature != null) $('#signature').value = f.signature;
+      if (f.daysOff != null) $('#daysOff').value = f.daysOff;
+      S.touched.month = !!d.touchedMonth;
+      if (d.tng) { S.overrides = new Map(d.overrides || []); S.edits = d.edits || { toll: {}, parking: {} }; }
+      S.other = (d.other || []).map((o) => Object.assign({}, o, { files: (o.files || []).map((file) => ({ file, url: URL.createObjectURL(file) })) }));
+      S.restoring = false;
+      renderLines(); refreshStatus(); go(Math.min(d.step || 1, 3), true);
+      // photos that were still being read when the page closed are read again
+      S.other.filter((o) => o.ocr === 'queued' || o.ocr === 'reading').forEach((o) => { o.ocr = 'queued'; if (cfg.ocr || PlanB.available()) readPhoto(o); });
+      const bar = $('#resumeBar');
+      bar.querySelector('span').textContent = `Your unfinished claim from ${new Date(d.savedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${new Date(d.savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} is back. It is kept on this computer only.`;
+      bar.hidden = false;
+    } catch (e) { console.warn('Could not put the draft back', e); }
+    S.restoring = false;
+  }
+  // Start over: the page as it was on the first visit (the claimant name stays, it is remembered anyway)
+  function startOver() {
+    if (!window.confirm('Start again from the beginning?\n\nThis removes every file and line from this page and the copy kept on this computer. Your original files are not touched.')) return;
+    Draft.cancel(); clearAll(true);
+    const now = new Date(), last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    $('#month').value = `${last.getFullYear()}-${pad(last.getMonth() + 1)}`; S.touched.month = false; $('#daysOff').value = '';
+    S.packs.claim = null; renderPack('claim');
+    $('#fileNotes').textContent = ''; $('#rejects').textContent = ''; $('#resumeBar').hidden = true;
+    Draft.clear(); go(1); renderLines(); refreshStatus();
   }
 
   function mergeInto(item, target) {
@@ -404,6 +454,7 @@
     if (pk) box.append(pk);
     $('#btnClearAll').hidden = !(S.tng || S.other.length);
     updateSummary();
+    keepDraft();
   }
 
   /* ---------- summary, warnings, email defaults ---------- */
@@ -683,7 +734,7 @@
   // the line's status already says "reading" and "please check", so the tag appears only when the photo could not be read
   const ocrText = (item) => (item.ocr !== 'failed' ? '' : item.ocrError ? `${OCR_LABEL.failed} (${item.ocrError})` : OCR_LABEL.failed);
   function setOcr(item, state) {
-    item.ocr = state;
+    item.ocr = state; keepDraft();
     const tag = ocrTag(item);
     if (tag) { tag.textContent = ocrText(item); tag.hidden = !ocrText(item); tag.dataset.state = state; }
     refreshHeads();
@@ -1381,6 +1432,7 @@
 
   /* ---------- init ---------- */
   function init() {
+    S.restoring = true;       // until the saved draft has been looked for, nothing may overwrite it
     ClaimPdf.croppedLogo().then((l) => { $('#brandLogo').src = l.url; }).catch(() => { $('#brandLogo').remove(); });
     const dl = h('datalist', { id: 'cats' }, CATEGORIES.map((c) => h('option', { value: c })));
     document.body.append(dl);
@@ -1454,6 +1506,12 @@
     refreshStatus();
     refreshLoc();
     refreshLeaveEmail();
+    // keep the unfinished claim as it changes, and put it back after a refresh
+    ['input', 'change'].forEach((ev) => document.addEventListener(ev, keepDraft));
+    document.addEventListener('visibilitychange', () => { if (document.hidden && !S.restoring) Draft.flush(draftSnapshot); });
+    window.addEventListener('pagehide', () => { if (!S.restoring) Draft.flush(draftSnapshot); });
+    $('#btnStartOver').addEventListener('click', startOver); $('#btnResumeStart').addEventListener('click', startOver);
+    restoreDraft();
   }
 
   window.__claimApp = { S, routeFiles, onTng, onOther, buildPack, buildLeave, compileLines, tollView };   // handy for testing

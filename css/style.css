@@ -321,3 +321,7 @@ dialog .sec { display: grid; gap: 6px; }
 /* what Claude said about a reading, inside Edit details */
 .ldetails .ainote { grid-column: 1 / -1; display: grid; gap: 4px; background: var(--blue-50); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--muted); }
 .ldetails .ainote b { color: var(--ink); font-size: 12.5px; }
+
+/* an unfinished claim that came back after a refresh */
+.resume { margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; background: var(--blue-50); border: 1px solid var(--blue-100); color: var(--muted); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.resume[hidden] { display: none; }
