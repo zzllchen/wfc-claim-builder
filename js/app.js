@@ -43,7 +43,7 @@
     claimant: '', signature: '', fromEmail: '', toEmail: 'agnes@yutech.com.my',      // the accountant; anyone can type over it
     toName: '', signoff: '', ocr: true, holidays: TNG.DEFAULT_HOLIDAYS,
     gmailClientId: '561844027130-njr633b0hh2d5mciu0o8r0be6plrovt7.apps.googleusercontent.com',      // the team's Google client ID (public, not a secret), so nobody has to paste it in Settings
-    dashApi: '',          // the accountant's dashboard (the WFC Claims inbox). Empty = email only. Set it once the inbox is online, so nobody has to paste it
+    dashApi: 'https://script.google.com/macros/s/AKfycbxMR5cSfFwSgI4D0SWcdwzyle9ardosITFVmX5c3fn0a22eW9XnqrXURVs1VFPHWNcF/exec',          // the accountant's dashboard (the WFC Claims inbox on Google). Empty = email only. Built in, so nobody has to paste it
     sendDash: true,
   };
   const cfg = Object.assign({}, DEFAULTS, store.get('wfc-claim-cfg', {}));
@@ -1486,13 +1486,14 @@
     $('#dlg').showModal();
   }
 
-  /* On this PC's own copy (localhost), when no dashboard is set yet and the local claims inbox is running, link to it by itself:
-     the demo then works however the page was opened. Nothing happens on the live site or when the inbox is not running. */
+  /* On this PC's own copy (localhost), when the local claims inbox is running, link to it instead of the built-in online one, so a demo
+     on this PC never mixes with real claims. Nothing happens on the live site or when the local inbox is not running. */
   function autoLinkDash() {
-    if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || dashApi()) return;
+    const explicit = (store.get('wfc-claim-cfg', {}) || {}).dashApi;         // what this PC was told on purpose (Settings or the demo link), not the built-in address
+    if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || explicit) return;
     const api = 'http://localhost:8787/api';
     fetch(api + '?action=ping', { cache: 'no-store' }).then((r) => r.json()).then((j) => {
-      if (j && j.ok && j.service === 'wfc-claims' && !dashApi()) { cfg.dashApi = api; saveCfg(); refreshDash(); }
+      if (j && j.ok && j.service === 'wfc-claims' && j.where === 'local') { cfg.dashApi = api; saveCfg(); refreshDash(); }
     }).catch(() => { /* no local inbox: stay email-only */ });
   }
 
