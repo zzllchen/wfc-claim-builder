@@ -541,7 +541,6 @@
     if (wait) p[2].push('the photos to finish reading');
     if (bad) p[2].push(`${bad} line${bad > 1 ? 's' : ''} still to fill in`);
     if (lines.length > ClaimXlsx.MAX_LINES) p[2].push(`no more than ${ClaimXlsx.MAX_LINES} lines`);
-    if (!emailOk('#fromEmail')) p[3].push('who the email is from');
     if (!emailOk('#toEmail')) p[3].push("the accountant's email");
     if (!$('#subject').value.trim()) p[3].push('the subject');
     return p;
@@ -576,7 +575,7 @@
       const v = input.value.trim();
       const preset = SENDERS.find((x) => x.toLowerCase() === v.toLowerCase());
       sel.textContent = '';
-      sel.append(h('option', { value: '', text: 'Choose your email…' }), ...SENDERS.map((x) => h('option', { value: x, text: x })), h('option', { value: '__other', text: 'Other email…' }));
+      sel.append(h('option', { value: '', text: 'Not needed' }), ...SENDERS.map((x) => h('option', { value: x, text: x })), h('option', { value: '__other', text: 'Other email…' }));
       sel.value = preset || (v || sel.dataset.other ? '__other' : '');
       if (preset) input.value = preset;
       input.hidden = sel.value !== '__other';
@@ -593,16 +592,14 @@
   /* a light-yellow outline on every box that still waits for the person, so it is clear where to type */
   function markNeeded() {
     ['#claimant', '#subject'].forEach((id) => $(id).classList.toggle('need', !$(id).value.trim()));
-    ['#fromEmail', '#toEmail'].forEach((id) => $(id).classList.toggle('need', !emailOk(id)));
-    $('#fromPick').classList.toggle('need', !emailOk('#fromEmail'));
+    $('#toEmail').classList.toggle('need', !emailOk('#toEmail'));       // From is optional: it never waits for the person
     $('#month').classList.toggle('need', !monthParts());
     $('#dropAll').classList.toggle('need', !S.tng && !S.other.length);
     $('#needHint').hidden = !document.querySelector('#viewClaim .pane:not([hidden]) .need');
   }
   function markNeededLeave() {
     ['#lName', '#lFrom', '#lTo', '#lReason', '#lSubject'].forEach((id) => $(id).classList.toggle('need', !$(id).value.trim()));
-    ['#lFromEmail', '#lToEmail'].forEach((id) => $(id).classList.toggle('need', !emailOk(id)));
-    $('#lFromPick').classList.toggle('need', !emailOk('#lFromEmail'));
+    $('#lToEmail').classList.toggle('need', !emailOk('#lToEmail'));
   }
 
   function renderSteps(lines) {
@@ -1505,6 +1502,14 @@
     }).catch(() => { /* no local inbox: stay email-only */ });
   }
 
+  /* Claude through the company: when the claims inbox holds an Anthropic key, this browser can use it with nothing to paste. Asked once per visit;
+     if the inbox is out of reach or has no key, nothing changes. A key pasted in the Claude panel still wins. */
+  function linkTeamClaude() {
+    const api = dashApi();
+    if (!api || !window.PlanB || !window.Accounts) return;
+    Accounts.ping(api).then((j) => { if (j && j.claude) { PlanB.useTeam(api); if (window.AiPanel) AiPanel.refresh(); } }).catch(() => { /* stay as before */ });
+  }
+
   /* the tick box under Save my claim only exists when there is a dashboard to send to */
   function refreshDash() {
     $('#dashOpt').hidden = !dashApi();
@@ -1559,7 +1564,7 @@
     wireDrop();
     $('#ocrOn').checked = !!cfg.ocr;
     $('#ocrOn').addEventListener('change', () => { cfg.ocr = $('#ocrOn').checked; saveCfg(); });
-    refreshDash(); autoLinkDash();
+    refreshDash(); autoLinkDash(); linkTeamClaude();
     $('#sendDash').addEventListener('change', () => { cfg.sendDash = $('#sendDash').checked; saveCfg(); });
 
     $('#btnAddLine').addEventListener('click', () => {      // a line typed by hand: no file needed
@@ -1580,7 +1585,7 @@
       cfg.holidays = $('#sHol').value;
       cfg.gmailClientId = $('#sGmail').value.trim();
       cfg.dashApi = $('#sDash').value.trim();
-      saveCfg(); refreshDash(); S.touched.body = false; S.touched.lBody = false; renderLines(); refreshLeaveEmail();
+      saveCfg(); refreshDash(); linkTeamClaude(); S.touched.body = false; S.touched.lBody = false; renderLines(); refreshLeaveEmail();
       ['claim', 'leave'].forEach((k) => { if (S.packs[k]) renderPack(k); });       // so the Gmail draft button appears or goes
     });
 

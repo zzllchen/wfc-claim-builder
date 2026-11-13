@@ -87,4 +87,43 @@ delete mem['wfc-claude-first'];
 eq('no spend yet', P.spend(), 0); P.addSpend(0.03); P.addSpend(0.05); eq('spend adds up', +P.spend().toFixed(2), 0.08);
 mem['wfc-ai-spend-old'] = 1; mem['wfc-claude-spend'] = JSON.stringify({ m: '2020-01', rm: 9 }); eq('last month does not count', P.spend(), 0);
 P.resetSpend(); eq('reset', P.spend(), 0);
-console.log(fails ? `${fails} FAILED` : 'all passed'); process.exit(fails ? 1 : 0);
+
+// Claude through the company inbox: nothing to paste, the key never reaches the page
+(async () => {
+  const done = () => { console.log(fails ? `${fails} FAILED` : 'all passed'); process.exit(fails ? 1 : 0); };
+  try {
+    P.setKey(''); P.setMode('first');
+    eq('team: before the inbox is known, Claude is not available', [P.available(), P.state(), P.teamOn()], [false, 'none', false]);
+    P.useTeam('https://inbox.test/exec');
+    eq('team: connected through the company', [P.available(), P.state(), P.teamOn()], [true, 'team', true]);
+    P.setMode('backup'); eq('team: only when needed still works', [P.available(), P.first(), P.state()], [true, false, 'team']);
+    P.setMode('off'); eq('team: off means off', [P.available(), P.state()], [false, 'off']); P.setMode('first');
+
+    const calls = [];
+    const reply = { content: [{ type: 'text', text: '{"isReceipt":true,"kind":"Petrol","merchant":"KEJAYAAN TEGUH ENT","date":"2026-10-29","amount":58.37,"currency":"MYR","receiptNo":"60770c","confidence":"high"}' }], stop_reason: 'end_turn', usage: { input_tokens: 1500, output_tokens: 80 }, model: 'claude-sonnet-5-5' };
+    global.fetch = async (url, init) => { calls.push({ url, init, body: JSON.parse(init.body) }); return { json: async () => ({ ok: true, reply }) }; };
+    const r = await P.read({ name: 'x.jpg' }, { _data: 'QUJD', month: '2026-10' });
+    eq('team: the photo goes to the inbox address, as a plain POST', [calls[0].url, calls[0].init.method, calls[0].init.headers['Content-Type'], calls[0].body.action], ['https://inbox.test/exec', 'POST', 'text/plain;charset=utf-8', 'claude']);
+    eq('team: no key travels from the page', [JSON.stringify(calls[0].init).includes('x-api-key'), JSON.stringify(calls[0].init).includes('sk-ant'), 'x-api-key' in calls[0].init.headers], [false, false, false]);
+    eq('team: the request is one photo and one short note', [calls[0].body.request.messages.length, calls[0].body.request.messages[0].content.map((c) => c.type)], [1, ['image', 'text']]);
+    eq('team: the reading comes back as before', [r.reading.date, r.reading.amount, r.reading.merchant, r.reading.receiptNo], ['2026-10-29', '58.37', 'KEJAYAAN TEGUH ENT', '60770c']);
+    eq('team: the cost is counted on this PC', r.costRM > 0, true);
+
+    // the inbox refusing (daily limit, no credit, bad key) is shown in plain words and does not break the claim
+    global.fetch = async () => ({ json: async () => ({ ok: false, error: "The company's Claude limit for today is used up.", code: 429 }) });
+    let err = null; try { await P.read({ name: 'x.jpg' }, { _data: 'QUJD' }); } catch (e) { err = e; }
+    eq('team: a refusal is an error with the inbox status', [err && err.status, err && err.team], [429, true]);
+    eq('team: the daily limit is explained, and the PC reads the photo instead', /this computer reads the photo instead/.test(P.explain(err)), true);
+    global.fetch = async () => ({ json: async () => { throw new Error('not json'); } });
+    err = null; try { await P.read({ name: 'x.jpg' }, { _data: 'QUJD' }); } catch (e) { err = e; }
+    eq('team: an unreadable answer is a plain error', /did not answer/.test(err && err.message), true);
+
+    // a key of its own wins over the company one, and goes straight to Anthropic
+    P.setKey('sk-ant-own-1234');
+    const seen = []; global.fetch = async (url, init) => { seen.push(url); return { ok: true, status: 200, clone() { return this; }, json: async () => reply }; };
+    await P.read({ name: 'x.jpg' }, { _data: 'QUJD' });
+    eq('own key: used instead of the company one', seen, ['https://api.anthropic.com/v1/messages']);
+    eq('own key: state is the key state again', P.state(), 'saved');
+    done();
+  } catch (e) { fails++; console.log('FAIL team tests threw', e); done(); }
+})();

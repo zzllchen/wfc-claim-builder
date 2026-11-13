@@ -18,6 +18,13 @@
   const MAX_CALLS = 60;                 // per page visit: a pile of photos cannot run up a bill
   let calls = 0;
 
+  /* ---------- the company's Claude connection (optional) ----------
+     When the claims inbox (Google) holds an Anthropic key, every browser can use Claude through it with nothing to paste. The key never
+     reaches a page: the inbox adds it, fixes the model, caps the answer and keeps a daily limit for the whole team. A key a person pastes
+     in the Claude panel still wins over this. */
+  const team = { api: '', on: false };
+  const useTeam = (api) => { team.api = String(api || ''); team.on = !!team.api; };
+
   /* ---------- the saved key (this browser only) ---------- */
   const ls = {
     get: (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
@@ -29,7 +36,7 @@
   // when Claude reads: 'first' = camera photos go to Claude first, 'backup' = only when the reader on this PC fails or doubts, 'off' = never
   const mode = () => { const m = ls.get(MODE); return m === 'backup' || m === 'off' || m === 'first' ? m : (ls.get(FIRST) === '0' ? 'backup' : 'first'); };
   const setMode = (m) => { ls.set(MODE, m); ls.set(FIRST, ''); };
-  const available = () => !!apiKey() && mode() !== 'off' && calls < MAX_CALLS;
+  const available = () => (!!apiKey() || team.on) && mode() !== 'off' && calls < MAX_CALLS;
   // Claude reads every photo first (the default once a key is saved); switched off, it is only asked when the reader on this PC fails or doubts
   const first = () => mode() === 'first';
 
@@ -148,21 +155,29 @@ Rules:
     if (!res.ok) { const e = new Error((j.error && j.error.message) || ('HTTP ' + res.status)); e.status = res.status; throw e; }
     return j;
   }
-  /* one photo -> { reading, usage, costRM } ; throws with .status on an API problem */
+  /* the same question, asked through the company inbox: it answers with Claude's reading (content, stop_reason, usage) or says why not */
+  async function relay(body) {
+    const res = await fetch(team.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'claude', request: body }) });
+    const j = await res.json().catch(() => null);
+    if (!j || !j.ok) { const e = new Error((j && j.error) || 'The company Claude connection did not answer.'); e.status = j && j.code; e.team = true; throw e; }
+    return j.reply;
+  }
+  /* one photo -> { reading, usage, costRM } ; throws with .status on an API problem. ctx._data lets a test hand in the photo already prepared */
   async function read(file, ctx) {
-    const key = apiKey(); if (!key) throw new Error('No Claude key saved.');
+    const key = apiKey(); if (!key && !team.on) throw new Error('No Claude key saved.');
     calls++;
-    const data = await prepare(file), m = model();
-    const j = await post({
+    const data = (ctx && ctx._data) || await prepare(file), m = model();
+    const ask = (b) => (key ? post(b, key) : relay(b));
+    const j = await ask({
       model: m, max_tokens: 2000, system: SYSTEM, output_config: { effort: 'low' },
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } },
         { type: 'text', text: `Today is ${(ctx && ctx.today) || new Date().toISOString().slice(0, 10)}.${ctx && ctx.month ? ` The claim is for ${ctx.month}.` : ''} Read this receipt.` }] }],
-    }, key);
+    });
     if (j.stop_reason === 'refusal') throw new Error('Claude declined to read this photo.');
     const reading = parseReply((j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n'));
     if (!reading) throw new Error('Claude answered, but not in a form the tool could read.');
-    const rm = costRM(m, j.usage); addSpend(rm);
+    const rm = costRM(key ? m : (MODELS[j.model] ? j.model : m), j.usage); addSpend(rm);
     return { reading, usage: j.usage, costRM: rm };
   }
   // a one-word question: does the key work with this model?
@@ -182,7 +197,7 @@ Rules:
   const tail = () => apiKey().slice(-4);
   // 'none' no key, 'off' switched off, 'saved' key not tested (with this model), 'ok' last test passed, 'bad' last test failed
   function state() {
-    if (!apiKey()) return 'none';
+    if (!apiKey()) return team.on ? (mode() === 'off' ? 'off' : 'team') : 'none';        // 'team': connected through the company
     if (mode() === 'off') return 'off';
     const t = tested();
     if (!t || t.tail !== tail() || t.model !== model()) return 'saved';
@@ -194,6 +209,7 @@ Rules:
   }
   function explain(e) {
     const m = (e && e.message) || String(e), st = e && e.status;
+    if (e && e.team) return /limit for today/i.test(m) ? "The company's Claude limit for today is used up, so this computer reads the photo instead." : m;       // the inbox already speaks plainly
     if (st === 401 || /invalid x-api-key|authentication/i.test(m)) return 'Anthropic rejected the key. Check that you pasted the whole key (it starts with sk-ant-).';
     if (st === 403 || /permission/i.test(m)) return 'This key is not allowed to use that model. Pick another model, or check the key in the Anthropic Console.';
     if (st === 404) return 'That model is not available to this key. Pick another model.';
@@ -202,6 +218,6 @@ Rules:
     return m;
   }
 
-  return { doubts, parseReply, merge, asReading, clean, read, test, runTest, explain, available, first, mode, setMode, spend, addSpend, resetSpend, tested, state, apiKey, model, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
+  return { doubts, parseReply, merge, asReading, clean, read, test, runTest, explain, available, first, mode, setMode, spend, addSpend, resetSpend, tested, state, apiKey, model, useTeam, teamOn: () => team.on, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
     setKey: (v) => ls.set(KEY, v), setModel: (v) => ls.set(MODEL, v), resetCalls: () => { calls = 0; } };
 });

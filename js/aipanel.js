@@ -5,7 +5,7 @@
   const P = root.PlanB, $ = (s, r) => (r || document).querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const when = (t) => { const d = new Date(t); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
-  const LABEL = { none: 'Not connected', saved: 'Key saved, not tested', ok: 'Connected', bad: 'Not working', off: 'Switched off' };
+  const LABEL = { none: 'Not connected', saved: 'Key saved, not tested', ok: 'Connected', team: 'Connected (company)', bad: 'Not working', off: 'Switched off' };
   const MODES = [
     ['first', 'Camera photos first', 'Recommended. Claude reads each camera photo first, even blurry ones. PDFs and screenshots are read on this computer.'],
     ['backup', 'Only when needed', 'This computer reads first. Claude helps only when it cannot read a photo or the result looks wrong.'],
@@ -23,16 +23,16 @@
   function refreshPrivacy() {
     const el = $('#privacyNote'); if (!el) return;
     const key = P.apiKey(), m = P.mode();
-    el.textContent = !key || m === 'off' ? 'Your photos stay on this computer.'
-      : m === 'first' ? 'Camera photos are sent to Claude to be read (a key is saved on this computer). PDFs stay on this computer.'
+    el.textContent = (!key && !P.teamOn()) || m === 'off' ? 'Your photos stay on this computer.'
+      : m === 'first' ? (key ? 'Camera photos are sent to Claude to be read (a key is saved on this computer). PDFs stay on this computer.' : 'Camera photos are sent to Claude to be read, through the company account. PDFs stay on this computer.')
         : 'Your photos stay on this computer, unless it cannot read one.';
   }
   const refresh = () => { refreshChip(); refreshPrivacy(); if (dlg && dlg.open) render(); };
 
   function render() {
-    const key = P.apiKey(), s = P.state(), t = P.tested(), m = P.mode();
+    const key = P.apiKey(), s = P.state(), t = P.tested(), m = P.mode(), on = !!key || P.teamOn();       // on = connected with a key of its own or through the company
     const stat = busy ? '<span class="aistat wait">Testing…</span>' : `<span class="aistat ${s}">${LABEL[s]}</span>`;
-    const sub = !key ? '' : busy ? '' : t && t.ok ? `<small>Tested ${esc(when(t.at))} · answered in ${(t.ms / 1000).toFixed(1)} s</small>`
+    const sub = !key ? (P.teamOn() ? '<small>The company has already connected Claude for you. There is nothing to set up.</small>' : '') : busy ? '' : t && t.ok ? `<small>Tested ${esc(when(t.at))} · answered in ${(t.ms / 1000).toFixed(1)} s</small>`
       : t && !t.ok ? `<small class="bad">${esc(t.msg || '')}</small>` : '<small>Press Test connection to check the key.</small>';
     const keyRow = key
       ? `<div class="airow"><span class="aikey">Key saved (ends ${esc(key.slice(-4))})</span><button class="ghost" type="button" data-a="test" ${busy ? 'disabled' : ''}>Test connection</button><a class="aia" data-a="remove">Remove</a></div>
@@ -42,17 +42,17 @@
     const spendRm = P.spend();
     dlg.querySelector('form').innerHTML = `
       <div class="aihd"><h2>Claude</h2><button class="aix" type="button" data-a="close" aria-label="Close">×</button></div>
-      <p class="hint" style="margin:-6px 0 0">Optional. Claude reads receipt photos, even blurry ones. Your key stays on this computer, and nothing works differently without it.</p>
+      <p class="hint" style="margin:-6px 0 0">${P.teamOn() && !key ? 'Claude reads receipt photos, even blurry ones. The company has connected it for you, so you do not need a key.' : 'Optional. Claude reads receipt photos, even blurry ones. Your key stays on this computer, and nothing works differently without it.'}</p>
       <div class="aicard">
         <div class="aihead"><b>Claude key</b>${stat}</div>
         ${sub}
         ${keyRow}
         ${msg ? `<p class="aimsg ${msgBad ? 'bad' : 'ok'}">${esc(msg)}</p>` : ''}
-        <a class="aia" data-a="help">How do I get a key?</a>${steps}
+        ${P.teamOn() && !key ? '<small>Have your own key? You can paste it above to use it instead.</small>' : ''}<a class="aia" data-a="help">How do I get a key?</a>${steps}
       </div>
       <div class="aispend">Claude cost this month <b>about RM ${spendRm.toFixed(2)}</b> <a class="aia" data-a="resetspend">Reset</a> <span class="aitip" title="Added up from what each reading cost, on this computer only. The Anthropic Console shows the real bill.">?</span></div>
       <div class="aimodes"><div class="lbl">WHEN SHOULD CLAUDE READ?</div>
-        ${MODES.map(([v, name, desc]) => `<label class="aimode ${m === v ? 'on' : ''} ${key ? '' : 'dim'}"><input type="radio" name="aimode" value="${v}" ${m === v ? 'checked' : ''} ${key ? '' : 'disabled'}><span><b>${name}</b><small>${desc}</small></span></label>`).join('')}
+        ${MODES.map(([v, name, desc]) => `<label class="aimode ${m === v ? 'on' : ''} ${on ? '' : 'dim'}"><input type="radio" name="aimode" value="${v}" ${m === v ? 'checked' : ''} ${on ? '' : 'disabled'}><span><b>${name}</b><small>${desc}</small></span></label>`).join('')}
       </div>
       <div class="foot"><button class="primary" value="close">Done</button></div>`;
   }

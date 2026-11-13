@@ -345,3 +345,7 @@ dialog .sec { display: grid; gap: 6px; }
 .dashstat:not(:empty) { margin: 10px 0 4px; display: grid; gap: 8px; }
 .dashstat .link { color: inherit; text-decoration: underline; padding: 0 2px; }
 .opts[hidden] { display: none; }
+
+/* Claude connected through the company */
+.aidot.team { background: var(--ok); box-shadow: 0 0 0 3px rgba(6, 118, 71, .18); }
+.aistat.team { background: var(--ok-bg); color: var(--ok); }
