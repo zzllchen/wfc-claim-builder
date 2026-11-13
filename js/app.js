@@ -1151,6 +1151,14 @@
       const claimant = $('#claimant').value.trim();
       const signature = $('#signature').value.trim() || claimant;
       const lines = sortedForBuild(raw);
+      // every attached file must still be readable. A file that was moved, renamed or deleted after it was added (or is only online in OneDrive)
+      // makes the browser fail late with "A requested file or directory could not be found", so check now and say which file it is
+      for (const l of lines) {
+        for (const f of l.files || []) {
+          try { await f.slice(0, 16).arrayBuffer(); }
+          catch (e) { throw new Error(`"${f.name}" can't be read any more. It was probably moved, renamed or deleted after you added it, or it is only stored online (OneDrive). Remove it from the claim and add it again, or use Start over and add your files again.`); }
+        }
+      }
       const claimLines = lines.map((l) => ({ category: String(l.category).trim(), date: l.date, name: String(l.name).trim(), receiptNo: String(l.receiptNo || '').trim(), amount: num(l.amount) }));
       const signDate = localIso(new Date());
       const base = { year: mp.y, month: mp.m, claimant, signature, signDate, lines: claimLines };
@@ -1459,7 +1467,7 @@
       if (!Folder.supported) { box.append(h('span', { class: 'muted', text: "This browser can't save into a folder, so the zip downloads instead. Use Chrome or Edge to pick a save folder." })); return; }
       box.append(h('span', { text: 'Save to:' }), h('b', { text: handle ? handle.name : 'not chosen yet' }),
         h('button', { class: 'link', type: 'button', text: handle ? 'Change folder' : 'Choose folder', onclick: changeFolder }),
-        handle ? null : h('span', { class: 'muted', text: "You'll also be asked the first time you save." }));
+        handle ? '' : h('span', { class: 'muted', text: "You'll also be asked the first time you save." }));       // '' not null: append(null) would print the word "null"
     });
     const sName = $('#sLocName');
     if (sName) sName.textContent = !Folder.supported ? "This browser can't save into a folder (use Chrome or Edge)." : handle ? handle.name : 'Not chosen yet';
