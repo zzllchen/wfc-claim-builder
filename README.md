@@ -55,10 +55,10 @@ The expense claim is four steps, one form on screen at a time. The circles at th
 
 ## The accountant's dashboard (optional)
 
-When an **accountant's dashboard address** is set (Settings, or built in as `DEFAULTS.dashApi` in `js/app.js`), **Save my claim** also puts the claim on the dashboard site (the separate *WFC Claims Dashboard* project): the claim's lines, the claim form, the TNG statement, the toll check list and each receipt. The email with the zip is unchanged, and the dashboard cannot stop the email: if it is unreachable the page says so and offers **Try again**.
+When an **accountant's dashboard address** is set (Settings, or built in as `DEFAULTS.dashApi` in `js/app.js`), **Save my claim** also puts the claim on the dashboard site (the separate *WFC Claims Dashboard* project): the claim's lines, the claim form, the TNG statement, the toll check list and each receipt. **Save my leave form** does the same for a leave application, which shows on the dashboard's **Leave** tab: type, dates, working days (Monday to Friday without the public holidays in Settings), reason, the leave form (PDF and Excel) and any medical certificate. The email with the zip is unchanged, and the dashboard cannot stop the email: if it is unreachable the page says so and offers **Try again**. If the inbox has not been updated for leave yet, the page says the leave form was saved and emailed but not sent to the dashboard.
 
-- A tick box *Also show it on the accountant's dashboard* appears under **Save my claim** only when an address is set. With no address nothing is sent and nothing shows.
-- Saving the same month again replaces the earlier version on the dashboard, and its status goes back to *New*.
+- A tick box *Also show it on the accountant's dashboard* appears under **Save my claim** only when an address is set (it also covers leave forms). With no address nothing is sent and nothing shows.
+- Saving the same month again replaces the earlier version on the dashboard, and its status goes back to *New*. A leave form is replaced when the same person saves it again with the same start date; a different start date is a second application.
 - Files over 7 MB are left out (the page names them); they are still in the zip.
 - For a local demo, open the page as `.../?dash=http://localhost:8787/api` (the dashboard project's `Start Demo.bat` does this). Only `http://localhost` / `127.0.0.1` addresses are accepted from a link, so a link can never send claims to another server.
 - No login yet, by design for the demo. See the dashboard project's README, "Before real use".

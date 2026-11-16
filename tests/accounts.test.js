@@ -81,6 +81,28 @@ const buf = new TextEncoder().encode('statement bytes').buffer;
   assert.ok(!inbox.calls.some((c) => c.action === 'finish'), 'a claim whose upload failed is never finished');
   console.log('  ok  refusals');
 
+  // a leave form goes the same way, as `leave` instead of `claim`
+  inbox = fakeInbox(); globalThis.fetch = inbox.fn;
+  const leave = { claimant: 'A', type: 'sick', start: '2026-11-05', end: '2026-11-09', days: 3, reason: 'Fever', signedOn: '2026-11-05' };
+  const rl = await Accounts.send({ api: 'http://x/api', leave, files: [{ name: 'Leave.pdf', data: pdf, kind: 'form-pdf' }, { name: 'MC 1.jpg', data: new Uint8Array([9]), kind: 'mc' }], concurrency: 1 });
+  assert.deepStrictEqual(inbox.calls.map((c) => c.action), ['submit', 'upload', 'upload', 'finish']);
+  assert.deepStrictEqual(inbox.calls[0].body.leave, leave); assert.ok(!('claim' in inbox.calls[0].body), 'a leave form is not sent as a claim');
+  assert.deepStrictEqual(inbox.calls.filter((c) => c.action === 'upload').map((c) => c.body.file.kind), ['form-pdf', 'mc']);
+  assert.strictEqual(rl.version, 3);
+  console.log('  ok  leave form');
+
+  // working days of a leave application: Monday to Friday, minus public holidays
+  const hol = new Map([['2026-11-10', 'Deepavali (test)']]);
+  assert.strictEqual(Accounts.leaveDays('2026-11-05', '2026-11-05'), 1, 'one Thursday');
+  assert.strictEqual(Accounts.leaveDays('2026-11-05', '2026-11-09'), 3, 'Thu, Fri, Mon (the weekend is not counted)');
+  assert.strictEqual(Accounts.leaveDays('2026-11-07', '2026-11-08'), 0, 'a weekend alone is no working day');
+  assert.strictEqual(Accounts.leaveDays('2026-11-09', '2026-11-11', hol), 2, 'a public holiday in the middle is not counted');
+  assert.strictEqual(Accounts.leaveDays('2026-11-09', '2026-11-11', new Set(['2026-11-09'])), 2, 'a Set works too');
+  assert.strictEqual(Accounts.leaveDays('2026-11-09', '2026-11-08'), 0, 'dates the wrong way round');
+  assert.strictEqual(Accounts.leaveDays('', ''), 0);
+  assert.strictEqual(Accounts.leaveDays('2026-12-30', '2027-01-04'), 4, 'over a new year: Wed, Thu, Fri, Mon');
+  console.log('  ok  leave working days');
+
   // nobody there
   globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
   await assert.rejects(Accounts.send({ api: 'http://x/api', claim, files: [] }), /couldn't connect/);

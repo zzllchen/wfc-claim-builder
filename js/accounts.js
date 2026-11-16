@@ -45,17 +45,32 @@
 
   const sizeOf = (d) => (d.size != null ? d.size : d.byteLength != null ? d.byteLength : 0);
 
+  /* Working days of a leave application: Monday to Friday from `from` to `to` (both included), without the public holidays.
+     holidays: a Map or Set with 'YYYY-MM-DD' keys. The dashboard shows this figure, so it is worked out here where the holiday list is. */
+  function leaveDays(from, to, holidays) {
+    const a = Date.parse(from + 'T00:00:00Z'), b = Date.parse(to + 'T00:00:00Z');
+    if (isNaN(a) || isNaN(b) || b < a) return 0;
+    let n = 0;
+    for (let t = a; t <= b; t += 864e5) {
+      const d = new Date(t), w = d.getUTCDay();
+      if (w === 0 || w === 6 || (holidays && holidays.has(d.toISOString().slice(0, 10)))) continue;
+      n++;
+    }
+    return n;
+  }
+
   /* claim: { claimant, month: 'YYYY-MM', lines: [{category, date, name, receiptNo, amount}], from, to, subject }
+     leave (a saved leave form, instead of a claim): { claimant, type, start, end, days, reason, signedOn, from, to, subject } (dates 'YYYY-MM-DD')
      files: [{ name, data (Blob | ArrayBuffer | Uint8Array), kind: 'form-pdf' | 'form-xlsx' | 'tng' | 'tollcheck' | 'receipt' | 'other', line }]
      onProgress({ done, total }) -> { id, version, files, skipped: [names left out because they are too big] } */
-  async function send({ api, claim, files, onProgress, concurrency = 3 }) {
+  async function send({ api, claim, leave, files, onProgress, concurrency = 3 }) {
     const list = files.filter((f) => sizeOf(f.data) <= MAX_FILE);
     const skipped = files.filter((f) => sizeOf(f.data) > MAX_FILE).map((f) => f.name);
     const total = list.length + 1;
     let done = 0;
     const tick = () => { if (onProgress) onProgress({ done, total }); };
     tick();
-    const sub = await post(api, { action: 'submit', claim });
+    const sub = await post(api, leave ? { action: 'submit', leave } : { action: 'submit', claim });
 
     let next = 0;
     async function worker() {
@@ -73,7 +88,7 @@
     return { id: sub.id, version: fin.version, files: fin.files, skipped };
   }
 
-  const api = { send, ping, MAX_FILE };
+  const api = { send, ping, leaveDays, MAX_FILE };
   root.Accounts = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

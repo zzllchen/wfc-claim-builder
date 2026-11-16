@@ -1134,25 +1134,31 @@
     else if (d.state === 'ok') {
       box.append(h('div', { class: 'note ok', text: d.text }));
       if (d.skipped && d.skipped.length) box.append(h('div', { class: 'note warn', text: `${d.skipped.length} file${d.skipped.length > 1 ? 's were' : ' was'} too big for the dashboard (still in the zip): ${d.skipped.join(', ')}` }));
-    } else box.append(h('div', { class: 'note warn' }, d.text + ' ', h('button', { class: 'link', type: 'button', text: 'Try again', onclick: d.retry })));
+    } else if (d.state === 'skip') box.append(h('div', { class: 'note info', text: d.text }));
+    else box.append(h('div', { class: 'note warn' }, d.text + ' ', h('button', { class: 'link', type: 'button', text: 'Try again', onclick: d.retry })));
   }
 
-  function pushToDashboard(pack, claim, entries) {
-    const api = dashApi();
+  /* kind: 'claim' (payload = the claim) or 'leave' (payload = the leave application); entries: [{ path, data, kind, line }] */
+  function pushToDashboard(pack, payload, entries, kind) {
+    const api = dashApi(), leave = kind === 'leave', what = leave ? 'leave form' : 'claim';
     pack.dash = null;
     if (!api || !$('#sendDash').checked) return Promise.resolve();
     const run = async () => {
       const set = (d) => { pack.dash = Object.assign({ retry: run }, d); paintDash(pack.dashEl, pack); };
       set({ state: 'busy', text: "Sending to the accountant's dashboard…" });
       try {
+        if (leave) {          // an inbox that has not been updated yet only knows claims: say so instead of failing
+          const info = await Accounts.ping(api).catch(() => null);
+          if (info && !info.leave) { set({ state: 'skip', text: "The accountant's dashboard can't take leave forms yet. Your leave form is saved and the email still works." }); return; }
+        }
         const r = await Accounts.send({
-          api, claim, files: entries.map((e) => ({ name: e.path, data: e.data, kind: e.kind, line: e.line })),
+          api, claim: leave ? undefined : payload, leave: leave ? payload : undefined, files: entries.map((e) => ({ name: e.path, data: e.data, kind: e.kind, line: e.line })),
           onProgress: (p) => set({ state: 'busy', text: `Sending to the accountant's dashboard… ${Math.min(p.done, p.total - 1)} of ${p.total - 1} files` }),
         });
-        set({ state: 'ok', text: "Also on the accountant's dashboard." + (r.version > 1 ? ' (This replaces the earlier version of this claim.)' : ''), skipped: r.skipped });
+        set({ state: 'ok', text: "Also on the accountant's dashboard." + (r.version > 1 ? ` (This replaces the earlier version of this ${what}.)` : ''), skipped: r.skipped });
       } catch (e) {
         console.error(e);
-        set({ state: 'bad', text: `Could not put it on the accountant's dashboard (${(e && e.message) || e}). Your claim is saved and the email still works.` });
+        set({ state: 'bad', text: `Could not put it on the accountant's dashboard (${(e && e.message) || e}). Your ${what} is saved and the email still works.` });
       }
     };
     return run();
@@ -1241,7 +1247,7 @@
       pushToDashboard(S.packs.claim, {
         claimant, month: mp.key, lines: claimLines.map((l) => Object.assign({}, l, { amount: round2(l.amount) })),
         from: $('#fromEmail').value.trim(), to: $('#toEmail').value.trim(), subject: $('#subject').value,
-      }, entries);
+      }, entries, 'claim');
     } catch (e) {
       console.error(e);
       notes.append(h('div', { class: 'note bad', text: 'Could not save the claim: ' + (e.message || e) }));
@@ -1322,10 +1328,10 @@
       const sd = new Date(d.signDate + 'T00:00:00Z'), fd = new Date(d.from + 'T00:00:00Z');
       const base = safe(`WFC - ${MONTH_TAG[sd.getUTCMonth()]} Leave form (${fd.getUTCDate()}${SHORT_MON[fd.getUTCMonth()]})`);
       const files = [
-        { name: base + '.xlsx', data: new Blob([xlsx], { type: XLSX_TYPE }) },
-        { name: base + '.pdf', data: new Blob([pdf], { type: 'application/pdf' }) },
+        { name: base + '.xlsx', data: new Blob([xlsx], { type: XLSX_TYPE }), kind: 'form-xlsx' },
+        { name: base + '.pdf', data: new Blob([pdf], { type: 'application/pdf' }), kind: 'form-pdf' },
       ];
-      S.mc.forEach((m, i) => files.push({ name: safe(`MC ${i + 1} - ${rangeText(d.from, d.to)}`) + '.' + ext(m.file.name), data: m.file }));
+      S.mc.forEach((m, i) => files.push({ name: safe(`MC ${i + 1} - ${rangeText(d.from, d.to)}`) + '.' + ext(m.file.name), data: m.file, kind: 'mc' }));
       const zip = new JSZip();
       files.forEach((f) => zip.file(f.name, f.data));
       const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
@@ -1338,6 +1344,11 @@
       };
       renderPack('leave');
       addDaysOff(d.from, d.to);       // leave days are never claimed for toll, so they always go into the claim's days off
+      // the leave form also goes to the accountant's dashboard (Leave tab), the same way a claim does; the email is unchanged
+      pushToDashboard(S.packs.leave, {
+        claimant: d.name, type: d.type, start: d.from, end: d.to, days: Accounts.leaveDays(d.from, d.to, TNG.parseHolidays(cfg.holidays)), reason: d.reason, signedOn: d.signDate,
+        from: $('#lFromEmail').value.trim(), to: $('#lToEmail').value.trim(), subject: $('#lSubject').value,
+      }, files.map((f) => ({ path: f.name, data: f.data, kind: f.kind })), 'leave');
     } catch (e) {
       console.error(e);
       notes.append(h('div', { class: 'note bad', text: 'Could not save the leave form: ' + (e.message || e) }));
@@ -1436,7 +1447,7 @@
           ? 'Press the blue "Create Gmail draft" button below, check the email, then press Send in Gmail.'
           : 'Press the blue "Create Gmail draft" button below, check the email, then press Send in Gmail. Using Outlook? Open "Other ways to send", press "Download email file (.eml)", double-click the file, check it, then press Send.'],
     ];
-    if (claim && dashApi() && $('#sendDash') && $('#sendDash').checked) steps.push(["Your claim also goes to the accountant's dashboard", 'This happens when you save. Check the line above: if it says it could not, press "Try again".']);
+    if (dashApi() && $('#sendDash') && $('#sendDash').checked) steps.push([`Your ${claim ? 'claim' : 'leave form'} also goes to the accountant's dashboard`, 'This happens when you save. Check the line above: if it says it could not, press "Try again".']);
     steps.push(['Need to change something?', `Make the change, then press "${claim ? 'Save my claim' : 'Save my leave form'}" again. It replaces the earlier version.`]);
     return h('div', { class: 'nextsteps' }, h('h4', { text: 'What to do next' }),
       h('ol', {}, steps.map(([title, text], i) => h('li', {}, h('span', { class: 'n', text: String(i + 1) }), h('div', {}, h('b', { text: title }), h('span', { class: 's', text }))))));
@@ -1453,8 +1464,8 @@
     if (!p) { box.hidden = true; return; }
     box.hidden = false;
     box.textContent = '';
-    const dashBox = kind === 'claim' ? h('div', { class: 'dashstat' }) : null;
-    if (dashBox) { p.dashEl = dashBox; paintDash(dashBox, p); }
+    const dashBox = h('div', { class: 'dashstat' });          // for a claim and for a leave form: did it also reach the accountant's dashboard?
+    p.dashEl = dashBox; paintDash(dashBox, p);
     box.append(h('div', {},
       h('h3', { text: p.title }),
       p.savedTo ? h('div', { class: 'note ok', text: 'Saved to ' + p.savedTo + (kind === 'claim' ? ' (the zip is next to it)' : '') }) : h('div', { class: 'note info', text: 'Downloaded to your Downloads folder.' }),
