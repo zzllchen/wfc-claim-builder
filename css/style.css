@@ -349,3 +349,16 @@ dialog .sec { display: grid; gap: 6px; }
 /* Claude connected through the company */
 .aidot.team { background: var(--ok); box-shadow: 0 0 0 3px rgba(6, 118, 71, .18); }
 .aistat.team { background: var(--ok-bg); color: var(--ok); }
+
+/* "What to do next" under a saved claim */
+.nextsteps { margin: 14px 0 6px; padding: 16px 18px; background: #fff; border: 1px solid var(--blue-100); border-radius: 12px; }
+.nextsteps h4 { margin: 0 0 14px; font-size: 14.5px; font-weight: 650; letter-spacing: -.01em; }
+.nextsteps ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.nextsteps li { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: start; }
+.nextsteps .n { width: 26px; height: 26px; border-radius: 50%; background: var(--blue-100); color: var(--blue); font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+.nextsteps b { display: block; font-size: 14.5px; font-weight: 650; line-height: 26px; }
+.nextsteps .s { display: block; color: var(--muted); font-size: 13.5px; margin-top: 1px; }
+.zipfiles { margin: 12px 0 0; font-size: 13.5px; color: var(--muted); }
+.zipfiles summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+.zipfiles summary:hover { color: var(--ink); }
+.zipfiles ul { margin-top: 10px; }

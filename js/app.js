@@ -1396,6 +1396,19 @@
   const mailFields = () => ({ from: $('#fromEmail').value.trim(), to: $('#toEmail').value.trim(), subject: $('#subject').value, body: $('#body').value });
   const leaveMailFields = () => ({ from: $('#lFromEmail').value.trim(), to: $('#lToEmail').value.trim(), subject: $('#lSubject').value, body: $('#lBody').value });
 
+  /* "What to do next": a short, numbered guide under the saved claim, so nobody has to guess the order */
+  function nextSteps(kind, p) {
+    const claim = kind === 'claim';
+    const steps = [
+      ['Send the email to the accountant',
+        'Press "Create Gmail draft" below, check the email, then press Send in Gmail. Using Outlook? Press "Download .eml draft", double-click the file, check it, then press Send.'],
+    ];
+    if (claim && dashApi() && $('#sendDash') && $('#sendDash').checked) steps.push(["Your claim also goes to the accountant's dashboard", 'This happens when you save. Check the line above: if it says it could not, press "Try again".']);
+    steps.push(['Need to change something?', `Make the change, then press "${claim ? 'Save my claim' : 'Save my leave form'}" again. It replaces the earlier version.`]);
+    return h('div', { class: 'nextsteps' }, h('h4', { text: 'What to do next' }),
+      h('ol', {}, steps.map(([title, text], i) => h('li', {}, h('span', { class: 'n', text: String(i + 1) }), h('div', {}, h('b', { text: title }), h('span', { class: 's', text }))))));
+  }
+
   function renderPack(kind) {
     const p = S.packs[kind];
     const box = $(kind === 'claim' ? '#pack' : '#lPack');
@@ -1411,7 +1424,8 @@
       dashBox,
       p.stale ? h('div', { class: 'note warn', text: `You changed something after saving – save again before sending.` }) : null,
       p.blob.size / 1048576 > 24 ? h('div', { class: 'note warn', text: 'This is over 24 MB, which Gmail may refuse. Tick "Shrink photos" and save again, or send it by link.' }) : null,
-      h('ul', {}, p.entries.map((e) => h('li', { text: `${e.path} (${sizeText(e.size)})` })))));
+      nextSteps(kind, p),
+      h('details', { class: 'zipfiles' }, h('summary', { text: `What is inside the zip (${p.entries.length} files)` }), h('ul', {}, p.entries.map((e) => h('li', { text: `${e.path} (${sizeText(e.size)})` }))))));
     const files = p.attachments.map((a) => new File([a.blob], a.name, { type: a.blob.type || 'application/octet-stream' }));
     const canShare = !!(navigator.canShare && navigator.canShare({ files }));
     const what = p.attachments.length > 1 ? 'files' : 'zip';
@@ -1452,7 +1466,7 @@
       clientId ? null : h('button', { class: 'link', type: 'button', text: `Set up a Gmail draft with the ${what} attached…`, onclick: openSettings })));
     box.append(gstat);
     box.append(h('p', { class: 'hint', text: clientId
-      ? `"Create Gmail draft" signs you in to Google once, then puts the To, Subject, message and the ${what} into a draft in your own Gmail (nothing is sent). "Open Gmail without the file" fills in the message only, so you attach the ${what} yourself. The .eml file opens in Outlook / Apple Mail with the ${what} already attached.`
+      ? `Nothing is sent until you press Send in your own email. Google may ask you to sign in once, and to press Continue and Allow.`
       : `Gmail opens with the To, Subject and message filled in (sent from ${fields().from || 'your work account'}). A web link can't attach files, so attach the ${what} yourself (drag it in from the saved folder or use the paperclip), or set up the Gmail draft button above. The .eml file opens in Outlook / Apple Mail with the ${what} already attached.` }));
   }
 
