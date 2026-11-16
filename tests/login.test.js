@@ -165,6 +165,7 @@ function fakeGraph(opts = {}) {
   assert.strictEqual(Auth.get(), null);
   Auth.set(gu); assert.deepStrictEqual(Auth.get(), { provider: 'google', email: 'edward.wfcsystems@gmail.com', name: 'Edward', personal: false });
   Auth.set({ provider: 'none' }); assert.deepStrictEqual(Auth.get(), { provider: 'none', email: '', name: '' });
+  Auth.set({ provider: 'microsoft', email: '', name: '' }); assert.deepStrictEqual(Auth.get(), { provider: 'microsoft', email: '', name: '', personal: false }, 'Outlook without a Microsoft sign-in is allowed (email file)');
   store.set('wfc-login', '{"provider":"google"}'); assert.strictEqual(Auth.get(), null, 'a login without an email is not a login');
   store.set('wfc-login', 'not json'); assert.strictEqual(Auth.get(), null);
   Auth.set(who); Auth.signOut(); assert.strictEqual(Auth.get(), null);

@@ -601,7 +601,8 @@
       attempt(() => Gmail.identify(gmailClientId()), 'Opening Google…');
     });
     $('#btnMicrosoft').addEventListener('click', () => {
-      if (!msClientId()) { msg('Microsoft sign-in is not set up yet. Use "Continue without signing in" for now.', true); return; }
+      // no Microsoft app registered: Outlook people still get the email file with the zip attached, which opens in their own Outlook
+      if (!msClientId()) { done({ provider: 'microsoft', email: '', name: '' }); return; }
       attempt(() => Outlook.signIn(msClientId()), 'Opening Microsoft…');
     });
     $('#btnNoLogin').addEventListener('click', () => { const u = { provider: 'none', email: '', name: '' }; Auth.set(u); S.user = u; unlock(); renderSteps(); });
@@ -1428,7 +1429,9 @@
     const prov = S.user ? S.user.provider : 'none';
     const steps = [
       ['Send the email to the accountant', prov === 'microsoft'
-        ? 'Press the blue "Create Outlook draft" button below, check the email, then press Send in Outlook.'
+        ? (msClientId()
+          ? 'Press the blue "Create Outlook draft" button below, check the email, then press Send in Outlook.'
+          : 'Press the blue "Download email for Outlook" button below, double-click the file that downloads, check the email in Outlook, then press Send.')
         : prov === 'google'
           ? 'Press the blue "Create Gmail draft" button below, check the email, then press Send in Gmail.'
           : 'Press the blue "Create Gmail draft" button below, check the email, then press Send in Gmail. Using Outlook? Open "Other ways to send", press "Download email file (.eml)", double-click the file, check it, then press Send.'],
@@ -1506,22 +1509,31 @@
     const hasDraft = outlook ? !!msId : !!clientId;      // can this page put the zip into a draft for this person?
     const openBlank = () => window.open(outlook ? Outlook.composeLink(Object.assign({ personal: !!(S.user && S.user.personal) }, fields())) : Mail.gmailLink(fields()), '_blank', 'noopener');
     // the ONE blue button: the person's own mail, matched to the account they signed in with
+    // Outlook with no Microsoft app registered (or a mailbox that is not on Microsoft's servers): the email file is the way.
+    // Double-clicking it opens a new message in the person's own Outlook with the zip already attached.
+    const fileOnly = outlook && !msId;
+    const downloadEml = async () => {
+      const m = fields();
+      download(await Mail.emlBlob({ from: m.from, to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }), safe(m.subject) + '.eml');
+      say('ok', `The email file is downloaded. Double-click it to open it in Outlook with the ${what} attached, check it and press Send.`);
+    };
     const mainBtn = hasDraft
       ? h('button', { class: 'primary big', type: 'button', text: `Create ${openName} draft`, onclick: (e) => (outlook ? makeOutlookDraft : makeDraft)(e.currentTarget) })
-      : h('button', { class: 'primary big', type: 'button', text: `Open ${openName} draft`, onclick: openBlank });
+      : fileOnly
+        ? h('button', { class: 'primary big', type: 'button', text: 'Download email for Outlook', onclick: downloadEml })
+        : h('button', { class: 'primary big', type: 'button', text: `Open ${openName} draft`, onclick: openBlank });
     // everything else is small and tucked away, so nobody has to choose between six buttons
     const mini = (text, onclick, title) => h('button', { class: 'ghost mini', type: 'button', text, title, onclick });
     const more = [
-      hasDraft ? mini(`Open ${openName} without the file`, openBlank) : null,
-      mini('Download email file (.eml)', async () => {
-        const m = fields();
-        download(await Mail.emlBlob({ from: m.from, to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }), safe(m.subject) + '.eml');
-      }, `Opens in Outlook or Apple Mail with the ${what} already attached`),
+      hasDraft || fileOnly ? mini(`Open ${openName} without the file`, openBlank) : null,
+      fileOnly ? null : mini('Download email file (.eml)', downloadEml, `Opens in Outlook or Apple Mail with the ${what} already attached`),
       mini(`Download ${what} again`, () => download(p.blob, p.name)),
       canShare ? mini('Share…', () => navigator.share({ files, title: fields().subject, text: fields().body }).catch(() => {})) : null,
       outlook || clientId ? null : h('button', { class: 'link', type: 'button', text: `Set up a Gmail draft with the ${what} attached…`, onclick: openSettings }),
     ].filter(Boolean);
-    const hint = hasDraft
+    const hint = fileOnly
+      ? `Downloads one email file. Double-click it and it opens in Outlook with the ${what} already attached. Nothing is sent until you press Send.`
+      : hasDraft
       ? (outlook
         ? `Opens Outlook in a new tab with the ${what} attached. Nothing is sent until you press Send. Microsoft may ask you to allow access once (it calls this "read and write your mail", but this page only makes the draft).`
         : `Opens Gmail in a new tab with the ${what} attached. Nothing is sent until you press Send. Google may ask you to allow access once.`)

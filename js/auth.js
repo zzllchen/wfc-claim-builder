@@ -9,6 +9,7 @@
     try {
       const u = JSON.parse(root.sessionStorage.getItem(KEY));
       if (u && u.provider === 'none') return { provider: 'none', email: '', name: '' };
+      if (u && u.provider === 'microsoft' && !u.email) return { provider: 'microsoft', email: '', name: '', personal: false };      // Outlook without a Microsoft sign-in: the email file is used
       if (u && (u.provider === 'google' || u.provider === 'microsoft') && /@/.test(u.email || '')) return { provider: u.provider, email: u.email, name: u.name || '', personal: !!u.personal };
     } catch (e) { /* nothing kept */ }
     return null;
