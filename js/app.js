@@ -43,10 +43,10 @@
     claimant: '', signature: '', fromEmail: '', toEmail: 'agnes@yutech.com.my',      // the accountant; anyone can type over it
     toName: '', signoff: '', ocr: true, holidays: TNG.DEFAULT_HOLIDAYS,
     gmailClientId: '561844027130-njr633b0hh2d5mciu0o8r0be6plrovt7.apps.googleusercontent.com',      // the team's Google client ID (public, not a secret), so nobody has to paste it in Settings
+    msClientId: '',      // the team's Microsoft application (client) ID (public, not a secret): paste it here once the app is registered - see the README
     dashApi: 'https://script.google.com/macros/s/AKfycbxMR5cSfFwSgI4D0SWcdwzyle9ardosITFVmX5c3fn0a22eW9XnqrXURVs1VFPHWNcF/exec',          // the accountant's dashboard (the WFC Claims inbox on Google). Empty = email only. Built in, so nobody has to paste it
     sendDash: true,
-  };
-  const cfg = Object.assign({}, DEFAULTS, store.get('wfc-claim-cfg', {}));
+  };  const cfg = Object.assign({}, DEFAULTS, store.get('wfc-claim-cfg', {}));
   cfg.fromEmail = ''; cfg.toEmail = DEFAULTS.toEmail;      // ignore anything an earlier version saved
   const gmailClientId = () => String(cfg.gmailClientId || DEFAULTS.gmailClientId || '').trim();
   const dashApi = () => String(cfg.dashApi || DEFAULTS.dashApi || '').trim();
@@ -63,6 +63,7 @@
     tng: null, overrides: new Map(), other: [], edits: { toll: {}, parking: {} },     // edits = values typed over the calculated toll / parking line
     showTrips: false, showErrors: false, packs: { claim: null, leave: null }, inputs: [],
     step: 1, building: false, stepEls: null,
+    user: Auth.get(),       // who signed in on the login page ({ provider: 'google' | 'microsoft' | 'none', email, name }); null = not yet. Kept for this browser tab only
     open: new Map(), lineRefs: new Map(),      // open = lines whose details were opened or closed by hand; lineRefs = each drawn line's refresh function
     touched: { subject: false, body: false, month: false, lName: false, lSign: false, lTo: false, lSubject: false, lBody: false },
   };
@@ -564,29 +565,54 @@
     });
   }
 
-  /* Who the email comes from: pick from the team's list, or "Other email" to type one. The text box (#fromEmail) stays the one
-     source of truth for the rest of the code; the dropdown only fills it. */
-  const SENDERS = ['marketing.wfcsystems@gmail.com', 'edward.wfcsystems@gmail.com', 'jimmy.wfcsystems@gmail.com', 'chowkl@yutech.com.my', 'william@yutech.com.my', 'danny.mpmotion@gmail.com', 'agnes@yutech.com.my'];
-  const picks = [];
-  const refreshPicks = () => picks.forEach((f) => f());
-  function wirePick(selId, inputId) {
-    const sel = $(selId), input = $(inputId);
-    const refresh = () => {
-      const v = input.value.trim();
-      const preset = SENDERS.find((x) => x.toLowerCase() === v.toLowerCase());
-      sel.textContent = '';
-      sel.append(h('option', { value: '', text: 'Not needed' }), ...SENDERS.map((x) => h('option', { value: x, text: x })), h('option', { value: '__other', text: 'Other email…' }));
-      sel.value = preset || (v || sel.dataset.other ? '__other' : '');
-      if (preset) input.value = preset;
-      input.hidden = sel.value !== '__other';
+  /* Who the email comes from is whoever signed in on the login page: their email goes into the two hidden boxes (#fromEmail,
+     #lFromEmail) that the rest of the code reads. Someone who continued without signing in has no From, which is fine. */
+  const applyUser = () => {
+    const email = S.user && S.user.email ? S.user.email : '';
+    $('#fromEmail').value = email; $('#lFromEmail').value = email; cfg.fromEmail = email;
+  };
+
+  /* ---------- the login page ---------- */
+  const msClientId = () => String(cfg.msClientId || DEFAULTS.msClientId || '').trim();
+  function unlock() {
+    document.body.classList.remove('locked');
+    const email = S.user && S.user.email ? S.user.email : '';
+    $('#who').hidden = false;
+    $('#whoEmail').textContent = email || 'Not signed in';
+    $('#btnSignOut').textContent = email ? 'Sign out' : 'Sign in';
+    applyUser();
+  }
+  function wireLogin() {
+    const msg = (text, bad) => { const m = $('#loginMsg'); m.textContent = text || ''; m.classList.toggle('bad', !!bad); };
+    const busy = (on) => ['#btnGoogle', '#btnMicrosoft', '#btnNoLogin'].forEach((id) => { $(id).disabled = on; });
+    const done = (user) => {
+      Auth.set(user); S.user = user; unlock(); renderSteps();
+      ['claim', 'leave'].forEach((k) => { if (S.packs[k]) renderPack(k); });
+      msg('');
     };
-    sel.addEventListener('change', () => {
-      if (sel.value === '__other') { sel.dataset.other = '1'; input.value = ''; input.hidden = false; input.focus(); }
-      else { delete sel.dataset.other; input.value = sel.value; input.hidden = true; }
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+    const attempt = (start, opening) => {
+      msg(opening); busy(true);                  // start() must run in this same click: it opens the sign-in popup
+      let p;
+      try { p = start(); } catch (e) { p = Promise.reject(e); }
+      p.then(done, (e) => msg(String((e && e.message) || e), true)).then(() => busy(false));
+    };
+    $('#btnGoogle').addEventListener('click', () => {
+      if (!gmailClientId()) { msg('Google sign-in is not set up yet. Use "Continue without signing in" for now.', true); return; }
+      attempt(() => Gmail.identify(gmailClientId()), 'Opening Google…');
     });
-    picks.push(refresh);
-    refresh();
+    $('#btnMicrosoft').addEventListener('click', () => {
+      if (!msClientId()) { msg('Microsoft sign-in is not set up yet. Use "Continue without signing in" for now.', true); return; }
+      attempt(() => Outlook.signIn(msClientId()), 'Opening Microsoft…');
+    });
+    $('#btnNoLogin').addEventListener('click', () => { const u = { provider: 'none', email: '', name: '' }; Auth.set(u); S.user = u; unlock(); renderSteps(); });
+    $('#btnSignOut').addEventListener('click', () => {
+      // the page keeps the unfinished claim on this computer and puts it back after the reload (pagehide saves it)
+      if (S.user && S.user.email && !window.confirm('Sign out?\n\nYour unfinished claim stays on this computer.')) return;
+      Draft.flush(draftSnapshot); Auth.signOut(); location.reload();
+    });
+    // the sign-in script and the popup have to be ready before the click
+    if (gmailClientId()) Gmail.preload().catch(() => {});
+    if (msClientId()) Outlook.preload(msClientId()).catch((e) => msg(String((e && e.message) || e), true));
   }
 
   /* a light-yellow outline on every box that still waits for the person, so it is clear where to type */
@@ -1310,7 +1336,7 @@
         attachments: files.map((f) => ({ name: f.name, blob: f.data })),
       };
       renderPack('leave');
-      if ($('#lDaysOff').checked) addDaysOff(d.from, d.to);
+      addDaysOff(d.from, d.to);       // leave days are never claimed for toll, so they always go into the claim's days off
     } catch (e) {
       console.error(e);
       notes.append(h('div', { class: 'note bad', text: 'Could not save the leave form: ' + (e.message || e) }));
@@ -1377,7 +1403,7 @@
   function syncLeaveDefaults() {
     if (!S.touched.lName) $('#lName').value = $('#claimant').value;
     if (!S.touched.lSign) $('#lSign').value = $('#signature').value;
-    $('#lFromEmail').value = cfg.fromEmail; $('#lToEmail').value = cfg.toEmail; refreshPicks();
+    applyUser(); $('#lToEmail').value = cfg.toEmail;
     refreshLeaveEmail();
   }
 
@@ -1389,7 +1415,7 @@
     $('#tabClaim').setAttribute('aria-selected', String(v === 'claim'));
     $('#tabLeave').setAttribute('aria-selected', String(v === 'leave'));
     if (v === 'leave') { syncLeaveDefaults(); markNeededLeave(); }
-    else { $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail; refreshPicks(); renderSteps(); }
+    else { applyUser(); $('#toEmail').value = cfg.toEmail; renderSteps(); }
   }
 
   /* ---------- email panel ---------- */
@@ -1399,9 +1425,13 @@
   /* "What to do next": a short, numbered guide under the saved claim, so nobody has to guess the order */
   function nextSteps(kind, p) {
     const claim = kind === 'claim';
+    const prov = S.user ? S.user.provider : 'none';
     const steps = [
-      ['Send the email to the accountant',
-        'Press "Create Gmail draft" below, check the email, then press Send in Gmail. Using Outlook? Press "Download .eml draft", double-click the file, check it, then press Send.'],
+      ['Send the email to the accountant', prov === 'microsoft'
+        ? 'Press the blue "Create Outlook draft" button below, check the email, then press Send in Outlook.'
+        : prov === 'google'
+          ? 'Press the blue "Create Gmail draft" button below, check the email, then press Send in Gmail.'
+          : 'Press the blue "Create Gmail draft" button below, check the email, then press Send in Gmail. Using Outlook? Open "Other ways to send", press "Download email file (.eml)", double-click the file, check it, then press Send.'],
     ];
     if (claim && dashApi() && $('#sendDash') && $('#sendDash').checked) steps.push(["Your claim also goes to the accountant's dashboard", 'This happens when you save. Check the line above: if it says it could not, press "Try again".']);
     steps.push(['Need to change something?', `Make the change, then press "${claim ? 'Save my claim' : 'Save my leave form'}" again. It replaces the earlier version.`]);
@@ -1413,6 +1443,10 @@
     const p = S.packs[kind];
     const box = $(kind === 'claim' ? '#pack' : '#lPack');
     const fields = kind === 'claim' ? mailFields : leaveMailFields;
+    // one blue button at a time: once the claim is saved, the blue one is the button that makes the email draft; saving again turns blue only after a change
+    const saveBtn = $(kind === 'claim' ? '#btnBuild' : '#lBuild');
+    const saved = !!p && !p.stale;
+    saveBtn.classList.toggle('primary', !saved); saveBtn.classList.toggle('ghost', saved);
     if (!p) { box.hidden = true; return; }
     box.hidden = false;
     box.textContent = '';
@@ -1429,45 +1463,76 @@
     const files = p.attachments.map((a) => new File([a.blob], a.name, { type: a.blob.type || 'application/octet-stream' }));
     const canShare = !!(navigator.canShare && navigator.canShare({ files }));
     const what = p.attachments.length > 1 ? 'files' : 'zip';
+    const outlook = !!S.user && S.user.provider === 'microsoft';      // signed in with Microsoft: Outlook buttons; otherwise the Gmail ones
     const clientId = gmailClientId();
+    const msId = msClientId();
     const gstat = h('div', { class: 'gstat' });
     const say = (cls, ...kids) => { gstat.textContent = ''; if (cls) gstat.append(h('div', { class: 'note ' + cls }, ...kids)); };
+    /* the draft is made in the person's own mailbox; open it straight away (a browser may refuse a new tab this long after the click, then the big button does it) */
+    const draftReady = (d, mailName) => {
+      const tab = window.open(d.url, '_blank');
+      if (tab) {
+        try { tab.opener = null; } catch (e) { /* cross-origin already */ }
+        say('ok', `Your ${mailName} draft is open in a new tab with the ${what} attached. Check it and press Send. `, h('a', { href: d.url, target: '_blank', rel: 'noopener', text: 'Open it again' }));
+      } else {
+        say('ok', `Your ${mailName} draft is ready with the ${what} attached. `, h('a', { class: 'openlink', href: d.url, target: '_blank', rel: 'noopener', text: 'Open the draft and press Send' }));
+      }
+    };
     const makeDraft = async (btn) => {
       const m = fields();
       btn.disabled = true;
       say('info', 'Signing in to Google…');
       try {
-        const d = await Gmail.createDraft({ clientId, hint: m.from, makeBlob: () => { say('info', `Putting the ${what} into a Gmail draft…`); return Mail.emlBlob({ to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }); } });
-        // open it straight away; a browser may refuse a new tab this long after the click, then the big button does it
-        const tab = window.open(d.url, '_blank');
-        if (tab) {
-          try { tab.opener = null; } catch (e) { /* cross-origin already */ }
-          say('ok', `Your Gmail draft is open in a new tab with the ${what} attached. Check it and press Send. `, h('a', { href: d.url, target: '_blank', rel: 'noopener', text: 'Open it again' }));
-        } else {
-          say('ok', `Your Gmail draft is ready with the ${what} attached. `, h('a', { class: 'openlink', href: d.url, target: '_blank', rel: 'noopener', text: 'Open the draft and press Send' }));
-        }
+        draftReady(await Gmail.createDraft({ clientId, hint: m.from, makeBlob: () => { say('info', `Putting the ${what} into a Gmail draft…`); return Mail.emlBlob({ to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }); } }), 'Gmail');
       } catch (e) {
         say('bad', String((e && e.message) || e));
       }
       btn.disabled = false;
     };
-    if (clientId) Gmail.preload().catch(() => {});             // so the Google sign-in popup can open straight from the click
-    const draftBtn = clientId
-      ? h('button', { class: 'primary', type: 'button', text: `Create Gmail draft (${what} attached)`, onclick: (e) => makeDraft(e.currentTarget) })
-      : null;
-    box.append(h('div', { class: 'actions' }, draftBtn,
-      h('button', { class: draftBtn ? 'ghost' : 'primary', type: 'button', text: draftBtn ? 'Open Gmail without the file' : 'Open Gmail draft', onclick: () => window.open(Mail.gmailLink(fields()), '_blank', 'noopener') }),
-      h('button', { class: 'ghost', type: 'button', text: `Download .eml draft (${what} attached)`, onclick: async () => {
+    const makeOutlookDraft = async (btn) => {
+      const m = fields();
+      btn.disabled = true;
+      say('info', 'Signing in to Microsoft…');
+      try {
+        draftReady(await Outlook.createDraft({ clientId: msId, email: m.from, to: m.to, subject: m.subject, body: m.body, attachments: p.attachments, onStatus: (t) => say('info', t) }), 'Outlook');
+      } catch (e) {
+        say('bad', String((e && e.message) || e));
+      }
+      btn.disabled = false;
+    };
+    if (outlook) { if (msId) Outlook.preload(msId).catch(() => {}); }
+    else if (clientId) Gmail.preload().catch(() => {});             // so the Google sign-in popup can open straight from the click
+    const openName = outlook ? 'Outlook' : 'Gmail';
+    const hasDraft = outlook ? !!msId : !!clientId;      // can this page put the zip into a draft for this person?
+    const openBlank = () => window.open(outlook ? Outlook.composeLink(Object.assign({ personal: !!(S.user && S.user.personal) }, fields())) : Mail.gmailLink(fields()), '_blank', 'noopener');
+    // the ONE blue button: the person's own mail, matched to the account they signed in with
+    const mainBtn = hasDraft
+      ? h('button', { class: 'primary big', type: 'button', text: `Create ${openName} draft`, onclick: (e) => (outlook ? makeOutlookDraft : makeDraft)(e.currentTarget) })
+      : h('button', { class: 'primary big', type: 'button', text: `Open ${openName} draft`, onclick: openBlank });
+    // everything else is small and tucked away, so nobody has to choose between six buttons
+    const mini = (text, onclick, title) => h('button', { class: 'ghost mini', type: 'button', text, title, onclick });
+    const more = [
+      hasDraft ? mini(`Open ${openName} without the file`, openBlank) : null,
+      mini('Download email file (.eml)', async () => {
         const m = fields();
         download(await Mail.emlBlob({ from: m.from, to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }), safe(m.subject) + '.eml');
-      } }),
-      h('button', { class: 'ghost', type: 'button', text: 'Download zip again', onclick: () => download(p.blob, p.name) }),
-      canShare ? h('button', { class: 'ghost', type: 'button', text: 'Share…', onclick: () => navigator.share({ files, title: fields().subject, text: fields().body }).catch(() => {}) }) : null,
-      clientId ? null : h('button', { class: 'link', type: 'button', text: `Set up a Gmail draft with the ${what} attached…`, onclick: openSettings })));
-    box.append(gstat);
-    box.append(h('p', { class: 'hint', text: clientId
-      ? `Nothing is sent until you press Send in your own email. Google may ask you to sign in once, and to press Continue and Allow.`
-      : `Gmail opens with the To, Subject and message filled in (sent from ${fields().from || 'your work account'}). A web link can't attach files, so attach the ${what} yourself (drag it in from the saved folder or use the paperclip), or set up the Gmail draft button above. The .eml file opens in Outlook / Apple Mail with the ${what} already attached.` }));
+      }, `Opens in Outlook or Apple Mail with the ${what} already attached`),
+      mini(`Download ${what} again`, () => download(p.blob, p.name)),
+      canShare ? mini('Share…', () => navigator.share({ files, title: fields().subject, text: fields().body }).catch(() => {})) : null,
+      outlook || clientId ? null : h('button', { class: 'link', type: 'button', text: `Set up a Gmail draft with the ${what} attached…`, onclick: openSettings }),
+    ].filter(Boolean);
+    const hint = hasDraft
+      ? (outlook
+        ? `Opens Outlook in a new tab with the ${what} attached. Nothing is sent until you press Send. Microsoft may ask you to allow access once (it calls this "read and write your mail", but this page only makes the draft).`
+        : `Opens Gmail in a new tab with the ${what} attached. Nothing is sent until you press Send. Google may ask you to allow access once.`)
+      : (outlook
+        ? `Outlook opens with the To, Subject and message filled in. A web link can't attach files, so drag the ${what} in from the saved folder, or use the email file below, which already has it attached.`
+        : `Gmail opens with the To, Subject and message filled in${fields().from ? ` (from ${fields().from})` : ''}. A web link can't attach files, so drag the ${what} in from the saved folder, or use the email file below, which already has it attached.`);
+    box.append(h('div', { class: 'sendbox' },
+      mainBtn,
+      h('p', { class: 'hint sendhint', text: hint }),
+      gstat,
+      h('details', { class: 'moreways' }, h('summary', { text: 'Other ways to send' }), h('div', { class: 'moreactions' }, more))));
   }
 
   /* ---------- save folder ---------- */
@@ -1499,6 +1564,8 @@
     $('#sHol').value = cfg.holidays;
     $('#sGmail').value = cfg.gmailClientId || '';
     $('#sGmail').placeholder = DEFAULTS.gmailClientId || '1234567890-abc123.apps.googleusercontent.com';
+    $('#sMs').value = cfg.msClientId || '';
+    $('#sMs').placeholder = DEFAULTS.msClientId || '00000000-0000-0000-0000-000000000000';
     $('#sDash').value = cfg.dashApi || '';
     $('#sDash').placeholder = DEFAULTS.dashApi || 'https://script.google.com/macros/s/…/exec';
     refreshLoc();
@@ -1538,8 +1605,9 @@
     document.body.append(dl);
 
     $('#claimant').value = cfg.claimant; $('#signature').value = cfg.signature;
-    $('#fromEmail').value = cfg.fromEmail; $('#toEmail').value = cfg.toEmail;
-    wirePick('#fromPick', '#fromEmail'); wirePick('#lFromPick', '#lFromEmail');
+    $('#toEmail').value = cfg.toEmail;
+    wireLogin();
+    if (S.user) unlock();       // signed in earlier in this tab (or continued without signing in): straight to the claim
     const now = new Date();
     // claims are made the month after: October's is claimed by 15 Nov, so the page opens on last month
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -1550,7 +1618,6 @@
     $('#signature').addEventListener('input', () => { cfg.signature = $('#signature').value; saveCfg(); updateSummary(); });
     $('#month').addEventListener('input', () => { S.touched.month = true; renderLines(); });
     $('#daysOff').addEventListener('input', renderLines);
-    $('#fromEmail').addEventListener('input', () => { cfg.fromEmail = $('#fromEmail').value; saveCfg(); renderSteps(); });
     $('#toEmail').addEventListener('input', () => { cfg.toEmail = $('#toEmail').value; saveCfg(); renderSteps(); });
     $('#subject').addEventListener('input', () => { S.touched.subject = true; renderSteps(); });
     $('#body').addEventListener('input', () => { S.touched.body = true; });
@@ -1564,7 +1631,6 @@
       refreshLeaveEmail(); staleLeave();
     });
     $('#lTo').addEventListener('input', () => { S.touched.lTo = true; refreshLeaveEmail(); staleLeave(); });
-    $('#lFromEmail').addEventListener('input', () => { cfg.fromEmail = $('#lFromEmail').value; saveCfg(); });
     $('#lToEmail').addEventListener('input', () => { cfg.toEmail = $('#lToEmail').value; saveCfg(); });
     $('#lSubject').addEventListener('input', () => { S.touched.lSubject = true; });
     $('#lBody').addEventListener('input', () => { S.touched.lBody = true; });
@@ -1598,6 +1664,7 @@
       cfg.toName = $('#sToName').value.trim(); cfg.signoff = $('#sSignoff').value.trim();
       cfg.holidays = $('#sHol').value;
       cfg.gmailClientId = $('#sGmail').value.trim();
+      cfg.msClientId = $('#sMs').value.trim();
       cfg.dashApi = $('#sDash').value.trim();
       saveCfg(); refreshDash(); linkTeamClaude(); S.touched.body = false; S.touched.lBody = false; renderLines(); refreshLeaveEmail();
       ['claim', 'leave'].forEach((k) => { if (S.packs[k]) renderPack(k); });       // so the Gmail draft button appears or goes

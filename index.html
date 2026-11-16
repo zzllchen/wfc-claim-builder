@@ -6,13 +6,14 @@
 <title>WFC Claim Builder</title>
 <meta name="theme-color" content="#1f4ad8">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f4ad8'/%3E%3Cpath d='M8 11l3 11 5-8 5 8 3-11' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=96">
+<link rel="stylesheet" href="css/style.css?v=98">
 </head>
-<body>
+<body class="locked">
 <header class="top">
   <div class="wrap">
     <div class="brand"><img id="brandLogo" alt="WFC Systems"><span>Claim Builder</span></div>
     <div class="topbtns">
+      <span class="who" id="who" hidden><span id="whoEmail"></span><button class="link" id="btnSignOut" type="button">Sign out</button></span>
       <button class="quiet" id="btnStartOver" type="button" title="Remove everything and begin a new claim"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span class="lbl">Start over</span></button>
       <span class="topsep" aria-hidden="true"></span>
       <button class="ghost" id="btnAi" type="button"></button>
@@ -20,6 +21,24 @@
     </div>
   </div>
 </header>
+
+<section class="login" id="login" aria-labelledby="loginTitle">
+  <div class="logincard">
+    <h1 id="loginTitle">Sign in</h1>
+    <p>Use the email account you send work email from. Your claim then becomes an email draft with the zip already attached.</p>
+    <button class="sso" id="btnGoogle" type="button">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      <span>Continue with Google</span>
+    </button>
+    <button class="sso" id="btnMicrosoft" type="button">
+      <svg viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+      <span>Continue with Microsoft</span>
+    </button>
+    <p class="loginmsg" id="loginMsg" role="status"></p>
+    <p class="hint">Nothing is sent. You press Send yourself.</p>
+    <button class="link" id="btnNoLogin" type="button">Continue without signing in</button>
+  </div>
+</section>
 
 <main class="wrap">
   <div class="tabs" role="tablist">
@@ -79,8 +98,8 @@
     <section class="card pane" data-step="4" hidden>
       <h2><span class="step">4</span>Save and email</h2>
       <div class="mail">
-        <label class="f">From (optional)<select id="fromPick"></select><input type="email" id="fromEmail" placeholder="type your email address" hidden></label>
-        <label class="f">To (accountant)<input type="email" id="toEmail" placeholder="accountant@yourcompany.com"></label>
+        <input type="hidden" id="fromEmail">
+        <label class="f wide">To (accountant)<input type="email" id="toEmail" placeholder="accountant@yourcompany.com"></label>
         <label class="f wide">Subject<input type="text" id="subject"></label>
         <label class="f wide">Message<textarea id="body" rows="8"></textarea></label>
       </div>
@@ -119,15 +138,14 @@
       </label>
       <div class="files" id="mcFiles"></div>
       <div class="notes" id="mcNotes"></div>
-      <label class="opts" style="margin-top:12px"><input type="checkbox" id="lDaysOff" checked> Also skip toll on these days in my expense claim</label>
       <p class="hint">The leave balance boxes (b/f, entitled, taken, c/f) are left blank for the office to fill in.</p>
     </section>
 
     <section class="card">
       <h2><span class="step">2</span>Save and email</h2>
       <div class="mail">
-        <label class="f">From (optional)<select id="lFromPick"></select><input type="email" id="lFromEmail" placeholder="type your email address" hidden></label>
-        <label class="f">To<input type="email" id="lToEmail" placeholder="who receives leave forms"></label>
+        <input type="hidden" id="lFromEmail">
+        <label class="f wide">To<input type="email" id="lToEmail" placeholder="who receives leave forms"></label>
         <label class="f wide">Subject<input type="text" id="lSubject"></label>
         <label class="f wide">Message<textarea id="lBody" rows="7"></textarea></label>
       </div>
@@ -159,6 +177,8 @@
       <p class="hint">Best-effort list for 2026 &mdash; check the Islamic holiday dates against the official gazette and add Selangor / one-off holidays. Add next year's dates here too.</p></div>
     <div class="sec"><label class="f">Google client ID (optional, for a Gmail draft with the zip attached)<input type="text" id="sGmail" spellcheck="false" autocomplete="off"></label>
       <p class="hint">One-time setup that lets the &ldquo;Create Gmail draft&rdquo; button put the zip into a draft in your own Gmail. The steps are in the README under &ldquo;Gmail draft with the zip attached&rdquo;. Leave it empty to keep the normal Gmail link.</p></div>
+    <div class="sec"><label class="f">Microsoft app ID (optional, for Outlook sign-in and drafts)<input type="text" id="sMs" spellcheck="false" autocomplete="off"></label>
+      <p class="hint">One-time setup that lets &ldquo;Continue with Microsoft&rdquo; and &ldquo;Create Outlook draft&rdquo; work. The steps are in the README under &ldquo;Outlook draft with the zip attached&rdquo;. Leave it empty if the team's ID is already built in.</p></div>
     <div class="sec"><label class="f">Accountant's dashboard address (optional)<input type="text" id="sDash" spellcheck="false" autocomplete="off"></label>
       <p class="hint">When this is filled in, <i>Save my claim</i> also puts the claim on the accountant's dashboard, next to the email. Leave it empty to use email only.</p></div>
     <div class="foot">
@@ -174,21 +194,23 @@
 <script src="assets/claim-base.js"></script>
 <script src="assets/leave-base.js"></script>
 <script src="assets/logo.js"></script>
-<script src="js/tng.js?v=96"></script>
-<script src="js/xlsx.js?v=96"></script>
-<script src="js/pdf.js?v=96"></script>
-<script src="js/receipts.js?v=96"></script>
-<script src="js/mail.js?v=96"></script>
-<script src="js/gmail.js?v=96"></script>
-<script src="js/accounts.js?v=96"></script>
-<script src="js/folder.js?v=96"></script>
-<script src="js/fx.js?v=96"></script>
-<script src="js/petrol.js?v=96"></script>
-<script src="js/validate.js?v=96"></script>
-<script src="js/ocr.js?v=96"></script>
-<script src="js/draft.js?v=96"></script>
-<script src="js/planb.js?v=96"></script>
-<script src="js/aipanel.js?v=96"></script>
-<script src="js/app.js?v=96"></script>
+<script src="js/tng.js?v=98"></script>
+<script src="js/xlsx.js?v=98"></script>
+<script src="js/pdf.js?v=98"></script>
+<script src="js/receipts.js?v=98"></script>
+<script src="js/mail.js?v=98"></script>
+<script src="js/gmail.js?v=98"></script>
+<script src="js/outlook.js?v=98"></script>
+<script src="js/auth.js?v=98"></script>
+<script src="js/accounts.js?v=98"></script>
+<script src="js/folder.js?v=98"></script>
+<script src="js/fx.js?v=98"></script>
+<script src="js/petrol.js?v=98"></script>
+<script src="js/validate.js?v=98"></script>
+<script src="js/ocr.js?v=98"></script>
+<script src="js/draft.js?v=98"></script>
+<script src="js/planb.js?v=98"></script>
+<script src="js/aipanel.js?v=98"></script>
+<script src="js/app.js?v=98"></script>
 </body>
 </html>

@@ -2,11 +2,17 @@
 
 Staff attach their Touch 'n Go statement, fuel receipts and other receipts. The page fills the WFC monthly claim form, makes the PDF, zips everything into one folder and prepares the email to the accountant.
 
-Everything runs in the browser. Files are never uploaded anywhere, except the optional **Claude backup** (photos go to Claude only when a key is saved in the **Claude** panel) and that the optional **Create Gmail draft** button (see below) puts the zip into the user's own Gmail when they press it.
+Everything runs in the browser. Files are never uploaded anywhere, except the optional **Claude backup** (photos go to Claude only when a key is saved in the **Claude** panel) and that the **Create Gmail draft** / **Create Outlook draft** button (see below) puts the zip into the user's own Gmail or Outlook when they press it.
 
 ## First use
 
-In the **Save and email** step each person picks their own email from the **From** list (it starts blank every time) and **To** starts as the accountant, agnes@yutech.com.my, and can be typed over. The browser remembers the claimant name on that PC, not the two emails. Settings also holds the accountant's first name and the public-holiday list.
+The first page is a **Sign in** page with two buttons, **Continue with Google** and **Continue with Microsoft**. Signing in only tells the page who is using it (name and email); nothing is sent and no mail permission is asked yet. It does three things:
+
+- the signed-in email becomes the **From** of the email (there is no From box any more);
+- the email step shows **one blue button for that person's own mail**: *Create Gmail draft* for Google, *Create Outlook draft* for Microsoft;
+- the top bar shows the email with **Sign out**.
+
+**Continue without signing in** (small link under the buttons) keeps the older behaviour, for someone whose email is neither Google nor Microsoft: Gmail link, .eml file, no From. The sign-in is remembered for that browser tab only (close the tab = signed out; a refresh keeps it). It is a convenience, not a lock: the claim is built on the person's own PC either way. **To** starts as the accountant, agnes@yutech.com.my, and can be typed over. The browser remembers the claimant name on that PC. Settings also holds the accountant's first name and the public-holiday list.
 
 ## Run it
 
@@ -42,11 +48,10 @@ The expense claim is four steps, one form on screen at a time. The circles at th
    - Use "Attach to" to put several files (hotel receipt + bill + payment proof) on one claim line.
 3. **Check:** nothing is locked. Every field on every line can be typed over, including the amounts. **+ Add a line manually** adds a line with no file (a cash expense, say). The toll and parking lines are calculated from the ticked trips, but you can type a different amount, date, name or receipt no. over them; the line then says "Changed by you · calculated RM x" with a **Use calculated** link to go back, and the toll check list PDF records the difference. "See which trips" shows each toll row and why it was counted or not; tick or untick to override.
 4. **Save:** the claim form (.xlsx and .pdf) lists fuel first, then toll, parking, medical, AI tools, accommodation and any other claims (by date within each group). It downloads `Claim - <Month Year> - <Name>.zip` containing the claim form (.xlsx and .pdf), the original TNG statement, a **TNG toll check list PDF** (every trip with a ticked or unticked box and the reason, so the accountant can see exactly which trips count), and each receipt renamed `Receipt 01 - Petrol - 06-09-2026.jpg` (the number matches the line on the form).
-5. **Email:** subject `Claim - <Month Year>`, to the accountant, from the work email.
-   - *Create Gmail draft* (after the one-time setup below) signs in to Google once and puts the To, Subject, message **and the zip** into a draft in the user's own Gmail Drafts. Nothing is sent.
-   - *Open Gmail draft* / *Open Gmail without the file* fills To / Subject / message in the work account. Gmail links cannot carry attachments, so drag the zip in.
-   - *Download .eml draft* opens in Outlook / Apple Mail with the zip already attached.
-   - *Share...* (phones) hands the zip to the Gmail app.
+5. **Email:** subject `Claim - <Month Year>`, to the accountant, from the signed-in email. After **Save my claim** the page shows **one big blue button**, matched to the account that signed in; everything else is small and tucked under **Other ways to send** (so nobody has to pick between six buttons). Once the claim is saved, **Save my claim** itself turns white so only one button is blue.
+   - **Google sign-in: *Create Gmail draft*** (after the one-time setup below) puts the To, Subject, message **and the zip** into a draft in the user's own Gmail Drafts and opens it in a new tab. Nothing is sent.
+   - **Microsoft sign-in: *Create Outlook draft*** (after the one-time setup in "Outlook draft with the zip attached") does the same in Outlook (work, school or personal), through the Microsoft Graph mail service, and opens the draft in Outlook on the web.
+   - *Other ways to send:* *Open Gmail / Outlook without the file* (To / Subject / message filled in, attach the zip yourself), *Download email file (.eml)* (opens in Outlook / Apple Mail with the zip already attached), *Download zip again*, and *Share...* (phones).
 
 ## The accountant's dashboard (optional)
 
@@ -59,6 +64,26 @@ When an **accountant's dashboard address** is set (Settings, or built in as `DEF
 - No login yet, by design for the demo. See the dashboard project's README, "Before real use".
 - Code: `js/accounts.js` (sender), test: `node tests/accounts.test.js`.
 
+## Outlook draft with the zip attached
+
+The Microsoft twin of the Gmail button, for colleagues on Outlook / Microsoft 365 (also personal outlook.com, hotmail and live addresses). It needs a Microsoft **application (client) ID** (a public value, not a secret). Register the app once for the whole team (free):
+
+1. Open https://entra.microsoft.com (or portal.azure.com > Microsoft Entra ID), signed in with a WFC Microsoft account, then **Identity > Applications > App registrations > New registration**.
+2. Name it *WFC Claim Builder*. Under **Supported account types** choose **Accounts in any organizational directory and personal Microsoft accounts** (this lets both work and personal accounts sign in).
+3. **Redirect URI:** choose the platform **Single-page application (SPA)** (not Web) and enter `https://zzllchen.github.io/wfc-claim-builder/auth-redirect.html`. Press **Register**. Then **Authentication > Add a platform / Add URI** and add `http://localhost:8080/auth-redirect.html` if people also use `Start.bat`.
+4. **API permissions > Add a permission > Microsoft Graph > Delegated permissions:** tick **Mail.ReadWrite** (the sign-in ones, `User.Read`, `openid`, `profile`, `email`, are already covered). Microsoft has no smaller permission for making a draft; it is called "read and write your mail", and the page only ever creates one draft.
+5. Copy the **Application (client) ID** from the Overview page and paste it into `DEFAULTS.msClientId` in `js/app.js` (or, to try it on one PC first, **Settings > Microsoft app ID**), then commit and push.
+
+Until the ID is entered, **Continue with Microsoft** says "Microsoft sign-in is not set up yet" and people can use **Continue without signing in**.
+
+What to expect:
+
+- Sign-in asks only who you are. The mail permission is asked the first time someone presses **Create Outlook draft** (a Microsoft popup; once per browser tab).
+- **Work / school accounts:** if the company limits what users may approve, Microsoft says an administrator has to approve the app first (the page then says "Your company has to approve this app in Microsoft first"). The admin can approve it for everyone once, in Entra under **Enterprise applications > WFC Claim Builder > Permissions > Grant admin consent**. Until then use *Download email file (.eml)*.
+- The zip goes into the draft in pieces (Microsoft takes 4 MB at a time); the draft keeps the usual limit of the mailbox (about 20-35 MB).
+- The sign-in popup is finished by `auth-redirect.html` (next to `index.html`): it hands Microsoft's answer back to the page and closes. The Microsoft sign-in library is bundled in `vendor/` (MSAL.js 5.29.1, MIT licence) and only loads when a Microsoft client ID is set.
+- Tests: `node tests/login.test.js` (stand-ins for Google, Microsoft and the Graph mail service; no real account is touched). The real Microsoft popup, consent and a real draft have **not** been tried with a real account yet.
+
 ## Gmail draft with the zip attached
 
 A web page cannot attach a file to Gmail through a link, so this button uses the Gmail API with the person's own Google sign-in. The permission asked for is "Manage drafts and send emails" (`gmail.compose`); it cannot read the mailbox. It needs a Google **client ID** (a public value, not a secret). Set it up once for the whole team:
@@ -70,12 +95,13 @@ A web page cannot attach a file to Gmail through a link, so this button uses the
 5. Copy the **Client ID** (it ends in `.apps.googleusercontent.com`). The team's ID is already built in (`DEFAULTS.gmailClientId` in `js/app.js`, project *WFC Claim Builder* under marketing.wfcsystems@gmail.com), so colleagues need nothing. Someone using their own project can paste theirs in **Settings > Google client ID**.
    - **Test users must be real Google accounts.** Google silently refuses to add an address that is not a Google account (for example a work address on another mail provider), so the Gmail draft button works only for people who sign in with a Google account. Add each such person under **Audience > Test users**, one at a time.
 6. On first use Google shows "Google hasn't verified this app": choose **Advanced > Go to WFC Claim Builder**, then allow. In Testing mode Google asks again about once a week.
+   - **Sign in with Google:** the login page asks Google only for name and email (`openid email profile`). The Gmail permission (step 3's scope) is asked when someone presses **Create Gmail draft**. While the app is in Testing, an account that is not a test user is refused at the login page ("Google would not let this account in"); it can use **Continue without signing in**.
 
 The draft appears in the Gmail account that was signed in, with the zip attached; open it from the link under the button and press Send.
 
 ## Leave application
 
-The **Leave application** tab fills the WFC leave form: employee name, type (annual / sick / unpaid / personal / other, ticked on the form), reason, from / to dates, signature and date signed. The balance boxes stay blank for the office. It makes `WFC - OCT Leave form (6Nov).xlsx` and `.pdf` (month = month signed, date = first day of leave) and prepares an email subject `Leave application - 6 Nov 2026`. For sick leave, drop or paste the **medical certificate (MC)** photo or PDF: the dates, "Sick" and the diagnosis are filled in from it (amber, check them), and the MC is saved and emailed with the leave form. A photo held **sideways or upside down** is turned until the title "Medical Certificate" is found (this takes 20-30 seconds); the title is matched loosely (one misread letter is fine) and so are phrases only an MC has ("unfit for the proper performance", "Not valid in court"). If the "Diagnosis:" label is lost, a common complaint standing on its own line (headache, fever, flu...) is used. Test: `node tests/mc.test.js` (the fixture has the name and IC number removed: this repo is public). Tick "Also skip toll on these days" to add the leave dates to the expense claim's days off.
+The **Leave application** tab fills the WFC leave form: employee name, type (annual / sick / unpaid / personal / other, ticked on the form), reason, from / to dates, signature and date signed. The balance boxes stay blank for the office. It makes `WFC - OCT Leave form (6Nov).xlsx` and `.pdf` (month = month signed, date = first day of leave) and prepares an email subject `Leave application - 6 Nov 2026`. For sick leave, drop or paste the **medical certificate (MC)** photo or PDF: the dates, "Sick" and the diagnosis are filled in from it (amber, check them), and the MC is saved and emailed with the leave form. A photo held **sideways or upside down** is turned until the title "Medical Certificate" is found (this takes 20-30 seconds); the title is matched loosely (one misread letter is fine) and so are phrases only an MC has ("unfit for the proper performance", "Not valid in court"). If the "Diagnosis:" label is lost, a common complaint standing on its own line (headache, fever, flu...) is used. Test: `node tests/mc.test.js` (the fixture has the name and IC number removed: this repo is public). Saving a leave form always adds its dates to the expense claim's days off (no tick box: leave days are never claimed for toll).
 
 ## Where files are saved
 
@@ -113,9 +139,12 @@ js/ocr.js           reads receipt photos on-device (Tesseract.js)
 js/petrol.js        turns the OCR text into date / amount / station / receipt no.
 js/receipts.js      reads invoice / receipt PDFs
 js/mail.js          Gmail link and .eml draft
-js/gmail.js         one-click Gmail draft with the zip attached (Google sign-in + Gmail API)
+js/gmail.js         Google sign-in (who are you) and the one-click Gmail draft with the zip attached (Gmail API)
+js/outlook.js       Microsoft sign-in and the one-click Outlook draft with the zip attached (Microsoft Graph)
+js/auth.js          who signed in on the login page (this tab only)
+auth-redirect.html  finishes the Microsoft sign-in popup
 js/accounts.js      sends a saved claim to the accountant's dashboard inbox (optional)
 js/folder.js        remembered save folder (File System Access API)
 assets/             base claim form (from the October form) and logo, embedded as data
-vendor/             pdf.js, JSZip, jsPDF (bundled, no internet needed)
+vendor/             pdf.js, JSZip, jsPDF, MSAL.js (bundled, no internet needed)
 ```

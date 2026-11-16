@@ -362,3 +362,40 @@ dialog .sec { display: grid; gap: 6px; }
 .zipfiles summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 .zipfiles summary:hover { color: var(--ink); }
 .zipfiles ul { margin-top: 10px; }
+
+/* the login page: two buttons, shown before anything else until someone signs in */
+.login { display: none; }
+body.locked .login { display: grid; place-items: start center; padding: 9vh 20px 60px; }
+body.locked main, body.locked .topbtns > :not(.who) { display: none !important; }
+.logincard { width: 100%; max-width: 400px; text-align: center; }
+.logincard h1 { margin: 0 0 10px; font-size: 26px; font-weight: 650; letter-spacing: -.02em; }
+.logincard p { margin: 0 0 22px; color: var(--muted); }
+.logincard .hint { margin: 18px 0 8px; }
+button.sso { width: 100%; height: 50px; margin: 0 0 12px; display: flex; align-items: center; justify-content: center; gap: 12px; background: #fff; border: 1px solid var(--line-2); color: var(--ink); font-size: 15px; }
+button.sso:hover:not(:disabled) { background: var(--blue-50); border-color: #b9c6e6; }
+button.sso:disabled { opacity: .6; cursor: default; }
+button.sso svg { width: 20px; height: 20px; flex: none; }
+.loginmsg { min-height: 0; margin: 6px 0 0 !important; font-size: 13.5px; }
+.loginmsg:empty { display: none; }
+.loginmsg.bad { color: var(--bad); }
+.who { display: inline-flex; align-items: center; gap: 4px; font-size: 13.5px; color: var(--muted); }
+.who[hidden] { display: none; }
+.who > span { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbtns .who button.link { height: auto; padding: 2px 6px; font-size: 13.5px; }
+@media (max-width: 760px) { .who > span { display: none; } }
+
+/* sending the email: one big blue button for the person's own mail, everything else small and tucked away */
+.sendbox { margin: 22px 0 4px; padding-top: 22px; border-top: 1px solid var(--line); display: grid; justify-items: start; gap: 14px; }
+.sendbox .gstat:empty { display: none; }
+.sendbox .gstat { width: 100%; }
+button.big { height: 52px; padding: 0 34px; font-size: 16px; border-radius: 12px; }
+.sendhint { margin: 0; max-width: 560px; }
+.moreways { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+.moreways summary { cursor: pointer; font-weight: 600; color: var(--muted); list-style: none; display: inline-flex; align-items: center; gap: 6px; }
+.moreways summary::-webkit-details-marker { display: none; }
+.moreways summary::before { content: "›"; display: inline-block; transition: transform .12s; }
+.moreways[open] summary::before { transform: rotate(90deg); }
+.moreways summary:hover { color: var(--ink); }
+.moreactions { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-top: 12px; }
+button.mini { height: 34px; padding: 0 14px; font-size: 13px; font-weight: 600; color: var(--muted); }
+@media (max-width: 560px) { button.big { width: 100%; padding: 0 16px; } }

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Microsoft sign-in</title>
+<style>body{margin:0;display:grid;place-items:center;min-height:100vh;font:15px "Segoe UI",system-ui,sans-serif;color:#5d6b8c}</style>
+</head>
+<body>
+<p>Finishing sign-in&hellip; this window closes by itself.</p>
+<!-- Microsoft sends the person back to this page after they sign in. This script hands the answer to the Claim Builder window and the popup closes. -->
+<script src="vendor/msal-redirect-bridge.min.js"></script>
+<script>
+  msalRedirectBridge.broadcastResponseToMainFrame().catch(function (e) {
+    document.querySelector('p').textContent = 'Sign-in could not finish: ' + (e && e.message ? e.message : e) + ' You can close this window.';
+  });
+</script>
+</body>
+</html>

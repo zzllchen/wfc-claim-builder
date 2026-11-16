@@ -7,6 +7,7 @@
   const SCOPE = 'https://www.googleapis.com/auth/gmail.compose';       // make drafts and send; it cannot read the mailbox
   const GIS = 'https://accounts.google.com/gsi/client';
   const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
+  const USERINFO = 'https://www.googleapis.com/oauth2/v3/userinfo';
   let loading = null, token = null, tokenUntil = 0;
 
   /* Load Google's sign-in script ahead of the click: the sign-in popup has to open inside the click itself or the browser blocks it. */
@@ -23,11 +24,15 @@
     return loading;
   }
 
+  const popupError = (e) => (e && e.type === 'popup_closed' ? 'The Google sign-in was closed before it finished.'
+    : e && e.type === 'popup_failed_to_open' ? 'The browser blocked the Google sign-in popup. Allow popups for this page and try again.' : 'Google sign-in failed.');
+  const loadingError = () => new Error('Google sign-in is still loading - try again in a moment.');
+
   /* Call this straight from the click handler, before any await. */
   function signIn(clientId, hint) {
     return new Promise((resolve, reject) => {
       if (token && Date.now() < tokenUntil) { resolve(token); return; }
-      if (!(root.google && root.google.accounts && root.google.accounts.oauth2)) { reject(new Error('Google sign-in is still loading - try again in a moment.')); return; }
+      if (!(root.google && root.google.accounts && root.google.accounts.oauth2)) { reject(loadingError()); return; }
       const client = root.google.accounts.oauth2.initTokenClient({
         client_id: clientId, scope: SCOPE, hint: hint || undefined,
         callback: (r) => {
@@ -36,12 +41,38 @@
           tokenUntil = Date.now() + Math.max(60, (Number(r.expires_in) || 3600) - 60) * 1000;
           resolve(token);
         },
-        error_callback: (e) => reject(new Error(e && e.type === 'popup_closed' ? 'The Google sign-in was closed before it finished.'
-          : e && e.type === 'popup_failed_to_open' ? 'The browser blocked the Google sign-in popup. Allow popups for this page and try again.' : 'Google sign-in failed.')),
+        error_callback: (e) => reject(new Error(popupError(e))),
       });
       client.requestAccessToken();
     });
   }
+
+  /* The login page: who is this? Asks Google for the name and email only - no Gmail permission yet (that is asked when a draft is made).
+     Call it straight from the click handler, before any await. Resolves { provider: 'google', email, name }. */
+  function identify(clientId) {
+    return new Promise((resolve, reject) => {
+      if (!(root.google && root.google.accounts && root.google.accounts.oauth2)) { reject(loadingError()); return; }
+      const client = root.google.accounts.oauth2.initTokenClient({
+        client_id: clientId, scope: 'openid email profile', prompt: 'select_account',
+        callback: async (r) => {
+          if (r.error) {
+            reject(new Error(r.error === 'access_denied' ? 'Google would not let this account in. Try another account, or continue without signing in.' : r.error_description || r.error));
+            return;
+          }
+          try {
+            const res = await fetch(USERINFO, { headers: { Authorization: 'Bearer ' + r.access_token } });
+            const j = await res.json();
+            if (!res.ok || !j.email) throw new Error('no email');
+            resolve({ provider: 'google', email: String(j.email).toLowerCase(), name: j.name || '' });
+          } catch (e) { reject(new Error("Google signed you in but did not share your email address. Please try again.")); }
+        },
+        error_callback: (e) => reject(new Error(popupError(e))),
+      });
+      client.requestAccessToken();
+    });
+  }
+
+  function forget() { token = null; tokenUntil = 0; }
 
   async function call(url, init, tok) {
     const res = await fetch(url, Object.assign({}, init, { headers: Object.assign({ Authorization: 'Bearer ' + tok }, init && init.headers) }));
@@ -67,5 +98,7 @@
     return { id: draft.id, messageId, email, url: `https://mail.google.com/mail/?authuser=${encodeURIComponent(email || '0')}#drafts?compose=${messageId}` };
   }
 
-  root.Gmail = { preload, createDraft };
-})(window);
+  const api = { preload, createDraft, identify, forget };
+  root.Gmail = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
