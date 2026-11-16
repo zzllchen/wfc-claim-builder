@@ -1515,7 +1515,11 @@
     const downloadEml = async () => {
       const m = fields();
       download(await Mail.emlBlob({ from: m.from, to: m.to, subject: m.subject, body: m.body, attachments: p.attachments }), safe(m.subject) + '.eml');
-      say('ok', `The email file is downloaded. Double-click it to open it in Outlook with the ${what} attached, check it and press Send.`);
+      // the first few times, a one-time tip so the double-click can be skipped from then on
+      const shown = store.get('wfc-eml-tip', 0);
+      store.set('wfc-eml-tip', shown + 1);
+      say('ok', `The email file is downloaded. Double-click it to open it in Outlook with the ${what} attached, check it and press Send.`,
+        shown < 3 ? h('span', { class: 'tip', text: 'Tip: to skip the double-click next time, open your browser\'s download list, press the three dots next to this file and choose "Always open files of this type".' }) : null);
     };
     const mainBtn = hasDraft
       ? h('button', { class: 'primary big', type: 'button', text: `Create ${openName} draft`, onclick: (e) => (outlook ? makeOutlookDraft : makeDraft)(e.currentTarget) })
