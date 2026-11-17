@@ -210,13 +210,27 @@
   }
   // Start over: the page as it was on the first visit (the claimant name stays, it is remembered anyway)
   function startOver() {
-    if (!window.confirm('Start again from the beginning?\n\nThis removes every file and line from this page and the copy kept on this computer. Your original files are not touched.')) return;
+    if (!window.confirm('Start again from the beginning?\n\nThis clears the expense claim and the leave application on this page, and the copy kept on this computer. Your original files are not touched.')) return;
     Draft.cancel(); clearAll(true);
     const now = new Date(), last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     $('#month').value = `${last.getFullYear()}-${pad(last.getMonth() + 1)}`; S.touched.month = false; $('#daysOff').value = '';
     S.packs.claim = null; renderPack('claim');
     $('#fileNotes').textContent = ''; $('#rejects').textContent = ''; $('#resumeBar').hidden = true;
+    resetLeave();
     Draft.clear(); go(1); renderLines(); refreshStatus();
+  }
+
+  /* the leave application as on the first visit: no dates, reason or MC, type Annual, signed today, the name carried over from the claim */
+  function resetLeave() {
+    S.mc.forEach((m) => URL.revokeObjectURL(m.url)); S.mc = []; renderMc();
+    ['#lFrom', '#lTo', '#lReason'].forEach((id) => { const e = $(id); e.value = ''; e.classList.remove('guess'); });
+    $('#lType').value = 'annual';
+    Object.assign(S.touched, { lName: false, lSign: false, lTo: false, lSubject: false, lBody: false });
+    $('#lName').value = $('#claimant').value; $('#lSign').value = $('#signature').value;
+    $('#lSignDate').value = localIso(new Date());
+    $('#mcNotes').textContent = ''; $('#lNotes').textContent = '';
+    S.packs.leave = null; renderPack('leave');
+    refreshLeaveEmail(); markNeededLeave();
   }
 
   function mergeInto(item, target) {
