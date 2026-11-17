@@ -17,7 +17,7 @@
   --r: 14px;
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }      /* the page's scrollbar space is always kept, so nothing slides sideways when a tab is longer than the screen */
 body {
   margin: 0; background: #fff; color: var(--ink);
   font: 15px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
@@ -35,8 +35,8 @@ body {
 .bname b { font-size: 20px; font-weight: 800; letter-spacing: -.03em; background: linear-gradient(90deg, #1737ad, #1f4ad8 55%, #0f9fa0); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .bname small { font-size: 10.5px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); }
 
-main { padding: 12px 20px 80px; display: grid; gap: 20px; }
-.view { display: grid; gap: 20px; }
+main.wrap { padding: 32px 20px 96px; display: grid; gap: 24px; }       /* room under the header or step bar, and a good stretch of space under the last card */
+.view { display: grid; gap: 24px; }
 .view[hidden] { display: none; }
 
 /* tabs */
@@ -47,21 +47,24 @@ main { padding: 12px 20px 80px; display: grid; gap: 20px; }
 .mainnav .tab.on { background: #fff; color: var(--blue); box-shadow: 0 1px 3px rgba(13, 27, 62, .14), 0 0 0 1px rgba(13, 27, 62, .04); }
 .mainnav .short { display: none; }
 
-/* steps: 1-2-3-4 circles joined by a line that turns green as each step is finished */
+/* steps: a bar across the page under the header (like the header, it spans the full width and stays put); four numbered circles, joined by a line that
+   turns green as each step is finished. Upcoming = grey outline, current = solid blue, finished = solid green with a tick. */
 .pane[hidden] { display: none; }
-.stepper { position: sticky; top: 67px; z-index: 4; margin: 0 -20px; padding: 14px 20px 12px; background: rgba(255, 255, 255, .96); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-.stepper ol { list-style: none; margin: 0 auto; padding: 0; display: flex; max-width: 760px; }
-.stepper li { flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.stepper li + li::before { content: ""; position: absolute; top: 17px; right: 50%; width: 100%; height: 3px; border-radius: 2px; background: var(--line-2); }
+.stepper { --d: 32px; --gap: 8px; position: sticky; top: 66px; z-index: 4; padding: 18px 20px 14px; background: rgba(255, 255, 255, .94); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
+.stepper[hidden] { display: none; }
+.stepper ol { list-style: none; margin: 0 auto; padding: 0; display: flex; max-width: 720px; }
+.stepper li { flex: 1 1 0; min-width: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.stepper li + li::before { content: ""; position: absolute; top: calc((var(--d) - 2px) / 2); left: calc(-50% + var(--d) / 2 + var(--gap)); right: calc(50% + var(--d) / 2 + var(--gap)); height: 2px; border-radius: 2px; background: var(--line-2); transition: background .25s; }
 .stepper li.after-done::before { background: #16a34a; }
-.sdot { position: relative; z-index: 1; width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 2px solid var(--line-2); background: #fff; color: var(--muted); font-size: 15px; font-weight: 700; display: grid; place-items: center; }
-.sdot:hover { border-color: #b9c6e6; }
-.sdot.cur { border-color: var(--blue); color: var(--blue); box-shadow: var(--ring); }
+.sdot { position: relative; z-index: 1; width: var(--d); height: var(--d); padding: 0; border-radius: 50%; border: 2px solid var(--line-2); background: #fff; color: var(--faint); font-size: 13.5px; font-weight: 700; line-height: 1; display: grid; place-items: center; cursor: pointer; transition: background .2s, border-color .2s, color .2s, box-shadow .2s; }
+.sdot:hover { border-color: #aebde3; color: var(--muted); }
+.sdot:focus-visible { outline: 0; box-shadow: var(--ring); }
 .sdot.done { background: #16a34a; border-color: #16a34a; color: #fff; }
-.sdot.done.cur { box-shadow: 0 0 0 3px rgba(22, 163, 74, .25); }
-.slabel { font-size: 12.5px; font-weight: 600; color: var(--faint); text-align: center; }
-.slabel.cur { color: var(--ink); }
-.slabel.done { color: #15803d; }
+.sdot.cur { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 0 0 4px rgba(31, 74, 216, .14); }
+.sdot.cur:hover { border-color: var(--blue-d); color: #fff; }
+.slabel { font-size: 13px; font-weight: 600; color: var(--faint); text-align: center; line-height: 1.25; letter-spacing: .005em; }
+.slabel.done { color: #3b4a6b; }
+.slabel.cur { color: var(--ink); font-weight: 700; }
 .stepnav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
 #buildWhy:empty { display: none; }
 #buildWhy { margin-top: 14px; }
@@ -238,6 +241,8 @@ button.badge:hover { box-shadow: 0 0 0 3px rgba(13, 27, 62, .1); }
 .note.warn { background: var(--warn-bg); color: var(--warn); }
 .note.ok { background: var(--blue-50); color: var(--blue-d); }
 .note.info { background: #f6f7fb; color: var(--muted); }
+.note.todo { display: grid; gap: 6px; padding: 14px 16px; }
+.note.todo .link { display: block; text-align: left; padding: 0; line-height: 1.4; }
 .note a { color: inherit; font-weight: 650; text-decoration: underline; }
 .note .openlink { display: inline-block; margin-left: 6px; padding: 8px 16px; background: var(--blue); color: #fff; border-radius: 10px; text-decoration: none; }
 .note .openlink:hover { background: var(--blue-d); }
@@ -276,8 +281,10 @@ dialog .sec { display: grid; gap: 6px; }
   .pack ul { columns: 1; }
 }
 @media (max-width: 480px) {
-  .wrap, main { padding-left: 14px; padding-right: 14px; }
-  .stepper { margin: 0 -14px; padding: 12px 8px 10px; }
+  .wrap, main.wrap { padding-left: 14px; padding-right: 14px; }
+  main.wrap { padding-top: 22px; padding-bottom: 72px; gap: 20px; }
+  .view { gap: 20px; }
+  .stepper { --d: 30px; padding: 14px 8px 11px; }
   .slabel { font-size: 11.5px; }
   .grid { grid-template-columns: 1fr; }
   .card { padding: 18px 16px; }
@@ -309,10 +316,14 @@ dialog .sec { display: grid; gap: 6px; }
 .aimsg { margin: 0; font-size: 13.5px; } .aimsg.ok { color: var(--ok); }
 .airow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .airow input[type=password] { flex: 1; min-width: 220px; }
-.aikey { color: var(--ok); font-weight: 600; flex: 1; }
+.aikey { color: var(--ok); font-weight: 650; white-space: nowrap; }
+.aikeyrow { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
+.aiact { display: inline-flex; align-items: center; gap: 14px; }
+.aimodel { display: grid; gap: 6px; }
+.aimodel select { width: 100%; }
 .aia { color: var(--blue); cursor: pointer; font-weight: 600; font-size: 13.5px; }
 .aisteps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; display: grid; gap: 4px; }
-.aispend { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .aispend b { color: var(--ink); }
+.aispend { font-size: 14px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 6px 14px; flex-wrap: wrap; padding: 0 2px; } .aispend b { color: var(--ink); }
 .aitip { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-2); text-align: center; font-size: 12px; line-height: 16px; cursor: help; }
 .aimodes { display: grid; gap: 8px; }
 .aimode { display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid var(--line-2); border-radius: 12px; padding: 10px 14px; cursor: pointer; }
@@ -352,7 +363,22 @@ dialog .sec { display: grid; gap: 6px; }
 .acsep { height: 1px; background: var(--line); margin: 6px 4px; }
 
 /* a phone: the header scrolls away (the step bar then stays put), the sections become a full-width switch under the name */
-@media (max-width: 760px) {
+/* the settings dialogs on a phone: nearly the full width, tighter, one thing per line, the main button full width */
+@media (max-width: 560px) {
+  dialog { width: calc(100vw - 20px); max-height: 92vh; border-radius: 16px; }
+  dialog form { padding: 20px 18px 18px; gap: 16px; }
+  dialog h2 { font-size: 18px; }
+  .aicard { padding: 14px 14px 12px; gap: 12px; }
+  .aikeyrow { flex-direction: column; align-items: stretch; gap: 10px; }
+  .aikeyrow .aiact { justify-content: space-between; gap: 12px; }
+  .aikeyrow .aiact .ghost { flex: 1; }
+  .airow { flex-direction: column; align-items: stretch; }
+  .airow input[type=password] { min-width: 0; }
+  .aimode { padding: 12px; gap: 10px; }
+  .aimode small { font-size: 12.5px; line-height: 1.45; }
+  dialog .foot .primary { width: 100%; }
+}
+@media (max-width: 800px) {
   .top { position: static; }
   .headbar { flex-wrap: wrap; gap: 12px; min-height: 0; padding-top: 12px; padding-bottom: 14px; }
   .brand { order: 1; gap: 12px; }
@@ -394,7 +420,7 @@ dialog .sec { display: grid; gap: 6px; }
 
 /* the login page: what Flow does on the left (a short story, three lines), the sign-in on the right */
 .login { display: none; }
-body.locked .top, body.locked main { display: none !important; }
+body.locked .top, body.locked main, body.locked .stepper { display: none !important; }
 body.locked .login { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); min-height: 100vh; }
 .loginhero { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 40px; padding: 40px 56px 34px; background: linear-gradient(155deg, #eaf0ff 0%, #f6f9ff 52%, #e9faf6 100%); border-right: 1px solid var(--line); }
 .loginhero::before { content: ""; position: absolute; width: 540px; height: 540px; right: -190px; top: -170px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(61, 139, 255, .26), rgba(61, 139, 255, 0) 68%); }

@@ -659,15 +659,18 @@
     markNeeded();
     const p = stepProblems(lines || compileLines().lines);
     const done = p.map((x) => !x.length);
+    // the bar shows a step as finished only when it and every step before it are: "Save and email" has its boxes filled in from the start,
+    // and a green tick there while the files are still missing would be misleading
+    const shown = done.map((_, i) => done.slice(0, i + 1).every(Boolean));
     S.stepEls.forEach((x, i) => {
       const n = i + 1;
-      x.dot.className = 'sdot' + (done[i] ? ' done' : '') + (S.step === n ? ' cur' : '');
-      x.dot.textContent = done[i] ? '✓' : String(n);
-      x.dot.title = done[i] ? 'Done' : 'Still needs: ' + p[i].join(', ');
-      x.dot.setAttribute('aria-label', `Step ${n}: ${STEPS[i]}${done[i] ? ', done' : ''}`);
+      x.dot.className = 'sdot' + (shown[i] ? ' done' : '') + (S.step === n ? ' cur' : '');
+      x.dot.textContent = shown[i] ? '✓' : String(n);
+      x.dot.title = shown[i] ? 'Done' : p[i].length ? 'Still needs: ' + p[i].join(', ') : 'Finish the earlier steps first';
+      x.dot.setAttribute('aria-label', `Step ${n}: ${STEPS[i]}${shown[i] ? ', done' : ''}`);
       if (S.step === n) x.dot.setAttribute('aria-current', 'step'); else x.dot.removeAttribute('aria-current');
-      x.name.className = 'slabel' + (S.step === n ? ' cur' : '') + (done[i] ? ' done' : '');
-      x.li.className = i && done[i - 1] ? 'after-done' : '';        // the line leading into a step turns green once the one before it is done
+      x.name.className = 'slabel' + (S.step === n ? ' cur' : '') + (shown[i] ? ' done' : '');
+      x.li.className = i && shown[i - 1] ? 'after-done' : '';        // the line leading into a step turns green once the one before it is done
     });
     document.querySelectorAll('#viewClaim .stepnav .next').forEach((b) => {
       const n = +b.closest('.pane').dataset.step;
@@ -681,7 +684,7 @@
     if (!ready) {
       const bits = [];
       p.forEach((list, i) => { if (list.length) bits.push(h('button', { class: 'link', type: 'button', text: `step ${i + 1}: ${list.join(', ')}`, onclick: () => go(i + 1) })); });
-      why.append(h('div', { class: 'note warn' }, 'To save your claim, finish ', bits.flatMap((b, i) => (i ? [' · ', b] : [b]))));
+      why.append(h('div', { class: 'note warn todo' }, h('span', { text: 'To save your claim, finish:' }), bits));      // one line each, so a long list never runs into the next
     }
   }
 
@@ -1446,6 +1449,7 @@
 
   function showView(v) {
     $('#viewClaim').hidden = v !== 'claim';
+    $('#stepper').hidden = v !== 'claim';           // the 1-2-3-4 bar belongs to the claim only
     $('#viewLeave').hidden = v !== 'leave';
     $('#tabClaim').classList.toggle('on', v === 'claim');
     $('#tabLeave').classList.toggle('on', v === 'leave');

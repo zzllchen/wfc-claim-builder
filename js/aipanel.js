@@ -7,8 +7,8 @@
   const when = (t) => { const d = new Date(t); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
   const LABEL = { none: 'Not connected', saved: 'Key saved, not tested', ok: 'Connected', team: 'Connected (company)', bad: 'Not working', off: 'Switched off' };
   const MODES = [
-    ['first', 'Camera photos first', 'Recommended. Claude reads each camera photo first, even blurry ones. PDFs and screenshots are read on this computer.'],
-    ['backup', 'Only when needed', 'This computer reads first. Claude helps only when it cannot read a photo or the result looks wrong.'],
+    ['first', 'Camera photos first', 'Recommended. Claude reads each camera photo first. PDFs and screenshots are read on this computer.'],
+    ['backup', 'Only when needed', 'This computer reads first. Claude helps only when a photo cannot be read or looks wrong.'],
     ['off', 'Off', 'Claude is never used and nothing is sent.'],
   ];
   let dlg = null, busy = false, msg = '', msgBad = false, help = false;
@@ -35,14 +35,14 @@
     const sub = !key ? (P.teamOn() ? '<small>The company has already connected Claude for you. There is nothing to set up.</small>' : '') : busy ? '' : t && t.ok ? `<small>Tested ${esc(when(t.at))} · answered in ${(t.ms / 1000).toFixed(1)} s</small>`
       : t && !t.ok ? `<small class="bad">${esc(t.msg || '')}</small>` : '<small>Press Test connection to check the key.</small>';
     const keyRow = key
-      ? `<div class="airow"><span class="aikey">Key saved (ends ${esc(key.slice(-4))})</span><button class="ghost" type="button" data-a="test" ${busy ? 'disabled' : ''}>Test connection</button><a class="aia" data-a="remove">Remove</a></div>
-         <div class="airow"><select id="aiModel" aria-label="Claude model">${Object.keys(P.MODELS).map((k) => `<option value="${k}" ${k === P.model() ? 'selected' : ''}>${esc(P.MODELS[k].label)}</option>`).join('')}</select></div>`
+      ? `<div class="aikeyrow"><span class="aikey">Key saved · ends ${esc(key.slice(-4))}</span><span class="aiact"><button class="ghost" type="button" data-a="test" ${busy ? 'disabled' : ''}>Test connection</button><a class="aia" data-a="remove">Remove</a></span></div>
+         <label class="aimodel"><span class="lbl">Model</span><select id="aiModel" aria-label="Claude model">${Object.keys(P.MODELS).map((k) => `<option value="${k}" ${k === P.model() ? 'selected' : ''}>${esc(P.MODELS[k].label)}</option>`).join('')}</select></label>`
       : `<div class="airow"><input type="password" id="aiKey" placeholder="Paste your Anthropic key (sk-ant-…)" autocomplete="off" spellcheck="false"><button class="primary" type="button" data-a="save" ${busy ? 'disabled' : ''}>Save and test</button></div>`;
     const steps = help ? `<ol class="aisteps"><li>Open <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">platform.claude.com/settings/keys</a> and sign in.</li><li>Press <b>Create key</b>, name it, and copy it. It starts with <b>sk-ant-</b> and is shown only once.</li><li>Paste it above and press <b>Save and test</b>.</li></ol>` : '';
     const spendRm = P.spend();
     dlg.querySelector('form').innerHTML = `
       <div class="aihd"><h2>Claude</h2><button class="aix" type="button" data-a="close" aria-label="Close">×</button></div>
-      <p class="hint" style="margin:-6px 0 0">${P.teamOn() && !key ? 'Claude reads receipt photos, even blurry ones. The company has connected it for you, so you do not need a key.' : 'Optional. Claude reads receipt photos, even blurry ones. Your key stays on this computer, and nothing works differently without it.'}</p>
+      <p class="hint" style="margin:-6px 0 0">${P.teamOn() && !key ? 'Claude reads receipt photos, even blurry ones. The company has connected it for you, so you do not need a key.' : 'Optional. Claude reads receipt photos, even blurry ones. Your key stays on this computer, and everything still works without it.'}</p>
       <div class="aicard">
         <div class="aihead"><b>Claude key</b>${stat}</div>
         ${sub}
@@ -50,7 +50,7 @@
         ${msg ? `<p class="aimsg ${msgBad ? 'bad' : 'ok'}">${esc(msg)}</p>` : ''}
         ${P.teamOn() && !key ? '<small>Have your own key? You can paste it above to use it instead.</small>' : ''}<a class="aia" data-a="help">How do I get a key?</a>${steps}
       </div>
-      <div class="aispend">Claude cost this month <b>about RM ${spendRm.toFixed(2)}</b> <a class="aia" data-a="resetspend">Reset</a> <span class="aitip" title="Added up from what each reading cost, on this computer only. The Anthropic Console shows the real bill.">?</span></div>
+      <div class="aispend"><span>Cost this month <b>about RM ${spendRm.toFixed(2)}</b></span><span class="aiact"><a class="aia" data-a="resetspend">Reset</a><span class="aitip" title="Added up from what each reading cost, on this computer only. The Anthropic Console shows the real bill.">?</span></span></div>
       <div class="aimodes"><div class="lbl">WHEN SHOULD CLAUDE READ?</div>
         ${MODES.map(([v, name, desc]) => `<label class="aimode ${m === v ? 'on' : ''} ${on ? '' : 'dim'}"><input type="radio" name="aimode" value="${v}" ${m === v ? 'checked' : ''} ${on ? '' : 'disabled'}><span><b>${name}</b><small>${desc}</small></span></label>`).join('')}
       </div>
