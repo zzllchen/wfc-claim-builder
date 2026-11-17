@@ -7,7 +7,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+  const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12, mac: 3, mei: 5, ogo: 8, okt: 10, dis: 12 };
   const BRANDS = ['PETRONAS', 'PETRON', 'SHELL', 'CALTEX', 'BHP', 'SETEL', 'ENEOS', 'PETROL', 'MINYAK', 'ENTERPRISE', 'SDN BHD', 'STESEN',
     'KLINIK', 'CLINIC', 'HOSPITAL', 'FARMASI', 'PHARMACY'];
   const FUEL_BRAND = /^(petronas|petron|shell|caltex|bhp|setel|eneos)$/i;   // a bare brand is not the dealer's name
@@ -598,29 +598,59 @@
 
   /* Medical certificate (MC): -> { mcNo, from, to, diagnosis } or null when the text isn't one. A photo can hold several. */
   // the title, read loosely (one wrong letter is fine), or wording only an MC has, for when the title is the line the engine misread
-  const MC_TITLE = /medic\w{0,3}\s+cert\w{2,}/i;
+  const MC_TITLE = /medic\w{0,3}\s+cert\w{2,}|(?:sijil|surat)\s+cuti\s+sakit|sijil\s+perubatan/i;
   const MC_PHRASES = /certify\s+that\s+i\s+have\s+examined|unfit\s+for\s+the\s+proper\s+performance|not\s+valid\s+in\s+court|to\s+be\s+re-?examined/i;
   const isMcText = (t) => MC_TITLE.test(String(t || '')) || MC_PHRASES.test(String(t || ''));
 
   /* The days the MC covers are the ones after "From" and "To" ("unfit for ... (From 20/Oct/2026 To 20/Oct/2026)"). The page also holds the date the
-     MC was GIVEN (often the day before, in a corner), which is not a day off and must not stretch the leave. -> { from, to } or null */
-  const FROM_WORD = /(?:^|[^a-z])f?rom(?![a-z])/i;              // "From", or "rom" when the engine lost the F
+     MC was GIVEN (often the day before, in a corner), which is not a day off and must not stretch the leave. -> { from, to } or null.
+     Other wordings are read too: "from ... until ...", "dari ... hingga ..." (Malay), "w.e.f.", "commencing", "effective from", and a single start date
+     with "for 3 days" (the end is then worked out), and dates like 19-Oct-26 or 19 October 2026. */
+  const FROM_WORD = /(?:^|[^a-z])(?:f?r[o0](?:m|rn)|dari|mulai|w\.?\s?e\.?\s?f|commenc\w*|effective|starting|period|duration|tempoh|leave\s+dates?)(?![a-z])/i;      // "rom" when the engine lost the F, "Frorn" for "From"
+  const OTHER_DATE_LINE = /resume|re-?examined|sambung|semak\s+semula|review/i;                                   // "able to resume duties from ..." / "to be re-examined on ..."
+  const nextDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  // "for 2 days", "2 day(s)", "2 (two) days", "selama 2 hari"; 0 when none
+  function dayCount(t) {
+    const m = /(\d{1,2})\s*(?:\(\s*[a-z-]+\s*\)\s*)?(?:day\(?s\)?|hari)\b/i.exec(t) || /\b(?:days?|hari)\b[\s\w.]{0,12}[:=]\s*(\d{1,2})\b/i.exec(t);       // "2 days", or "Number of days: 2"
+    return m ? +m[1] : 0;
+  }
+  // the dates in a piece of text, in reading order; a two-digit year after a month name ("19-Oct-26") is added to what dates() finds
+  function mcDates(str) {
+    const list = datesDetailed(str).map((x) => ({ at: x.at, d: x.d }));
+    const re = /(?<![0-9A-Za-z])(\d{1,2})[-\/.\s]?([A-Za-z]{3,9})\.?[-\/,.\s]?(\d{2})(?!\d)/g;
+    let m;
+    while ((m = re.exec(str))) {
+      const w = m[2].toLowerCase(), mon = MONTHS[w.slice(0, 4) === 'sept' ? 'sept' : w.slice(0, 3)];
+      const y = 2000 + +m[3];
+      if (mon && validDate(y, mon, +m[1]) && !list.some((x) => Math.abs(x.at - m.index) < 4)) list.push({ at: m.index, d: iso(y, mon, +m[1]) });
+    }
+    return list.sort((a, b) => a.at - b.at).map((x) => x.d);
+  }
   function mcPeriod(t) {
     const lines = t.split(/\r?\n/);
+    const days = dayCount(t);
+    const done = (ds) => {
+      const from = ds[0];
+      let to = ds[1] || ds[0];
+      if (ds.length === 1 && days > 1 && days <= 31) to = nextDays(from, days - 1);        // only the start is written, with the number of days
+      return { from, to };
+    };
     for (let i = 0; i < lines.length; i++) {
-      if (/resume|re-?examined/i.test(lines[i])) continue;        // "able to resume duties from ..." and "to be re-examined on ..." are other dates
+      if (OTHER_DATE_LINE.test(lines[i])) continue;
       const at = lines[i].search(FROM_WORD);
       if (at < 0) continue;
-      let ds = dates(lines[i].slice(at));
-      if (ds.length < 2 && /^\W*to\b/i.test(lines[i + 1] || '')) ds = ds.concat(dates(lines[i + 1]));      // the "To ..." part wrapped to the next line
-      if (ds.length) return { from: ds[0], to: ds[1] || ds[0] };
+      let ds = mcDates(lines[i].slice(at));
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim()) j++;                    // the engine often puts a blank line between two lines
+      if (ds.length < 2 && /^\W*(?:to|until|till|hingga|sehingga|ke)\b/i.test(lines[j] || '')) ds = ds.concat(mcDates(lines[j]));      // the "To ..." part is on the next line
+      if (ds.length) return done(ds);
     }
-    // the labels were lost: the dates between "unfit for the proper performance" and the next sentence
-    const a = t.search(/unfit|performance\s+of/i);
+    // the labels were lost: the dates between "unfit for ..." and the next sentence
+    const a = t.search(/unfit|performance\s+of|tidak\s+sihat|cuti\s+sakit/i);
     if (a >= 0) {
-      const rest = t.slice(a), stop = rest.search(/re-?examined|resume/i);
-      const ds = dates(stop > 0 ? rest.slice(0, stop) : rest);
-      if (ds.length >= 1 && ds.length <= 2) return { from: ds[0], to: ds[1] || ds[0] };
+      const rest = t.slice(a), stop = rest.search(OTHER_DATE_LINE);
+      const ds = mcDates(stop > 0 ? rest.slice(0, stop) : rest);
+      if (ds.length >= 1 && ds.length <= 2) return done(ds);
     }
     return null;
   }
@@ -630,7 +660,7 @@
     if (!isMcText(t)) return null;
     const ds = dates(t).sort();
     const period = mcPeriod(t);
-    const no = /\bMC\s?-?(\d{3,7})\b/i.exec(t);
+    const no = /\bMC\s*(?:no\.?|number|#)?\s*[:.\-]?\s*(\d{3,7})\b/i.exec(t);       // MC11733, MC 20418, MC No: 55120
     let dx = /diagnosis[\s:.\-]*([A-Za-z][A-Za-z ]{2,30})/i.exec(t);
     // the "Diagnosis:" label is often the word the engine loses; the complaint itself still stands alone on a line
     if (!dx) dx = /^[ \t]*((?:acute |viral )?(?:headache|migraine|fever|flu|influenza|cough(?: and cold)?|cold|urti|gastritis|gastroenteritis|food poisoning|diarrh?oea|vomiting|sore throat|tonsillitis|back ?pain|body ?ache|dizziness|giddiness|dengue|covid[- ]?19))(?=[ \t]{2,}\S|[ \t]*$)/im.exec(t);      // alone on its line, or followed by a gap and stray marks from the next column

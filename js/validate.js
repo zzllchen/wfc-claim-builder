@@ -34,7 +34,7 @@
     if (/monthly expense claim/i.test(t)) return no(MSG.claimForm, false);
     if (/leave application form/i.test(t)) return no(MSG.leaveForm, false);
     // same loose reading of the title as Petrol.isMcText (this file stands alone, so the pattern is repeated)
-    if (/medic\w{0,3}\s+cert\w{2,}|certify\s+that\s+i\s+have\s+examined|unfit\s+for\s+the\s+proper\s+performance|not\s+valid\s+in\s+court/i.test(t) && !/\b(official\s+receipt|receipt|invoice|resit)\b/i.test(t)) return Object.assign(no(MSG.mc, false), { mc: true });
+    if (/medic\w{0,3}\s+cert\w{2,}|(?:sijil|surat)\s+cuti\s+sakit|sijil\s+perubatan|certify\s+that\s+i\s+have\s+examined|unfit\s+for\s+the\s+proper\s+performance|not\s+valid\s+in\s+court/i.test(t) && !/\b(official\s+receipt|receipt|invoice|resit)\b/i.test(t)) return Object.assign(no(MSG.mc, false), { mc: true });
     if (!MONEY.test(t) && !WORDS_AMOUNT.test(t)) return no(MSG.noAmount, source !== 'pdf');
     if (source === 'pdf' && !RECEIPT_WORDS.test(t)) return no(MSG.notReceipt, false);
     return { status: 'ok' };

@@ -138,4 +138,66 @@ ok('two one-day MCs together cover 19 to 20 Oct, and each shows only its own day
   assert.strictEqual(a.from === a.to && b.from === b.to, true, 'each certificate is a single day');
 });
 
+// ---- other clinics, other wordings (all invented text: no real names or numbers) ----
+const mcRange = (text) => { const m = Petrol.mc(text); return m && m.from + ' to ' + m.to; };
+const CASES = [
+  ['a sentence with from ... to ... and an issue date at the top',
+    'MEDICAL CERTIFICATE\nDate: 18/10/2026\nThis is to certify that Mr A B C is unfit for duty for 2 days from 19/10/2026 to 20/10/2026.\n', '2026-10-19 to 2026-10-20'],
+  ['From: and To: on separate lines',
+    'MEDICAL CERTIFICATE\nDate of issue: 18-10-2026\nFrom:   19-10-2026\nTo:     20-10-2026\n', '2026-10-19 to 2026-10-20'],
+  ['dots between the numbers (19.10.2026)',
+    'MEDICAL CERTIFICATE\nunfit for duty from 19.10.2026 to 21.10.2026\nIssued 18.10.2026\n', '2026-10-19 to 2026-10-21'],
+  ['month names written out (19 October 2026)',
+    'MEDICAL CERTIFICATE\n18 October 2026\nhe is unfit for work from 19 October 2026 to 20 October 2026\n', '2026-10-19 to 2026-10-20'],
+  ['a two-digit year after the month name (19-Oct-26)',
+    'MEDICAL CERTIFICATE\n18-Oct-26\nFrom 19-Oct-26 To 20-Oct-26\n', '2026-10-19 to 2026-10-20'],
+  ['only the start and the number of days (w.e.f. ... for 3 days): the end is worked out',
+    'MEDICAL CERTIFICATE\nDate: 18/10/2026\nMC for 3 days w.e.f. 19/10/2026\n', '2026-10-19 to 2026-10-21'],
+  ['commencing, one day',
+    'MEDICAL CERTIFICATE\n18/10/2026\nunfit for duty for 1 day(s) commencing 19/10/2026\n', '2026-10-19 to 2026-10-19'],
+  ['"2 (two) days" and a start date only',
+    'MEDICAL CERTIFICATE\nunfit for duty for 2 (two) days effective from 19/10/2026\nDate: 18/10/2026\n', '2026-10-19 to 2026-10-20'],
+  ['Period: 19/10/2026 - 20/10/2026 with no From / To words',
+    'MEDICAL CERTIFICATE\nDate: 18/10/2026\nPeriod : 19/10/2026 - 20/10/2026\n', '2026-10-19 to 2026-10-20'],
+  ['"until" instead of "to", on the next line',
+    'MEDICAL CERTIFICATE\nThe patient is unfit for duty from 19/10/2026\nuntil 20/10/2026\nDate 18/10/2026\n', '2026-10-19 to 2026-10-20'],
+  ['Malay: Sijil Cuti Sakit, dari ... hingga ...',
+    'SIJIL CUTI SAKIT\nTarikh: 18/10/2026\nPesakit diberi cuti sakit selama 2 hari dari 19/10/2026 hingga 20/10/2026\n', '2026-10-19 to 2026-10-20'],
+  ['Malay month names (5 Mei, 6 Mei)',
+    'SURAT CUTI SAKIT\ndari 5 Mei 2026 hingga 6 Mei 2026\n4 Mei 2026\n', '2026-05-05 to 2026-05-06'],
+  ['a bilingual title',
+    'SIJIL CUTI SAKIT / MEDICAL CERTIFICATE\nDari / From : 19/10/2026   Hingga / To : 19/10/2026\nTarikh / Date : 18/10/2026\n', '2026-10-19 to 2026-10-19'],
+  ['"Frorn" for "From" (a letter pair misread)',
+    'MEDICAL CERTIFICATE\nunfit for 2 day(s) Frorn 19/0ct/2026 T0 20/0ct/2026\n18-Oct-2026\n', '2026-10-19 to 2026-10-20'],
+  ['a leave over a month end',
+    'MEDICAL CERTIFICATE\nFrom 30/10/2026 To 02/11/2026\n29/10/2026\n', '2026-10-30 to 2026-11-02'],
+  ['re-examination and resume dates after the leave are not part of it',
+    'MEDICAL CERTIFICATE\nFrom 19/10/2026 To 20/10/2026\nTo be re-examined on 27/10/2026\nAble to resume duties from 21/10/2026\n18/10/2026\n', '2026-10-19 to 2026-10-20'],
+];
+CASES.forEach(([name, text, want]) => ok(name, () => assert.strictEqual(mcRange(text), want)));
+
+ok('a Malay MC counts as an MC (so the expense claim refuses it and the leave tab takes it)', () => {
+  assert.ok(Petrol.isMcText('SIJIL CUTI SAKIT'));
+  assert.ok(Petrol.isMcText('Surat Cuti Sakit'));
+  const r = Validate.judge('SIJIL CUTI SAKIT\nKlinik Sri Maju\nPesakit diberi cuti sakit selama 2 hari dari 19/10/2026 hingga 20/10/2026\nTarikh 18/10/2026 dan teks lain yang cukup panjang', 'photo');
+  assert.strictEqual(r.status, 'reject'); assert.strictEqual(r.mc, true);
+});
+
+ok('a receipt with dates and "days" in it is not turned into an MC period', () => {
+  assert.strictEqual(Petrol.mc('KLINIK SRI MAJU OFFICIAL RECEIPT 18/10/2026 consultation 2 days medication RM 40.00'), null);
+});
+
+// found with invented photos read by the real reader: blank lines between the lines, "MC No: 55120", "Number of days: 2"
+ok('blank lines between the From and To lines, as the photo reader gives them', () => {
+  const t = 'POLIKLINIK CONTOH\nMEDICAL CERTIFICATE\nMC No: 55120\n\nDate of issue: 18-10-2026\n\nPatient: AB C\n\nDiagnosis: ACUTE GASTRITIS\nFrom: 19-10-2026\n\nTo: 20-10-2026\n\nNumber of days: 2\n';
+  const m = Petrol.mc(t);
+  assert.strictEqual(m.from, '2026-10-19'); assert.strictEqual(m.to, '2026-10-20'); assert.strictEqual(m.mcNo, 'MC55120');
+});
+ok('a start date only, with "Number of days: 3" after it', () => {
+  assert.strictEqual(mcRange('MEDICAL CERTIFICATE\nDate: 18/10/2026\nFrom: 19/10/2026\n\nNumber of days: 3\n'), '2026-10-19 to 2026-10-21');
+});
+ok('MC numbers: MC11733, MC 20418, MC No: 55120, MC-7788', () => {
+  ['MC11733', 'MC 20418', 'MC No: 55120', 'MC-7788'].forEach((n) => assert.strictEqual(Petrol.mc('MEDICAL CERTIFICATE\n' + n + '\nFrom 19/10/2026 To 19/10/2026').mcNo, 'MC' + n.replace(/\D/g, '')));
+});
+
 console.log('mc tests passed');
