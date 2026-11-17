@@ -249,7 +249,10 @@
   async function rescue(prep, lines, collect, faint, ok, enough) {
     if (!lines || !lines.length || !(prep.hi || prep.crop)) return null;
     // the top of the slip (shop, date, items, total, subsidy) and, further down, only the lines that carry a number we need (balances, invoice no)
-    const want = lines.map((l, i) => ({ l, i })).filter((x) => x.l.b.y1 - x.l.b.y0 >= 12 && (x.i < 14 || /inv|bal|prev|rema|tran/i.test(x.l.t))).slice(0, 18);
+    // the invoice line comes first (it is read by its label, and the label is often misread: "lnvoice", "Invo1ce"), so a long list of balance lines further down can't push it out
+    const INV_LINE = /[il1|t]nv|nvo|vo[il1]ce|[il1]nvoi|\bno\b.*\b[0-9a-f]{6}\b/i;
+    const want = lines.map((l, i) => ({ l, i })).filter((x) => x.l.b.y1 - x.l.b.y0 >= 12 && (x.i < 14 || INV_LINE.test(x.l.t) || /bal|prev|rema|tran/i.test(x.l.t)))
+      .sort((a, b) => (INV_LINE.test(b.l.t) ? 1 : 0) - (INV_LINE.test(a.l.t) ? 1 : 0)).slice(0, 18);
     const w = await worker();
     await w.setParameters({ tessedit_pageseg_mode: '7' });
     const variants = faint ? [{ h: 60, adapt: true }, { h: 60, blur: 1.5, adapt: true }, { h: 60 }] : [{ h: 60 }, { h: 60, blur: 1.5 }, { h: 90, blur: 2.5 }];
@@ -323,7 +326,7 @@
       if (page) return page;
       if (opts.enough && opts.enough(texts)) return texts.join('\n');       // an amount and a date were found: the slower page layouts below add nothing
     }
-    const upright = /total|jumlah|invoice|receipt|subsid|petronas|RM\s?\d/i.test(first.text) && alnumCount(first.text) > 150;      // the words of a receipt, the right way up: no need to try it sideways
+    const upright = /total|jumlah|invoice|receipt|subsid|petronas|\bRM\s?\d/i.test(first.text) && alnumCount(first.text) > 150;      // the words of a receipt, the right way up: no need to try it sideways
     if (prep.turnable !== false && !upright && (opts.turnIfMissing || first.conf < 60 || alnumCount(first.text) < 60)) {      // turnIfMissing: the caller knows what it must find (the MC title), so a sideways page of big print is turned even when the engine feels sure      // a poor first look of a PHOTO: the paper may be sideways or upside down in the frame
       let best = { cv: canvas, conf: first.conf };
       for (const deg of [90, 270, 180]) {

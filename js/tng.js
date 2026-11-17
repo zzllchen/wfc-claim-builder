@@ -33,6 +33,11 @@
       generated: get('Generated Date & Time'),
       periodText: get('Transaction Period'),
     };
+    return addRange(header);
+  }
+
+  /* "1 October 2026 - 31 October 2026" -> header.from / header.to as YYYY-MM-DD */
+  function addRange(header) {
     const m = header.periodText.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\s*-\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
     if (m && MONTHS[m[2].toLowerCase()] && MONTHS[m[5].toLowerCase()]) {
       const p2 = (n) => String(n).padStart(2, '0');
@@ -40,6 +45,62 @@
       header.to = `${m[6]}-${p2(MONTHS[m[5].toLowerCase()])}-${p2(m[4])}`;
     }
     return header;
+  }
+
+  /* ---------- the newer statement: "TNG WALLET TRANSACTION HISTORY" (the app's own export) ----------
+     Two layouts exist, and both are read. This one is a single table, a row per payment:
+     date posted | status | type | reference cells | [plaza code] | description | details (the real date and time) | amount | wallet balance.
+     The date that counts is the one in "details" (a payment late in the evening is posted the next day). The wallet ID is the statement's number. */
+  const WALLET_DMY = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+  const WALLET_STAMP = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*([AP]M)$/i;
+  const WALLET_RM = /^[+-]?\s?RM\s?([\d,]+\.\d{2})$/i;
+  const isWalletStatement = (items) => items.some((i) => /^TNG WALLET TRANSACTION HISTORY$/i.test(i.str.trim()));
+
+  // toll (RFID payment), parking, or anything else (reloads, transfers, shop payments: never claimed, so RETAIL)
+  function walletSector(type, description) {
+    if (/park/i.test(`${type} ${description}`)) return 'PARKING';
+    if (/rfid|toll|highway|expressway/i.test(type)) return 'TOLL';
+    return 'RETAIL';
+  }
+
+  function parseWallet(pages) {
+    const strs = [];
+    pages.forEach((page) => page.forEach((it) => { const s = it.str.trim(); if (s) strs.push(s); }));
+    const header = { name: '', ewalletId: '', serial: '', generated: '', periodText: '' };
+    const pi = strs.findIndex((s) => /^\d{1,2}\s+[A-Za-z]+\s+\d{4}\s*-\s*\d{1,2}\s+[A-Za-z]+\s+\d{4}$/.test(s));
+    if (pi >= 0) {
+      header.periodText = strs[pi];
+      if (strs[pi + 1] && !/^\d+$/.test(strs[pi + 1])) header.name = strs[pi + 1];
+      header.ewalletId = strs.slice(pi + 1, pi + 4).find((s) => /^\d{8,}$/.test(s)) || '';
+    }
+    header.generated = strs.find((s) => /^\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+\d{1,2}:\d{2}\s*[AP]M$/i.test(s)) || '';
+    header.serial = header.ewalletId;               // goes on the claim line as the Receipt No.
+    addRange(header);
+
+    const groups = [];
+    let cur = null;
+    strs.forEach((s) => { if (WALLET_DMY.test(s)) { cur = []; groups.push(cur); } if (cur) cur.push(s); });
+    const p2 = (n) => String(n).padStart(2, '0');
+    const rows = [];
+    groups.forEach((cells, k) => {
+      const si = cells.findIndex((c) => WALLET_STAMP.test(c));
+      if (si < 0) return;
+      if (/fail|declin|reject|cancel|revers/i.test(cells[1] || '')) return;          // a payment that did not go through
+      const money = cells.slice(si + 1).filter((c) => WALLET_RM.test(c)).slice(0, 2);   // the amount, then the balance (text after that is page furniture)
+      if (!money.length) return;
+      const st = WALLET_STAMP.exec(cells[si]);
+      const hour = (+st[4] % 12) + (/PM/i.test(st[6]) ? 12 : 0);
+      const description = /^\d+$/.test(cells[si - 1] || '') ? '' : (cells[si - 1] || '');   // a bare number is the plaza code, not its name
+      const type = walletSector(cells[2] || '', description);
+      const date = `${st[3]}-${st[2]}-${st[1]}`;
+      rows.push({
+        no: String(k + 1), date, time: `${p2(hour)}:${st[5]}:00`, exitDate: date, type,
+        amount: parseFloat(WALLET_RM.exec(money[0])[1].replace(/,/g, '')),
+        balance: money[1] ? parseFloat(WALLET_RM.exec(money[1])[1].replace(/,/g, '')) : 0,
+        posted: '', plaza: description, text: `${description} ${cells[2] || ''}`.toUpperCase(),
+      });
+    });
+    return { header, rows };
   }
 
   /* Join wrapped fragments back into words: "KEMBANGA" + "N" -> "KEMBANGAN". */
@@ -118,6 +179,7 @@
   function parseItems(pages) {
     if (!pages.length) throw new Error('Empty PDF');
     const first = pages[0];
+    if (isWalletStatement(first)) return parseWallet(pages);
     if (!first.some((i) => i.str.trim() === 'Customer Transactions Statement')) {
       throw new Error("This doesn't look like a Touch 'n Go eWallet statement.");
     }

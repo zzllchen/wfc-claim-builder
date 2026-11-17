@@ -431,12 +431,28 @@
     .toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 
   // Petronas invoice numbers are six hex characters ("60770c", "df8349"): G read for 6, O for 0, S for 5 and so on are put right
-  const HEXLIKE = { G: '6', g: '6', O: '0', o: '0', Q: '0', I: '1', l: '1', '|': '1', S: '5', s: '5', B: '8', Z: '2', z: '2' };
+  const HEXLIKE = { G: '6', g: '6', O: '0', o: '0', Q: '0', I: '1', i: '1', L: '1', l: '1', '|': '1', S: '5', s: '5', B: '8', Z: '2', z: '2', T: '7', h: 'b', H: 'b' };
   function hexFix(tok) {
     if (/^[0-9a-f]{6}$/i.test(tok)) return tok.toLowerCase();
     if (tok.length !== 6) return tok;
-    const fixed = tok.replace(/[GgOoQIl|SsBZz]/g, (c) => HEXLIKE[c]);
+    const fixed = tok.replace(/[GgOoQIiLl|SsBZzThH]/g, (c) => HEXLIKE[c]);
     return /^[0-9a-f]{6}$/i.test(fixed) ? fixed.toLowerCase() : tok;
+  }
+  // the value after an "Invoice No" label: "1b0eb6", or "No:1b0eb6" stuck to the label, or split by a stray space ("1b0 eb6"). -> six hex characters or ''
+  function invoiceValue(toks) {
+    const clean = toks.map((t) => t.replace(/[^0-9A-Za-z|]/g, '')).filter(Boolean);
+    const hexOf = (s) => { const h = hexFix(s); return /^[0-9a-f]{6}$/.test(h) && /\d/.test(h) ? h : ''; };
+    for (const c of clean) {                                          // one token: skip the "No" and any junk, take the first six-character value
+      const h = hexOf(c) || (c.length === 8 && /^(no|n0|nc|ne)/i.test(c) ? hexOf(c.slice(2)) : '');
+      if (h) return h;
+    }
+    for (let i = 0; i < clean.length; i++) {                          // two or three pieces that make six characters together
+      for (const n of [2, 3]) {
+        const h = clean.length >= i + n ? hexOf(clean.slice(i, i + n).join('')) : '';
+        if (h && /[a-f]/.test(h)) return h;
+      }
+    }
+    return '';
   }
 
   // the six-character invoice number read many times: each position takes the character most readings agree on (one misread character is outvoted)
@@ -460,16 +476,25 @@
     if (ei) { const h = hexFix(ei[1].replace(/[^0-9A-Za-z|]/g, '')); if (/^[0-9a-f]{6}$/.test(h)) return h; }
     // a Petronas slip: "Invoice No 60770c" (six hex characters). The label and the value are often mangled ("Invoice NG GO770C"), so read what follows the word
     const lines = String(text).split(/\r?\n/);
-    for (const ln of lines) {
-      const toks = ln.split(/[ \t]+/);
+    for (let li = 0; li < lines.length; li++) {
+      const toks = lines[li].split(/[ \t]+/);
       const at = toks.findIndex((t) => t.replace(/[^A-Za-z]/g, '').length >= 5 && editDistance(t.replace(/[^A-Za-z]/g, '').toUpperCase(), 'INVOICE') <= 2);
       if (at < 0) continue;
-      for (const t of toks.slice(at + 1)) {                         // skip the "No" and any junk, take the first six-character value
-        const h = hexFix(t.replace(/[^0-9A-Za-z|]/g, ''));
-        if (/^[0-9a-f]{6}$/.test(h) && /\d/.test(h)) return h;
-      }
+      let h = invoiceValue(toks.slice(at + 1));
+      // the value can sit under its label, or the label can be a heading ("INVOICE" alone, "For LHDN E-invoice Request" has no value): look at the next line only when this one has none
+      const next = lines[li + 1] && lines[li + 1].trim();
+      if (!h && next && next.split(/[ \t]+/).length <= 3 && !/tran|stan|site|ref|pos\b/i.test(next)) h = invoiceValue(next.split(/[ \t]+/));
+      if (h) return h;
     }
-    if (/subsid|budi/i.test(text)) return '';                      // a subsidy slip's invoice number is the six hex characters or nothing: the site and transaction numbers are not it
+    if (/subsid|budi/i.test(text)) {                               // a subsidy slip's invoice number is the six hex characters or nothing: the site and transaction numbers are not it
+      // the label was not read at all: a line that is only a six-character value of 0-9 and a-f, with letters in it, is the invoice number (the other numbers on the slip are all digits)
+      for (const ln of lines) {
+        if (/tran|stan|site|ref|pos\b|term|appr|card|batch|trace|\bid\b|date|time|pump|rm\s?\d/i.test(ln)) continue;
+        const t = ln.trim().split(/[ \t]+/).filter((x) => /^[0-9a-f]{6}$/i.test(x) && /\d/.test(x) && /[a-f]/i.test(x));
+        if (t.length === 1 && ln.trim().split(/[ \t]+/).length <= 2) return t[0].toLowerCase();
+      }
+      return '';
+    }
     // the label decides how much we trust a number: "Invoice No" on a petrol slip beats a bank "Ref"
     const labels = ['[il1]nv(?:oice)?', 'receipt|rcpt|resit', 'trans(?:action)?|txn|trx', 'bill|slip|doc(?:ument)?', 'ref(?:erence)?'];
     for (const label of labels) {
