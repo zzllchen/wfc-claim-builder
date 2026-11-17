@@ -3,49 +3,74 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WFC Claim Builder</title>
+<title>Flow – WFC Expenses &amp; Leave</title>
 <meta name="theme-color" content="#1f4ad8">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f4ad8'/%3E%3Cpath d='M8 11l3 11 5-8 5 8 3-11' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=105">
+<link rel="stylesheet" href="css/style.css?v=108">
 </head>
 <body class="locked">
-<header class="top">
-  <div class="wrap">
-    <div class="brand"><img id="brandLogo" alt="WFC Systems"><span>Claim Builder</span></div>
+<header class="top" id="top">
+  <div class="wrap headbar">
+    <a class="brand" href="./" aria-label="Flow, WFC Systems">
+      <img id="brandLogo" alt="WFC Systems">
+      <span class="bname"><b>Flow</b><small>Expenses &amp; leave</small></span>
+    </a>
+    <nav class="mainnav" role="tablist" aria-label="Sections">
+      <button class="tab on" id="tabClaim" type="button" role="tab" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg><span class="long">Expense claim</span><span class="short">Expenses</span></button>
+      <button class="tab" id="tabLeave" type="button" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="long">Leave application</span><span class="short">Leave</span></button>
+    </nav>
     <div class="topbtns">
-      <span class="who" id="who" hidden><span id="whoEmail"></span><button class="link" id="btnSignOut" type="button">Sign out</button></span>
-      <button class="quiet" id="btnStartOver" type="button" title="Remove everything and begin a new claim"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span class="lbl">Start over</span></button>
-      <span class="topsep" aria-hidden="true"></span>
-      <button class="ghost" id="btnAi" type="button"></button>
-      <button class="ghost" id="btnSettings" type="button">Settings</button>
+      <button class="aipill" id="btnAi" type="button"></button>
+      <div class="account" id="who" hidden>
+        <button class="avatar" id="btnAccount" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="acMenu" title="Account"><span id="avatarText">?</span></button>
+        <div class="acmenu" id="acMenu" role="menu" hidden>
+          <div class="achead"><span class="avatar sm" aria-hidden="true"><span id="avatarText2">?</span></span><div class="acwho"><b id="whoName">Not signed in</b><span id="whoEmail"></span></div></div>
+          <button role="menuitem" id="btnSettings" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
+          <button role="menuitem" id="btnStartOver" type="button" title="Clear the claim and the leave application on this page and begin again"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Start over</button>
+          <div class="acsep" role="separator"></div>
+          <button role="menuitem" id="btnSignOut" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg><span>Sign out</span></button>
+        </div>
+      </div>
     </div>
   </div>
 </header>
 
 <section class="login" id="login" aria-labelledby="loginTitle">
-  <div class="logincard">
-    <h1 id="loginTitle">Sign in</h1>
-    <p>Use the email account you send work email from. Your claim then becomes an email draft with the zip already attached.</p>
-    <button class="sso" id="btnGoogle" type="button">
-      <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-      <span>Continue with Google</span>
-    </button>
-    <button class="sso" id="btnMicrosoft" type="button">
-      <svg viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
-      <span>Continue with Microsoft</span>
-    </button>
-    <p class="loginmsg" id="loginMsg" role="status"></p>
-    <p class="hint">Nothing is sent. You press Send yourself.</p>
-    <button class="link" id="btnNoLogin" type="button">Continue without signing in</button>
+  <div class="loginhero">
+    <div class="lhtop"><img id="loginLogo" alt="WFC Systems"></div>
+    <div class="lhmain">
+      <p class="lheyebrow">WFC Systems</p>
+      <div class="lhname" aria-hidden="true">Flow</div>
+      <p class="lhtag">Expenses and leave, sorted in minutes.</p>
+      <ul class="lhlist">
+        <li><span class="lhic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span><div><b>Expense claims</b><span class="t">Drop in your receipts. The claim form fills itself in.</span></div></li>
+        <li><span class="lhic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><div><b>Leave applications</b><span class="t">Add your MC. The dates and reason are filled in for you.</span></div></li>
+        <li><span class="lhic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 8l9 6 9-6"/></svg></span><div><b>Ready to send</b><span class="t">One click makes the email, with everything attached.</span></div></li>
+      </ul>
+    </div>
+    <p class="lhfoot">Where Flow Connects</p>
+  </div>
+  <div class="loginpane">
+    <div class="logincard">
+      <h1 id="loginTitle">Sign in to Flow</h1>
+      <p class="lsub">Use the email account you send work email from.</p>
+      <button class="sso" id="btnGoogle" type="button">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        <span>Continue with Google</span>
+      </button>
+      <button class="sso" id="btnMicrosoft" type="button">
+        <svg viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+        <span>Continue with Microsoft</span>
+      </button>
+      <p class="loginmsg" id="loginMsg" role="status"></p>
+      <div class="lor"><span>or</span></div>
+      <div class="lguest"><span>Another kind of email?</span><button class="link" id="btnNoLogin" type="button">Continue without signing in</button></div>
+      <div class="lsafe"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><p>We only see your name and email. Nothing is sent until you press Send yourself.</p></div>
+    </div>
   </div>
 </section>
 
 <main class="wrap">
-  <div class="tabs" role="tablist">
-    <button class="tab on" id="tabClaim" type="button" role="tab" aria-selected="true">Expense claim</button>
-    <button class="tab" id="tabLeave" type="button" role="tab" aria-selected="false">Leave application</button>
-  </div>
-
   <div class="view" id="viewClaim">
     <nav class="stepper" id="stepper" aria-label="Claim steps"></nav>
     <p class="resume" id="resumeBar" hidden><span></span> <button class="link" id="btnResumeStart" type="button">Start over</button></p>
@@ -194,23 +219,23 @@
 <script src="assets/claim-base.js"></script>
 <script src="assets/leave-base.js"></script>
 <script src="assets/logo.js"></script>
-<script src="js/tng.js?v=105"></script>
-<script src="js/xlsx.js?v=105"></script>
-<script src="js/pdf.js?v=105"></script>
-<script src="js/receipts.js?v=105"></script>
-<script src="js/mail.js?v=105"></script>
-<script src="js/gmail.js?v=105"></script>
-<script src="js/outlook.js?v=105"></script>
-<script src="js/auth.js?v=105"></script>
-<script src="js/accounts.js?v=105"></script>
-<script src="js/folder.js?v=105"></script>
-<script src="js/fx.js?v=105"></script>
-<script src="js/petrol.js?v=105"></script>
-<script src="js/validate.js?v=105"></script>
-<script src="js/ocr.js?v=105"></script>
-<script src="js/draft.js?v=105"></script>
-<script src="js/planb.js?v=105"></script>
-<script src="js/aipanel.js?v=105"></script>
-<script src="js/app.js?v=105"></script>
+<script src="js/tng.js?v=108"></script>
+<script src="js/xlsx.js?v=108"></script>
+<script src="js/pdf.js?v=108"></script>
+<script src="js/receipts.js?v=108"></script>
+<script src="js/mail.js?v=108"></script>
+<script src="js/gmail.js?v=108"></script>
+<script src="js/outlook.js?v=108"></script>
+<script src="js/auth.js?v=108"></script>
+<script src="js/accounts.js?v=108"></script>
+<script src="js/folder.js?v=108"></script>
+<script src="js/fx.js?v=108"></script>
+<script src="js/petrol.js?v=108"></script>
+<script src="js/validate.js?v=108"></script>
+<script src="js/ocr.js?v=108"></script>
+<script src="js/draft.js?v=108"></script>
+<script src="js/planb.js?v=108"></script>
+<script src="js/aipanel.js?v=108"></script>
+<script src="js/app.js?v=108"></script>
 </body>
 </html>

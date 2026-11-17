@@ -591,9 +591,13 @@
   function unlock() {
     document.body.classList.remove('locked');
     const email = S.user && S.user.email ? S.user.email : '';
+    const name = (S.user && S.user.name) || (email ? email.split('@')[0] : '');
+    const initials = name ? (email && !(S.user && S.user.name) ? name[0] : name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('')).toUpperCase() : 'G';
     $('#who').hidden = false;
+    $('#avatarText').textContent = $('#avatarText2').textContent = initials;
+    $('#whoName').textContent = name || 'Guest';
     $('#whoEmail').textContent = email || 'Not signed in';
-    $('#btnSignOut').textContent = email ? 'Sign out' : 'Sign in';
+    $('#btnSignOut span').textContent = email ? 'Sign out' : 'Sign in';
     applyUser();
   }
   function wireLogin() {
@@ -620,6 +624,13 @@
       attempt(() => Outlook.signIn(msClientId()), 'Opening Microsoft…');
     });
     $('#btnNoLogin').addEventListener('click', () => { const u = { provider: 'none', email: '', name: '' }; Auth.set(u); S.user = u; unlock(); renderSteps(); });
+    // the account menu: the avatar opens it; Settings, Start over and Sign out live inside
+    const acMenu = $('#acMenu'), acBtn = $('#btnAccount');
+    const setMenu = (on) => { acMenu.hidden = !on; acBtn.setAttribute('aria-expanded', String(on)); if (on) { const first = acMenu.querySelector('button'); if (first) first.focus(); } };
+    acBtn.addEventListener('click', (e) => { e.stopPropagation(); setMenu(acMenu.hidden); });
+    acMenu.addEventListener('click', () => setMenu(false));                 // choosing an item closes the menu (the item's own action still runs)
+    document.addEventListener('click', (e) => { if (!acMenu.hidden && !acMenu.contains(e.target)) setMenu(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !acMenu.hidden) { setMenu(false); acBtn.focus(); } });
     $('#btnSignOut').addEventListener('click', () => {
       // the page keeps the unfinished claim on this computer and puts it back after the reload (pagehide saves it)
       if (S.user && S.user.email && !window.confirm('Sign out?\n\nYour unfinished claim stays on this computer.')) return;
@@ -1641,7 +1652,7 @@
   /* ---------- init ---------- */
   function init() {
     S.restoring = true;       // until the saved draft has been looked for, nothing may overwrite it
-    ClaimPdf.croppedLogo().then((l) => { $('#brandLogo').src = l.url; }).catch(() => { $('#brandLogo').remove(); });
+    ClaimPdf.croppedLogo().then((l) => { $('#brandLogo').src = l.url; $('#loginLogo').src = l.url; }).catch(() => { $('#brandLogo').remove(); $('#loginLogo').remove(); });
     const dl = h('datalist', { id: 'cats' }, CATEGORIES.map((c) => h('option', { value: c })));
     document.body.append(dl);
 
