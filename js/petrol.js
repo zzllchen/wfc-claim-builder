@@ -582,7 +582,8 @@
       + 5 * ((name.match(/[A-Za-z]/g) || []).length / Math.max(1, name.length)) + Math.min(5, name.split(/\s+/).filter((w) => w.length >= 3).length);
     let stations = rs.filter((r) => r.station).map((r) => [r.station, score(r.station, r)]).sort((a, b) => b[1] - a[1]).map((x) => x[0]);
     // a hard photo is read many times: a name only one of those readings came up with (and no saved shop matches) is a misreading, not a name
-    if (rs.length >= 4 && stations.length) {
+    const fullReads = texts.filter((t) => !/^Invoice No {3}[0-9a-f]{6}$/.test(t)).length;       // the invoice number read on its own (see ocr.js) is not a reading of the whole slip
+    if (fullReads >= 4 && stations.length) {
       const near = (a, b) => editDistance(a.toLowerCase(), b.toLowerCase()) <= Math.max(2, Math.floor(Math.min(a.length, b.length) * 0.25));
       const firstOf = (t) => texts.indexOf(t);
       const agreed = stations.filter((n) => known.includes(n.toLowerCase()) || rs.filter((r, i) => r.station && firstOf(texts[i]) === i && near(r.station, n)).length >= 2);
@@ -597,6 +598,12 @@
       foreign: (rs.find((r) => r.foreign) || {}).foreign || null,
     });
     out.sure = rs.some((r) => r.amount === out.amount && r.sure === true) ? true : rs.some((r) => r.amount === out.amount && r.sure === false) ? false : null;
+    // a subsidy slip always prints its invoice number (six characters, 0-9 and a-f) in dot-matrix, which the engine misreads by a character or two: unless two
+    // different readings of the slip agree on the same six characters, it is "to check" (Claude is asked, or the line says so) rather than trusted
+    if (texts.some((t) => /subsid|budi/i.test(t)) && !texts.some(isEinvoice)) {
+      const agree = new Set(texts.filter((t, i) => rs[i].receiptNo && rs[i].receiptNo === out.receiptNo)).size;
+      out.invoiceDoubt = !(/^[0-9a-f]{6}$/.test(out.receiptNo) && agree >= 2);
+    }
     // the litres and pump price are read on several lines of several readings: pool them, work the total out, and fix a doubtful total with it
     if (out.sure !== true && rs.some((r) => r.fuel)) {
       const pool = { lit: [], pump: [], sub: [], prevs: [], remains: [] };

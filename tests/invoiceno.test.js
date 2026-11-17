@@ -26,4 +26,19 @@ eq('only the value was read', no('1b0eb6'), '1b0eb6');
 eq('the site, transaction and reference numbers are never the invoice number', no('Invoice No'), '');
 eq('a heading "INVOICE" with the value further up is not confused with the site number', P.parse(slip('INVOICE').replace('Site Id 100200', 'Site Id 1002ab'), opts).receiptNo, '');
 eq('the Petronas slip as before', P.parse(['PETRONAS', 'KEJAYAAN TEGUH ENT', '29OCT2026 10:05AM', 'TOTAL RM58.37', 'SUBSIDY RM9.00', 'Invoice No 60770c'].join('\n'), opts).receiptNo, '60770c');
+
+// an invoice number that is read once and may be a character off ("1hoe hs" is 1b0eb6 on the real slip) must be checked, not trusted
+const PB = require('../js/planb.js');
+const eqj = (name, got, want) => eq(name, JSON.stringify(got), JSON.stringify(want));
+const one = P.best([slip('Invoice No   1hoe hs')], opts);
+eq('read once, a character off: the number is given but to check', one.receiptNo + ',' + one.invoiceDoubt, '1b0eb5,true');
+eq('read once: the doubt is a plain sentence for the line and for Claude', PB.doubts(one, { category: 'Petrol', today: new Date('2026-10-25') }).filter((w) => /invoice/.test(w)).join(), 'the invoice number (1b0eb5) may be misread');
+const twoA = slip('Invoice No   1b0eb6'), twoB = slip('Invoice No   1b0eb6').replace('TEST ENERGY SDN BHD', 'TEST ENERGY SDN BH');
+eq('two different readings agree: no doubt', P.best([twoA, twoB], opts).invoiceDoubt, false);
+eq('the same page counted twice is still one reading', P.best([twoA, twoA], opts).invoiceDoubt, true);
+eq('no invoice number found on a subsidy slip is a doubt too', P.best([slip('Ref 1')], opts).invoiceDoubt, true);
+eq('a slip with no subsidy has no such doubt', P.best(['SHELL\nTOTAL RM40.00\n21OCT2026 09:35AM'], opts).invoiceDoubt, undefined);
+const asked = PB.merge(one, { isReceipt: true, kind: 'Petrol', merchant: 'Padi Emas Petroleum Sdn Bhd', date: '2026-10-21', amount: 81.26, receiptNo: '1b0eb6', confidence: 'high' }, ['the invoice number (1b0eb5) may be misread']);
+eq('Claude\'s six-character number replaces the doubtful one, and says so', asked.r.receiptNo + ' | ' + asked.note, '1b0eb6 | Claude agrees with RM81.26. Invoice number was 1b0eb5, now 1b0eb6.');
+eq('Claude giving something that is not six hex characters changes nothing', PB.merge(one, { isReceipt: true, kind: 'Petrol', receiptNo: '1234567890' }, ['the invoice number (1b0eb5) may be misread']).r.receiptNo, '1b0eb5');
 console.log(fails ? `${fails} FAILED` : 'all passed'); process.exit(fails ? 1 : 0);

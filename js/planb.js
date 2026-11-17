@@ -56,6 +56,8 @@
       else if (amt > range[1]) out.push(`RM${amt.toFixed(2)} looks too big for ${NAME[cat] || cat}`);
     }
     if (r.sure === false) out.push('the amount may be wrong');
+    if (r.invoiceDoubt) out.push(r.receiptNo ? `the invoice number (${r.receiptNo}) may be misread` : 'no invoice number found');
+    if (r.station && /[()|\[\]{}<>=_*~^\\]/.test(r.station)) out.push('the shop name may be misread');
     if (!r.date) out.push('no date found');
     else {
       const t = Date.parse(r.date + 'T12:00:00Z');
@@ -116,8 +118,11 @@
       else { if (ocr.amount) notes.push(`Amount was RM${ocr.amount}, now RM${c.amount}.`); out.amount = c.amount; out.sure = null; out.foreign = null; }
     } else if (c.foreign && !ocr.amount) { out.foreign = c.foreign; }
     if (c.date && (!ocr.date || hadDateDoubt)) { if (ocr.date && ocr.date !== c.date) notes.push(`Date was ${ocr.date}, now ${c.date}.`); out.date = c.date; }
-    if (!out.station && c.merchant) out.station = c.merchant;
-    if (!out.receiptNo && c.receiptNo) out.receiptNo = c.receiptNo;
+    if (c.merchant && (!out.station || (why || []).some((w) => /shop name/.test(w)))) out.station = c.merchant;
+    const hex = /^[0-9a-f]{6}$/i.test(String(c.receiptNo || '').trim()) ? String(c.receiptNo).trim().toLowerCase() : '';
+    if (hex && out.receiptNo !== hex && (why || []).some((w) => /invoice number/.test(w))) { if (out.receiptNo) notes.push(`Invoice number was ${out.receiptNo}, now ${hex}.`); out.receiptNo = hex; out.invoiceDoubt = false; }
+    else if (!out.receiptNo && c.receiptNo) out.receiptNo = c.receiptNo;
+    else if (hex && hex === out.receiptNo) out.invoiceDoubt = false;
     if (!out.category && ['Medical', 'Parking', 'Accommodation', 'AI tools'].includes(c.kind)) out.category = c.kind;
     out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
     return { r: out, note: notes.join(' ') };
@@ -128,7 +133,7 @@
 {"isReceipt": true or false, "kind": "Petrol" | "Medical" | "Parking" | "Accommodation" | "AI tools" | "Other", "merchant": "shop, station, clinic or hotel name as printed", "date": "YYYY-MM-DD", "amount": number, "currency": "MYR", "receiptNo": "the receipt, invoice or transaction number", "confidence": "high" | "medium" | "low", "notes": "one short sentence, only if something is unclear"}
 Rules:
 - merchant: on a fuel slip that starts with a brand (PETRONAS, SHELL, CALTEX), the dealer's name on the next line (for example KEJAYAAN TEGUH ENT), never the brand alone.
-- receiptNo: the invoice number. On a Petronas slip that is the value after "Invoice No" (six characters, 0-9 and a-f, for example 60770c), not the site, transaction or reference number.
+- receiptNo: the invoice number. On a Petronas or Caltex fuel slip that is the value after "Invoice No" (six characters, 0-9 and a-f, for example 60770c or 1b0eb6), not the site, transaction, STAN or reference number.
 - If the photo is a phone screenshot of an e-invoice page, read it the same way (invoice number, date, shop, total).
 - amount is the FINAL amount actually paid. A fuel receipt with a Budi95 or other subsidy: the TOTAL after the subsidy, never the item line before it. Cash given and change are never the amount. A hotel bill: the SUB TOTAL, never the deposit. A clinic receipt: the amount paid (it may be written in words). MBSJ Flexi Parking: the Payment line.
 - currency is the currency printed beside the amount (MYR for RM). Never convert.
