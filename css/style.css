@@ -56,7 +56,10 @@ main.wrap { padding: 32px 20px 96px; display: grid; gap: 24px; }       /* room u
 .stepper li { flex: 1 1 0; min-width: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .stepper li + li::before { content: ""; position: absolute; top: calc((var(--d) - 2px) / 2); left: calc(-50% + var(--d) / 2 + var(--gap)); right: calc(50% + var(--d) / 2 + var(--gap)); height: 2px; border-radius: 2px; background: var(--line-2); transition: background .25s; }
 .stepper li.after-done::before { background: #16a34a; }
-.sdot { position: relative; z-index: 1; width: var(--d); height: var(--d); padding: 0; border-radius: 50%; border: 2px solid var(--line-2); background: #fff; color: var(--faint); font-size: 13.5px; font-weight: 700; line-height: 1; display: grid; place-items: center; cursor: pointer; transition: background .2s, border-color .2s, color .2s, box-shadow .2s; }
+.scap { margin-top: -5px; font-size: 11.5px; font-weight: 600; color: var(--faint); text-align: center; line-height: 1.2; }
+.scap.done { color: #15803d; }
+.scap.cur { color: var(--blue); }
+.sdot { position: relative; z-index: 1; width: var(--d); height: var(--d); padding: 0; border-radius: 50%; border: 2px solid var(--line-2); background: #fff; color: var(--muted); font-size: 13.5px; font-weight: 700; line-height: 1; display: grid; place-items: center; cursor: pointer; transition: background .2s, border-color .2s, color .2s, box-shadow .2s; }
 .sdot:hover { border-color: #aebde3; color: var(--muted); }
 .sdot:focus-visible { outline: 0; box-shadow: var(--ring); }
 .sdot.done { background: #16a34a; border-color: #16a34a; color: #fff; }
@@ -286,6 +289,7 @@ dialog .sec { display: grid; gap: 6px; }
   .view { gap: 20px; }
   .stepper { --d: 30px; padding: 14px 8px 11px; }
   .slabel { font-size: 11.5px; }
+  .scap { font-size: 10.5px; }
   .grid { grid-template-columns: 1fr; }
   .card { padding: 18px 16px; }
   .line { padding: 14px; }

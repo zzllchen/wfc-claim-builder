@@ -564,9 +564,11 @@
   function buildStepper() {
     const nav = $('#stepper');
     const items = STEPS.map((label, i) => {
-      const dot = h('button', { type: 'button', class: 'sdot', onclick: () => go(i + 1) });
-      const name = h('span', { class: 'slabel', text: label });
-      return { li: h('li', {}, dot, name), dot, name };
+      // each step starts with its number and a status, so the bar is never an empty row of circles (renderSteps then keeps them up to date)
+      const dot = h('button', { type: 'button', class: 'sdot' + (i === 0 ? ' cur' : ''), text: String(i + 1), onclick: () => go(i + 1) });
+      const name = h('span', { class: 'slabel' + (i === 0 ? ' cur' : ''), text: label });
+      const cap = h('span', { class: 'scap' + (i === 0 ? ' cur' : ''), text: i === 0 ? 'In progress' : 'To do' });
+      return { li: h('li', {}, dot, name, cap), dot, name, cap };
     });
     nav.append(h('ol', {}, items.map((x) => x.li)));
     S.stepEls = items;
@@ -657,19 +659,24 @@
   function renderSteps(lines) {
     if (!S.stepEls) return;
     markNeeded();
-    const p = stepProblems(lines || compileLines().lines);
+    let p;
+    try { p = stepProblems(lines || compileLines().lines); }
+    catch (e) { console.warn('could not check the steps', e); p = STEPS.map(() => ['a check that could not run']); }       // the bar still shows, and nothing is marked done
     const done = p.map((x) => !x.length);
     // the bar shows a step as finished only when it and every step before it are: "Save and email" has its boxes filled in from the start,
     // and a green tick there while the files are still missing would be misleading
     const shown = done.map((_, i) => done.slice(0, i + 1).every(Boolean));
     S.stepEls.forEach((x, i) => {
-      const n = i + 1;
-      x.dot.className = 'sdot' + (shown[i] ? ' done' : '') + (S.step === n ? ' cur' : '');
-      x.dot.textContent = shown[i] ? '✓' : String(n);
-      x.dot.title = shown[i] ? 'Done' : p[i].length ? 'Still needs: ' + p[i].join(', ') : 'Finish the earlier steps first';
-      x.dot.setAttribute('aria-label', `Step ${n}: ${STEPS[i]}${shown[i] ? ', done' : ''}`);
-      if (S.step === n) x.dot.setAttribute('aria-current', 'step'); else x.dot.removeAttribute('aria-current');
-      x.name.className = 'slabel' + (S.step === n ? ' cur' : '') + (shown[i] ? ' done' : '');
+      const n = i + 1, cur = S.step === n, fin = shown[i];
+      // finished (not the one you are on) = green tick; the step you are on = blue number; the rest = grey number. A caption under each says it in words.
+      x.dot.className = 'sdot' + (fin && !cur ? ' done' : '') + (cur ? ' cur' : '');
+      x.dot.textContent = fin && !cur ? '✓' : String(n);
+      x.cap.textContent = fin ? 'Done' : cur ? 'In progress' : 'To do';
+      x.cap.className = 'scap' + (fin ? ' done' : cur ? ' cur' : '');
+      x.dot.title = fin ? 'Done' : p[i].length ? 'Still needs: ' + p[i].join(', ') : 'Finish the earlier steps first';
+      x.dot.setAttribute('aria-label', `Step ${n}: ${STEPS[i]}, ${fin ? 'done' : cur ? 'in progress' : 'to do'}`);
+      if (cur) x.dot.setAttribute('aria-current', 'step'); else x.dot.removeAttribute('aria-current');
+      x.name.className = 'slabel' + (cur ? ' cur' : '') + (fin ? ' done' : '');
       x.li.className = i && shown[i - 1] ? 'after-done' : '';        // the line leading into a step turns green once the one before it is done
     });
     document.querySelectorAll('#viewClaim .stepnav .next').forEach((b) => {
