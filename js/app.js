@@ -10,7 +10,7 @@
   const round2 = TNG.round2;
   const money = ClaimPdf.money;
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+  // (the PDF reader, PDF maker, zip maker and form templates are loaded after the page is up: see js/lazy.js)
 
   /* ---------- tiny helpers ---------- */
   function h(tag, props, ...kids) {
@@ -677,7 +677,7 @@
       x.dot.setAttribute('aria-label', `Step ${n}: ${STEPS[i]}, ${fin ? 'done' : cur ? 'in progress' : 'to do'}`);
       if (cur) x.dot.setAttribute('aria-current', 'step'); else x.dot.removeAttribute('aria-current');
       x.name.className = 'slabel' + (cur ? ' cur' : '') + (fin ? ' done' : '');
-      x.li.className = i && shown[i - 1] ? 'after-done' : '';        // the line leading into a step turns green once the one before it is done
+      x.li.className = [i && shown[i - 1] ? 'after-done' : '', fin ? 'is-done' : ''].filter(Boolean).join(' ');        // the line between two steps turns green once the step before it is done
     });
     document.querySelectorAll('#viewClaim .stepnav .next').forEach((b) => {
       const n = +b.closest('.pane').dataset.step;
@@ -1212,6 +1212,7 @@
     S.building = true; btn.disabled = true; btn.textContent = 'Saving…';
     const dir = await Folder.ready();     // first thing: the folder picker needs the click that started this
     try {
+      await Lazy.need('zip', 'jspdf', 'claim');          // normally already there: they load quietly in the background
       const mp = monthParts();
       const claimant = $('#claimant').value.trim();
       const signature = $('#signature').value.trim() || claimant;
@@ -1358,6 +1359,7 @@
     btn.disabled = true; btn.textContent = 'Saving…';
     const dir = await Folder.ready();
     try {
+      await Lazy.need('zip', 'jspdf', 'leave');
       const xlsx = await ClaimXlsx.buildLeave(d);
       const pdf = await ClaimPdf.leave(d);
       const sd = new Date(d.signDate + 'T00:00:00Z'), fd = new Date(d.from + 'T00:00:00Z');

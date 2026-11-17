@@ -1,7 +1,12 @@
 /* PDF output: the claim form (same layout as the Excel print) and the TNG toll breakdown. */
 (function (root) {
   'use strict';
-  const { jsPDF } = root.jspdf;
+  // the PDF library is loaded after the page is up (js/lazy.js), so it is looked up when a PDF is made, not when this file loads
+  function jsPDF(opts) {
+    if (!root.jspdf) throw new Error('The PDF maker is still loading. Please try again in a moment.');
+    return new root.jspdf.jsPDF(opts);
+  }
+  const ready = () => (root.Lazy ? root.Lazy.need('jspdf') : Promise.resolve());
   const PEACH = [252, 228, 214], GREY = [231, 230, 230], GREEN = [226, 242, 231];
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -56,6 +61,7 @@
 
   /* claim: { year, month, claimant, signature, signDate, lines, total } */
   async function claimPdf(claim) {
+    await ready();
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
     const X =[12.8, 20.5, 67.6, 95.6, 150.0, 176.7, 202.7];
     const TOP = 38.3, HEAD_H = 27.4, ROWS = 35, RH = 5.34;
@@ -244,6 +250,7 @@
 
   /* leave: { name, type, reason, from, to, signature, signDate } */
   async function leavePdf(leave) {
+    await ready();
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
     const text = (s, x, y, opt) => doc.text(ascii(s), x, y, Object.assign({ baseline: 'middle' }, opt));
     const rule = (x1, y, x2, w) => { doc.setLineWidth(w || 0.25); doc.setDrawColor(0); doc.line(x1, y, x2, y); };

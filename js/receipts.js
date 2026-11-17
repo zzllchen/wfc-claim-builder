@@ -8,7 +8,10 @@
   const MONTHS = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8,
     september: 9, october: 10, november: 11, december: 12 };
 
+  const pdfReady = () => (root.Lazy ? root.Lazy.need('pdf') : Promise.resolve());       // the PDF reader is loaded after the page is up (js/lazy.js)
+
   async function pdfStrings(buffer) {
+    await pdfReady();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer.slice(0)) }).promise;
     const out = [];
     for (let p = 1; p <= Math.min(pdf.numPages, 3); p++) {
@@ -97,6 +100,7 @@
 
   /* page 1 of a PDF drawn onto a canvas, for reading scans with OCR */
   async function renderFirstPage(buffer) {
+    await pdfReady();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer.slice(0)) }).promise;
     const page = await pdf.getPage(1);
     const base = page.getViewport({ scale: 1 });

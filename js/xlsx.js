@@ -89,6 +89,7 @@
               lines: [{ category, date: 'YYYY-MM-DD', name, receiptNo, amount }] } */
   async function build(claim) {
     if (claim.lines.length > MAX_LINES) throw new Error(`The claim form holds ${MAX_LINES} lines; you have ${claim.lines.length}.`);
+    if (root.Lazy) await root.Lazy.need('zip', 'claim');
     const zip = await JSZip.loadAsync(root.CLAIM_BASE_B64, { base64: true });
 
     const sheet1 = parse(await zip.file('xl/worksheets/sheet1.xml').async('string'));
@@ -141,6 +142,7 @@
   /* Leave application (sheet "Leave form" is the first sheet of the leave workbook).
      leave: { name, type: sick|annual|unpaid|personal|other, reason, from, to, signature, signDate } (dates YYYY-MM-DD) */
   async function buildLeave(leave) {
+    if (root.Lazy) await root.Lazy.need('zip', 'leave');
     const zip = await JSZip.loadAsync(root.LEAVE_BASE_B64, { base64: true });
     const sheet1 = parse(await zip.file('xl/worksheets/sheet1.xml').async('string'));   // Leave form
     const sheet2 = parse(await zip.file('xl/worksheets/sheet2.xml').async('string'));   // CLAIM (blank)

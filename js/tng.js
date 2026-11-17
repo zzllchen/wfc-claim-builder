@@ -199,6 +199,7 @@
   }
 
   async function extract(arrayBuffer) {
+    if (typeof Lazy !== 'undefined') await Lazy.need('pdf');       // the PDF reader is loaded after the page is up (js/lazy.js)
     const pdfjs = (typeof pdfjsLib !== 'undefined') ? pdfjsLib : null;
     if (!pdfjs) throw new Error('PDF reader not loaded');
     const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
