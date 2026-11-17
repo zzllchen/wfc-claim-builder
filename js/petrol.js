@@ -602,18 +602,42 @@
   const MC_PHRASES = /certify\s+that\s+i\s+have\s+examined|unfit\s+for\s+the\s+proper\s+performance|not\s+valid\s+in\s+court|to\s+be\s+re-?examined/i;
   const isMcText = (t) => MC_TITLE.test(String(t || '')) || MC_PHRASES.test(String(t || ''));
 
+  /* The days the MC covers are the ones after "From" and "To" ("unfit for ... (From 20/Oct/2026 To 20/Oct/2026)"). The page also holds the date the
+     MC was GIVEN (often the day before, in a corner), which is not a day off and must not stretch the leave. -> { from, to } or null */
+  const FROM_WORD = /(?:^|[^a-z])f?rom(?![a-z])/i;              // "From", or "rom" when the engine lost the F
+  function mcPeriod(t) {
+    const lines = t.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      if (/resume|re-?examined/i.test(lines[i])) continue;        // "able to resume duties from ..." and "to be re-examined on ..." are other dates
+      const at = lines[i].search(FROM_WORD);
+      if (at < 0) continue;
+      let ds = dates(lines[i].slice(at));
+      if (ds.length < 2 && /^\W*to\b/i.test(lines[i + 1] || '')) ds = ds.concat(dates(lines[i + 1]));      // the "To ..." part wrapped to the next line
+      if (ds.length) return { from: ds[0], to: ds[1] || ds[0] };
+    }
+    // the labels were lost: the dates between "unfit for the proper performance" and the next sentence
+    const a = t.search(/unfit|performance\s+of/i);
+    if (a >= 0) {
+      const rest = t.slice(a), stop = rest.search(/re-?examined|resume/i);
+      const ds = dates(stop > 0 ? rest.slice(0, stop) : rest);
+      if (ds.length >= 1 && ds.length <= 2) return { from: ds[0], to: ds[1] || ds[0] };
+    }
+    return null;
+  }
+
   function mc(text) {
     const t = String(text || '');
     if (!isMcText(t)) return null;
     const ds = dates(t).sort();
+    const period = mcPeriod(t);
     const no = /\bMC\s?-?(\d{3,7})\b/i.exec(t);
     let dx = /diagnosis[\s:.\-]*([A-Za-z][A-Za-z ]{2,30})/i.exec(t);
     // the "Diagnosis:" label is often the word the engine loses; the complaint itself still stands alone on a line
     if (!dx) dx = /^[ \t]*((?:acute |viral )?(?:headache|migraine|fever|flu|influenza|cough(?: and cold)?|cold|urti|gastritis|gastroenteritis|food poisoning|diarrh?oea|vomiting|sore throat|tonsillitis|back ?pain|body ?ache|dizziness|giddiness|dengue|covid[- ]?19))(?=[ \t]{2,}\S|[ \t]*$)/im.exec(t);      // alone on its line, or followed by a gap and stray marks from the next column
     return {
       mcNo: no ? 'MC' + no[1] : '',
-      from: ds[0] || '',
-      to: ds[ds.length - 1] || '',
+      from: period ? period.from : ds[0] || '',             // only the leave days; with no "From ... To" to be found, the earliest and latest date on the page as before
+      to: period ? period.to : ds[ds.length - 1] || '',
       diagnosis: dx ? dx[1].trim().toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()) : '',
     };
   }

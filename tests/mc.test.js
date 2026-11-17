@@ -75,4 +75,67 @@ ok('on the expense claim an MC is refused, but not a receipt that mentions certi
   assert.strictEqual(rec.status, 'ok');
 });
 
+
+// ---- only the days the MC covers count, not the day it was given ----
+// two MCs given on 19 Oct (the date at the bottom left): one for 19 Oct, one for 20 Oct. Name and IC number removed (this repo is public).
+const MC_FOR_THE_20TH = `KLINIK PUTRA CARE
+MEDICAL CERTIFICATE                MC11733
+I Here certify that I have examined       A B C
+I.C No 000000000000      and find that
+He / She will be unfit for the proper performance of his / her duties for    1    day(s)
+      (From  20/Oct/2026   To   20/Oct/2026   )
+He / She is to be re-examined on
+He / She is able to resume duties from
+Diagnosis:    HEADACHE
+19-Oct-2026
+* Not Valid in Court
+`;
+const MC_FOR_THE_19TH = MC_FOR_THE_20TH.replace(/20\/Oct\/2026/g, '19/Oct/2026');
+
+ok('the day the MC was given (19-Oct) does not stretch an MC for the 20th', () => {
+  const m = Petrol.mc(MC_FOR_THE_20TH);
+  assert.strictEqual(m.from, '2026-10-20'); assert.strictEqual(m.to, '2026-10-20');
+  assert.strictEqual(m.mcNo, 'MC11733'); assert.strictEqual(m.diagnosis, 'Headache');
+});
+
+ok('an MC for the 19th, given on the 19th, is one day', () => {
+  const m = Petrol.mc(MC_FOR_THE_19TH);
+  assert.strictEqual(m.from, '2026-10-19'); assert.strictEqual(m.to, '2026-10-19');
+});
+
+ok('a real range stays a range, and an issue date after the leave does not matter', () => {
+  const m = Petrol.mc('MEDICAL CERTIFICATE MC20418\nunfit for the proper performance of his duties for 3 day(s)\n(From 03/11/2026 To 05/11/2026)\n06-Nov-2026\nDiagnosis: FEVER\n');
+  assert.strictEqual(m.from, '2026-11-03'); assert.strictEqual(m.to, '2026-11-05');
+});
+
+ok('the To part on the next line, and a lost F in "From", are still read', () => {
+  const wrapped = Petrol.mc('MEDICAL CERTIFICATE\nunfit for the proper performance of his duties for 2 day(s) (From 12/Nov/2026\nTo 13/Nov/2026 )\n11-Nov-2026\n');
+  assert.strictEqual(wrapped.from, '2026-11-12'); assert.strictEqual(wrapped.to, '2026-11-13');
+  const lostF = Petrol.mc('MEDICAL CERTIFICATE\nrom 19/0ct/2026 To  19/0ct/2026\n18-Oct-2026\n');
+  assert.strictEqual(lostF.from, '2026-10-19'); assert.strictEqual(lostF.to, '2026-10-19');
+});
+
+ok('"resume duties from <date>" and "re-examined on <date>" are not the leave days', () => {
+  const m = Petrol.mc('MEDICAL CERTIFICATE\nHe / She will be unfit for the proper performance of his / her duties for 2 day(s) (From 03/11/2026 To 04/11/2026)\nHe / She is to be re-examined on 10/11/2026\nHe / She is able to resume duties from 05/11/2026\n02-Nov-2026\n');
+  assert.strictEqual(m.from, '2026-11-03'); assert.strictEqual(m.to, '2026-11-04');
+});
+
+ok('with the From / To labels lost, the dates of the "unfit for" sentence are used, not the issue date', () => {
+  const m = Petrol.mc('MEDICAL CERTIFICATE\nHe / She will be unfit for the proper performance of his / her duties for 1 day(s)\n( 20/Oct/2026   20/Oct/2026 )\nHe / She is to be re-examined on\n19-Oct-2026\n');
+  assert.strictEqual(m.from, '2026-10-20'); assert.strictEqual(m.to, '2026-10-20');
+});
+
+ok('nothing to anchor on: the earliest and latest date on the page, as before', () => {
+  const m = Petrol.mc('MEDICAL CERTIFICATE\n19-Oct-2026\n21-Oct-2026\n');
+  assert.strictEqual(m.from, '2026-10-19'); assert.strictEqual(m.to, '2026-10-21');
+});
+
+// the form: two one-day MCs (19 and 20) make a leave from the 19th to the 20th, two working days
+ok('two one-day MCs together cover 19 to 20 Oct, and each shows only its own day', () => {
+  const a = Petrol.mc(MC_FOR_THE_20TH), b = Petrol.mc(MC_FOR_THE_19TH);
+  const froms = [a.from, b.from].sort(), tos = [a.to, b.to].sort();
+  assert.strictEqual(froms[0], '2026-10-19'); assert.strictEqual(tos[tos.length - 1], '2026-10-20');
+  assert.strictEqual(a.from === a.to && b.from === b.to, true, 'each certificate is a single day');
+});
+
 console.log('mc tests passed');
