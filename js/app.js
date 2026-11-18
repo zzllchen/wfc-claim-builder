@@ -63,7 +63,7 @@
     tng: null, overrides: new Map(), other: [], edits: { toll: {}, parking: {} },     // edits = values typed over the calculated toll / parking line
     showTrips: false, showErrors: false, packs: { claim: null, leave: null }, inputs: [],
     step: 1, building: false, stepEls: null,
-    user: Auth.get(),       // who signed in on the login page ({ provider: 'google' | 'microsoft' | 'none', email, name }); null = not yet. Kept for this browser tab only
+    user: Auth.get(),       // who signed in on the login page ({ provider: 'google' | 'microsoft' | 'none', email, name }); null = not yet. Kept for this tab, or for this device when "Keep me signed in" was ticked (js/auth.js)
     open: new Map(), lineRefs: new Map(),      // open = lines whose details were opened or closed by hand; lineRefs = each drawn line's refresh function
     touched: { subject: false, body: false, month: false, lName: false, lSign: false, lTo: false, lSubject: false, lBody: false },
   };
@@ -606,7 +606,7 @@
     const msg = (text, bad) => { const m = $('#loginMsg'); m.textContent = text || ''; m.classList.toggle('bad', !!bad); };
     const busy = (on) => ['#btnGoogle', '#btnMicrosoft', '#btnNoLogin'].forEach((id) => { $(id).disabled = on; });
     const done = (user) => {
-      Auth.set(user); S.user = user; unlock(); renderSteps();
+      Auth.set(user, $('#keepSignedIn').checked); S.user = user; unlock(); renderSteps();
       ['claim', 'leave'].forEach((k) => { if (S.packs[k]) renderPack(k); });
       msg('');
     };
@@ -625,7 +625,10 @@
       if (!msClientId()) { done({ provider: 'microsoft', email: '', name: '' }); return; }
       attempt(() => Outlook.signIn(msClientId()), 'Opening Microsoft…');
     });
-    $('#btnNoLogin').addEventListener('click', () => { const u = { provider: 'none', email: '', name: '' }; Auth.set(u); S.user = u; unlock(); renderSteps(); });
+    $('#btnNoLogin').addEventListener('click', () => { const u = { provider: 'none', email: '', name: '' }; Auth.set(u, $('#keepSignedIn').checked); S.user = u; unlock(); renderSteps(); });
+    // "Keep me signed in on this device": ticked the first time, then as the person left it
+    const keep = $('#keepSignedIn'); keep.checked = Auth.keepPref();
+    keep.addEventListener('change', () => Auth.setKeepPref(keep.checked));
     // the account menu: the avatar opens it; Settings, Start over and Sign out live inside
     const acMenu = $('#acMenu'), acBtn = $('#btnAccount');
     const setMenu = (on) => { acMenu.hidden = !on; acBtn.setAttribute('aria-expanded', String(on)); if (on) { const first = acMenu.querySelector('button'); if (first) first.focus(); } };

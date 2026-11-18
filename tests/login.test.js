@@ -6,6 +6,9 @@ const assert = require('assert');
 globalThis.location = { href: 'https://zzllchen.github.io/wfc-claim-builder/' };
 const store = new Map();
 globalThis.sessionStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+const kept = new Map();       // "this device" (localStorage); a new Map is a new tab, a kept Map is the same device
+const deviceStore = { getItem: (k) => (kept.has(k) ? kept.get(k) : null), setItem: (k, v) => kept.set(k, String(v)), removeItem: (k) => kept.delete(k) };
+Object.defineProperty(globalThis, 'localStorage', { value: deviceStore, configurable: true, writable: true });
 
 /* ---------- a stand-in for Microsoft's sign-in library ---------- */
 function fakeMsal(opts = {}) {
@@ -169,6 +172,23 @@ function fakeGraph(opts = {}) {
   store.set('wfc-login', '{"provider":"google"}'); assert.strictEqual(Auth.get(), null, 'a login without an email is not a login');
   store.set('wfc-login', 'not json'); assert.strictEqual(Auth.get(), null);
   Auth.set(who); Auth.signOut(); assert.strictEqual(Auth.get(), null);
+
+  // ---- "Keep me signed in": the next visit (a new tab) goes straight in, for 30 days, and only the name and email are kept ----
+  store.clear(); kept.clear();
+  assert.strictEqual(Auth.keepPref(), true, 'ticked the first time');
+  Auth.setKeepPref(false); assert.strictEqual(Auth.keepPref(), false); Auth.setKeepPref(true); assert.strictEqual(Auth.keepPref(), true);
+  Auth.set(gu, false); store.clear();
+  assert.strictEqual(Auth.get(), null, 'not ticked: a new tab asks again');
+  Auth.set(gu, true); store.clear();                                                      // a new tab on the same device
+  assert.deepStrictEqual(Auth.get(), { provider: 'google', email: 'edward.wfcsystems@gmail.com', name: 'Edward', personal: false }, 'ticked: a new tab is still signed in');
+  assert.ok(store.has('wfc-login'), 'and this tab remembers it too');
+  assert.deepStrictEqual(Object.keys(JSON.parse(kept.get('wfc-login-keep')).user).sort(), ['email', 'name', 'personal', 'provider'], 'only who they are is kept: no token, no password');
+  const real = Date.now; Date.now = () => real() + 29 * 864e5; store.clear(); assert.ok(Auth.get(), 'still in after 29 days'); Date.now = () => real() + 29 * 864e5 + 31 * 864e5; store.clear();
+  assert.strictEqual(Auth.get(), null, 'after 30 days without a visit it asks again'); assert.strictEqual(kept.has('wfc-login-keep'), false, 'and the old memory is gone'); Date.now = real;
+  Auth.set({ provider: 'none' }, true); store.clear(); assert.deepStrictEqual(Auth.get(), { provider: 'none', email: '', name: '' }, '"continue without signing in" can be kept too');
+  Auth.set(gu, true); Auth.signOut(); store.clear(); assert.strictEqual(Auth.get(), null, 'Sign out forgets it on this device too');
+  assert.strictEqual(Auth.keepPref(), true, 'signing out leaves the tick box choice alone');
+  kept.set('wfc-login-keep', 'garbage'); store.clear(); assert.strictEqual(Auth.get(), null, 'a damaged memory is ignored');
 
   console.log('login.test.js: all checks passed');
 })().catch((e) => { console.error(e); process.exit(1); });
