@@ -96,7 +96,7 @@ main.wrap { padding: 32px 20px 96px; display: grid; gap: 24px; }       /* room u
 /* form controls */
 .grid { display: grid; gap: 20px 20px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .span2 { grid-column: span 2; }
-label.f { display: grid; gap: 8px; font-size: 13px; color: #44527a; font-weight: 600; letter-spacing: .005em; }
+label.f { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 8px; font-size: 13px; color: #44527a; font-weight: 600; letter-spacing: .005em; }
 input, select, textarea, button { font: inherit; }
 input[type=text], input[type=email], input[type=date], input[type=month], input[type=number], textarea, select {
   width: 100%; min-width: 0; padding: 11px 14px; color: var(--ink); background: #fff;
@@ -111,7 +111,10 @@ input.need, textarea.need, select.need { border-color: #f5d442; background: #fff
 .needhint .swatch { flex: none; width: 28px; height: 14px; border: 1.5px solid #f5d442; border-radius: 5px; background: #fffdf0; box-shadow: 0 0 0 3px rgba(250, 214, 66, .32); }
 input:hover, select:hover, textarea:hover { border-color: #b9c6e6; }
 @supports (-webkit-touch-callout: none) {
-  input[type=date], input[type=month] { display: block; width: 100%; max-width: 100%; min-height: 46px; text-align: left; }      /* iOS centres them and gives them its own width */
+  /* iPhone: the date and month boxes are drawn by iOS with its own width and centred text, and an empty date box shows nothing at all */
+  input[type=date], input[type=month] { -webkit-appearance: none; appearance: none; display: block; width: 100%; max-width: 100%; min-width: 0; min-height: 46px; line-height: 1.3; text-align: left; }
+  input[type=date]::-webkit-date-and-time-value, input[type=month]::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; margin: 0; }
+  input[type=date]:invalid::before { content: "Tap to choose a date"; color: var(--faint); }      /* "invalid" = still empty (these boxes are required) */
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--blue); box-shadow: var(--ring); }
 input:disabled { background: transparent; border-color: var(--line); color: var(--ink); opacity: 1; }
