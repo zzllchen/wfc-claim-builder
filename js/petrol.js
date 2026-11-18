@@ -616,6 +616,7 @@
       if (snap) { out.amount = snap.amount; out.sure = true; out.fuelNote = snap.how; }
       out.fuelFacts = ft;
       out.bal = ft && ft.bal ? ft.bal : null;       // the litres balance before and after, when previous - litres = remaining agrees: the order slips were bought in
+      out.litres = ft && ft.litres ? ft.litres : null;
     }
     // a slip whose total already adds up still carries its balances: the order of slips is worth knowing
     else if (rs.some((r) => r.fuel)) {
@@ -623,7 +624,10 @@
       rs.forEach((r) => { if (!r.fuel) return; pool.lit.push.apply(pool.lit, r.fuel.lit); pool.pump.push.apply(pool.pump, r.fuel.pump); pool.sub.push.apply(pool.sub, r.fuel.sub); pool.prevs.push.apply(pool.prevs, r.fuel.prevs || []); pool.remains.push.apply(pool.remains, r.fuel.remains || []); });
       const ft = fuelTotal(pool);
       out.bal = ft && ft.bal ? ft.bal : null;
+      out.litres = ft && ft.litres ? ft.litres : null;
     }
+    // litres and fuel type go with the claim to the accountant's dashboard, which works out the carbon of business travel from them
+    if (out.litres) out.fuelType = texts.some((t) => /diesel/i.test(t)) ? 'diesel' : 'petrol';
     out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
     return out;
   }

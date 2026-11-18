@@ -103,7 +103,7 @@
     const rankOf = (cat) => (/petrol|fuel/i.test(cat) ? 0 : /toll/i.test(cat) ? 1 : /parking/i.test(cat) ? 2
       : /medical|klinik|clinic|pharmac|farmasi/i.test(cat) ? 3 : /\bai\b|software|subscription|saas/i.test(cat) ? 4
         : /accommodation|hotel/i.test(cat) ? 5 : 6);
-    S.other.forEach((o) => lines.push({ key: o.id, rank: rankOf(o.category), kind: 'other', src: o, category: o.category, date: o.date, name: o.name, receiptNo: o.receiptNo, amount: o.amount, files: o.files.map((x) => x.file) }));
+    S.other.forEach((o) => lines.push({ key: o.id, rank: rankOf(o.category), kind: 'other', src: o, category: o.category, date: o.date, name: o.name, receiptNo: o.receiptNo, amount: o.amount, litres: o.litres || null, fuel: o.fuel || '', files: o.files.map((x) => x.file) }));
     // toll / parking are calculated from the ticked trips, but every field can be typed over (S.edits)
     if (tv && tv.toll > 0 && mp) lines.push(Object.assign({ key: 'toll', rank: 1, kind: 'toll', category: 'Toll', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.toll, calc: tv.toll, files: [S.tng.file] }, S.edits.toll));
     if (tv && tv.parking > 0 && mp) lines.push(Object.assign({ key: 'parking', rank: 2, kind: 'parking', category: 'Parking', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.parking, calc: tv.parking, files: [S.tng.file] }, S.edits.parking));
@@ -179,7 +179,7 @@
       form: { month: $('#month').value, claimant: $('#claimant').value, signature: $('#signature').value, daysOff: $('#daysOff').value },
       tng: S.tng ? { file: S.tng.file } : null, overrides: Array.from(S.overrides), edits: S.edits,
       other: S.other.map((o) => ({ id: o.id, kind: o.kind, manual: !!o.manual, category: o.category || '', name: o.name || '', date: o.date || '', receiptNo: o.receiptNo || '',
-        amount: o.amount == null ? '' : String(o.amount), auto: Object.assign({}, o.auto), hint: o.hint || '', planB: o.planB || '', bal: o.bal || null, fx: o.fx || null,
+        amount: o.amount == null ? '' : String(o.amount), auto: Object.assign({}, o.auto), hint: o.hint || '', planB: o.planB || '', bal: o.bal || null, fx: o.fx || null, litres: o.litres || null, fuel: o.fuel || '',
         invoiceNo: o.invoiceNo || '', ocr: o.ocr || '', askedClaude: !!o.askedClaude, files: o.files.map((x) => x.file) })),
     };
   }
@@ -837,6 +837,7 @@
     fill('amount', r.amount);
     fill('name', r.station, true);       // beats the last station name pre-filled
     fill('receiptNo', r.receiptNo);
+    if (r.litres) { item.litres = r.litres; item.fuel = r.fuelType || 'petrol'; }        // for the carbon of business travel on the accountant's dashboard
     // a photo starts as Petrol; a hotel bill or clinic receipt says what it is, so switch the type (shown as "please check")
     if (r.category && item.category === 'Petrol' && r.category !== 'Petrol') {
       item.category = r.category; item.auto.category = true;
@@ -1228,7 +1229,8 @@
           catch (e) { throw new Error(`"${f.name}" can't be read any more. It was probably moved, renamed or deleted after you added it, or it is only stored online (OneDrive). Remove it from the claim and add it again, or use Start over and add your files again.`); }
         }
       }
-      const claimLines = lines.map((l) => ({ category: String(l.category).trim(), date: l.date, name: String(l.name).trim(), receiptNo: String(l.receiptNo || '').trim(), amount: num(l.amount) }));
+      const claimLines = lines.map((l) => Object.assign({ category: String(l.category).trim(), date: l.date, name: String(l.name).trim(), receiptNo: String(l.receiptNo || '').trim(), amount: num(l.amount) },
+        /petrol|fuel/i.test(l.category) && l.litres ? { litres: Math.round(num(l.litres) * 1000) / 1000, fuel: l.fuel === 'diesel' ? 'diesel' : 'petrol' } : {}));       // litres: for the dashboard's carbon figures
       const signDate = localIso(new Date());
       const base = { year: mp.y, month: mp.m, claimant, signature, signDate, lines: claimLines };
 

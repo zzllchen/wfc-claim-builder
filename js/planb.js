@@ -92,6 +92,8 @@
       amount: n && isMyr ? n.toFixed(2) : '',
       foreign: n && !isMyr ? { code: cur, amount: n } : null,
       receiptNo: str(o.receiptNo, 24),
+      litres: (() => { const l = num(o.litres); return l > 0 && l < 300 ? Math.round(l * 1000) / 1000 : null; })(),       // fuel only: for the carbon of business travel
+      fuelType: /^(petrol|diesel)$/.test(String(o.fuelType || '').toLowerCase()) ? String(o.fuelType).toLowerCase() : '',
       confidence: ['high', 'medium', 'low'].includes(o.confidence) ? o.confidence : 'medium',
       notes: str(o.notes, 160),
     };
@@ -124,16 +126,18 @@
     else if (!out.receiptNo && c.receiptNo) out.receiptNo = c.receiptNo;
     else if (hex && hex === out.receiptNo) out.invoiceDoubt = false;
     if (!out.category && ['Medical', 'Parking', 'Accommodation', 'AI tools'].includes(c.kind)) out.category = c.kind;
+    if (!out.litres && c.litres) { out.litres = c.litres; out.fuelType = c.fuelType || 'petrol'; }
     out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
     return { r: out, note: notes.join(' ') };
   }
 
   /* ---------- the call ---------- */
   const SYSTEM = `You read one photo of a receipt for a Malaysian company's monthly expense claim and answer with ONLY one JSON object, no other text.
-{"isReceipt": true or false, "kind": "Petrol" | "Medical" | "Parking" | "Accommodation" | "AI tools" | "Other", "merchant": "shop, station, clinic or hotel name as printed", "date": "YYYY-MM-DD", "amount": number, "currency": "MYR", "receiptNo": "the receipt, invoice or transaction number", "confidence": "high" | "medium" | "low", "notes": "one short sentence, only if something is unclear"}
+{"isReceipt": true or false, "kind": "Petrol" | "Medical" | "Parking" | "Accommodation" | "AI tools" | "Other", "merchant": "shop, station, clinic or hotel name as printed", "date": "YYYY-MM-DD", "amount": number, "currency": "MYR", "receiptNo": "the receipt, invoice or transaction number", "litres": number or null, "fuelType": "petrol" | "diesel" | null, "confidence": "high" | "medium" | "low", "notes": "one short sentence, only if something is unclear"}
 Rules:
 - merchant: on a fuel slip that starts with a brand (PETRONAS, SHELL, CALTEX), the dealer's name on the next line (for example KEJAYAAN TEGUH ENT), never the brand alone.
 - receiptNo: the invoice number. On a Petronas or Caltex fuel slip that is the value after "Invoice No" (six characters, 0-9 and a-f, for example 60770c or 1b0eb6), not the site, transaction, STAN or reference number.
+- litres and fuelType: only on a fuel receipt, the litres pumped as printed (for example 40.835) and whether it is petrol (RON95, RON97, Primax, V-Power, Techron) or diesel; null on any other receipt.
 - If the photo is a phone screenshot of an e-invoice page, read it the same way (invoice number, date, shop, total).
 - amount is the FINAL amount actually paid. A fuel receipt with a Budi95 or other subsidy: the TOTAL after the subsidy, never the item line before it. Cash given and change are never the amount. A hotel bill: the SUB TOTAL, never the deposit. A clinic receipt: the amount paid (it may be written in words). MBSJ Flexi Parking: the Payment line.
 - currency is the currency printed beside the amount (MYR for RM). Never convert.
