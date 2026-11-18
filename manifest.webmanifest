@@ -1,6 +1,6 @@
 {
   "name": "Flow – Expense Claims & Leave",
-  "short_name": "Flow",
+  "short_name": "WFC Flow",
   "description": "Flow by WFC Systems: make your monthly expense claim and leave application, ready to send.",
   "start_url": "./",
   "scope": "./",
