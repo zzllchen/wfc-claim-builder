@@ -112,9 +112,10 @@ input.need, textarea.need, select.need { border-color: #f5d442; background: #fff
 input:hover, select:hover, textarea:hover { border-color: #b9c6e6; }
 @supports (-webkit-touch-callout: none) {
   /* iPhone: the date and month boxes are drawn by iOS with its own width and centred text, and an empty date box shows nothing at all */
-  input[type=date], input[type=month] { -webkit-appearance: none; appearance: none; display: block; width: 100%; max-width: 100%; min-width: 0; min-height: 46px; line-height: 1.3; text-align: left; }
-  input[type=date]::-webkit-date-and-time-value, input[type=month]::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; margin: 0; }
+  input[type=date], input[type=month] { -webkit-appearance: none; appearance: none; display: block; width: 100%; max-width: 100%; min-width: 0; line-height: normal; text-align: left; }
+  input[type=date]::-webkit-date-and-time-value, input[type=month]::-webkit-date-and-time-value { text-align: left; min-height: 1.2em; margin: 0; }
   input[type=date]:invalid::before { content: "Tap to choose a date"; color: var(--faint); }      /* "invalid" = still empty (these boxes are required) */
+  input[type=date]:invalid::-webkit-date-and-time-value { display: none; }      /* the empty value line would make the box taller than the others */
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--blue); box-shadow: var(--ring); }
 input:disabled { background: transparent; border-color: var(--line); color: var(--ink); opacity: 1; }
