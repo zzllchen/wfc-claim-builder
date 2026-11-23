@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="WFC Flow">
-<link rel="stylesheet" href="css/style.css?v=134">
+<link rel="stylesheet" href="css/style.css?v=136">
 </head>
 <body class="locked">
 <header class="top" id="top">
@@ -82,6 +82,20 @@
   <div class="view" id="viewClaim">
     <p class="resume" id="resumeBar" hidden><span></span> <button class="link" id="btnResumeStart" type="button">Start over</button></p>
     <p class="needhint" id="needHint" hidden><span class="swatch"></span>Boxes with a light-yellow outline are waiting for you to fill in.</p>
+
+    <section class="snapbar" id="snapBar" aria-label="Receipts you snapped with your phone">
+      <button class="primary snapbtn" id="btnSnap" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.2-1.8A1.5 1.5 0 0 1 10.5 3.5h3a1.5 1.5 0 0 1 1.2.7L15.9 6h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12.3" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+        <span>Snap a receipt</span>
+      </button>
+      <button class="ghost walletbtn" id="btnWallet" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8h6M9 11.5h6M9 15h3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>My receipts</span><span class="count" id="walletCount" hidden></span>
+      </button>
+      <p class="snaptip">Snap it right after you pay: it is kept and read straight away, and waits here until you claim it.</p>
+      <p class="wallethint" id="walletHint" hidden></p>
+      <input type="file" id="snapInput" accept="image/*" capture="environment" hidden>
+    </section>
 
     <section class="card pane" data-step="1">
       <h2><span class="step">1</span>Claim details</h2>
@@ -191,6 +205,19 @@
   </div>
 </main>
 
+<dialog class="sheet" id="snapDlg" aria-labelledby="snapTitle">
+  <div class="sheetin">
+    <div class="sheethead"><h2 id="snapTitle">Snapped receipt</h2><button class="link subtle" type="button" onclick="this.closest('dialog').close()">Close</button></div>
+    <div class="sheetbody" id="snapBody"></div>
+  </div>
+</dialog>
+<dialog class="sheet" id="walletDlg" aria-labelledby="walletTitle">
+  <div class="sheetin">
+    <div class="sheethead"><h2 id="walletTitle">My receipts</h2><span class="muted" id="walletCountTop"></span></div>
+    <div class="sheetbody" id="walletBody"></div>
+    <div class="sheetfoot"><button class="ghost" id="walletClose" type="button">Close</button><button class="primary" id="walletAdd" type="button" disabled>Add to this claim</button></div>
+  </div>
+</dialog>
 <dialog id="dlg">
   <form method="dialog" id="dlgForm">
     <h2>Settings</h2>
@@ -220,27 +247,28 @@
   </form>
 </dialog>
 
-<script defer src="js/lazy.js?v=134"></script>
+<script defer src="js/lazy.js?v=136"></script>
 <script defer src="assets/logo.js"></script>
-<script defer src="js/tng.js?v=134"></script>
-<script defer src="js/xlsx.js?v=134"></script>
-<script defer src="js/pdf.js?v=134"></script>
-<script defer src="js/receipts.js?v=134"></script>
+<script defer src="js/tng.js?v=136"></script>
+<script defer src="js/xlsx.js?v=136"></script>
+<script defer src="js/pdf.js?v=136"></script>
+<script defer src="js/receipts.js?v=136"></script>
 <script defer src="js/extract.js?v=5"></script>
 <script defer src="js/scan.js?v=3"></script>
-<script defer src="js/mail.js?v=134"></script>
-<script defer src="js/gmail.js?v=134"></script>
-<script defer src="js/outlook.js?v=134"></script>
-<script defer src="js/auth.js?v=134"></script>
-<script defer src="js/accounts.js?v=134"></script>
-<script defer src="js/folder.js?v=134"></script>
-<script defer src="js/fx.js?v=134"></script>
-<script defer src="js/petrol.js?v=134"></script>
-<script defer src="js/validate.js?v=134"></script>
-<script defer src="js/ocr.js?v=134"></script>
-<script defer src="js/draft.js?v=134"></script>
-<script defer src="js/planb.js?v=134"></script>
-<script defer src="js/aipanel.js?v=134"></script>
-<script defer src="js/app.js?v=134"></script>
+<script defer src="js/wallet.js?v=2"></script>
+<script defer src="js/mail.js?v=136"></script>
+<script defer src="js/gmail.js?v=136"></script>
+<script defer src="js/outlook.js?v=136"></script>
+<script defer src="js/auth.js?v=136"></script>
+<script defer src="js/accounts.js?v=136"></script>
+<script defer src="js/folder.js?v=136"></script>
+<script defer src="js/fx.js?v=136"></script>
+<script defer src="js/petrol.js?v=136"></script>
+<script defer src="js/validate.js?v=136"></script>
+<script defer src="js/ocr.js?v=136"></script>
+<script defer src="js/draft.js?v=136"></script>
+<script defer src="js/planb.js?v=136"></script>
+<script defer src="js/aipanel.js?v=136"></script>
+<script defer src="js/app.js?v=136"></script>
 </body>
 </html>

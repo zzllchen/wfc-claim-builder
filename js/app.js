@@ -181,7 +181,7 @@
       tng: S.tng ? { file: S.tng.file } : null, overrides: Array.from(S.overrides), edits: S.edits,
       other: S.other.map((o) => ({ id: o.id, kind: o.kind, manual: !!o.manual, category: o.category || '', name: o.name || '', date: o.date || '', receiptNo: o.receiptNo || '',
         amount: o.amount == null ? '' : String(o.amount), auto: Object.assign({}, o.auto), hint: o.hint || '', planB: o.planB || '', bal: o.bal || null, fx: o.fx || null, litres: o.litres || null, fuel: o.fuel || '',
-        invoiceNo: o.invoiceNo || '', ocr: o.ocr || '', askedClaude: !!o.askedClaude, scan: o.scan || null, review: o.review || [], orig: o.orig || null, fixed: o.fixed || null, pastOk: o.pastOk || '',
+        invoiceNo: o.invoiceNo || '', ocr: o.ocr || '', askedClaude: !!o.askedClaude, scan: o.scan || null, review: o.review || [], orig: o.orig || null, fixed: o.fixed || null, pastOk: o.pastOk || '', walletId: o.walletId || '',
         files: o.files.map((x) => x.file) })),
     };
   }
@@ -673,6 +673,8 @@
     $('#whoEmail').textContent = email || 'Not signed in';
     $('#btnSignOut span').textContent = email ? 'Sign out' : 'Sign in';
     applyUser();
+    if (canDrive()) Gmail.preload().catch(() => {});          // so the Google Drive window can open straight from a click
+    refreshWalletBar();
   }
   function wireLogin() {
     const msg = (text, bad) => { const m = $('#loginMsg'); m.textContent = text || ''; m.classList.toggle('bad', !!bad); };
@@ -946,17 +948,16 @@
       item.askedClaude = true; setOcr(item, 'reading');
       try {
         const out = await Scan.read(file, { text, month: mp && mp.key });
-        if (!S.other.includes(item)) return;
+        if (!alive(item)) return;
         if (!out.reading.isReceipt) {
-          dropItem(item);
-          reject(file, `Claude looked at this and it does not seem to be a receipt${out.reading.notes ? ': ' + out.reading.notes.replace(/\.$/, '') : ''}. Attach the receipt itself, or add it anyway and type the details.`, true);
+          refuse(item, file, `Claude looked at this and it does not seem to be a receipt${out.reading.notes ? ': ' + out.reading.notes.replace(/\.$/, '') : ''}. Attach the receipt itself, or add it anyway and type the details.`, true);
           return;
         }
         const m = Scan.merge(x, out.reading, { ocr });          // read from a picture: Claude wins where the two disagree (marked for review)
         f = m.fields; review = m.needsReview; notes = m.notes; source = 'claude'; model = out.model;
       } catch (e) { console.warn('Scan failed', e); notes.push(`Claude could not help (${PlanB.explain(e)}), so this was read on this computer.`); }
     }
-    if (!S.other.includes(item)) return;
+    if (!alive(item)) return;
     // the claim is in ringgit: the ringgit charge when printed, else the total, else converted at the day's rate
     let amount = null, fx = null, hint = '';
     const cur = (f.currency || 'MYR').toUpperCase();
@@ -965,7 +966,7 @@
     else if (f.total != null) {
       const c = await Fx.toMyr(cur, f.total, f.date);
       if (c) { amount = c.myr; fx = c; } else hint = `Receipt is in ${cur} ${f.total.toFixed(2)} – type the MYR amount from your card statement`;
-      if (!S.other.includes(item)) return;
+      if (!alive(item)) return;
     }
     fillScan(item, f, { amount, fx, hint, review, notes, source, model });
     setOcr(item, 'done');
@@ -980,14 +981,14 @@
       item.askedClaude = true; setOcr(item, 'reading'); renderLines();
       try {
         const out = await Scan.read(file, { text, month: mp && mp.key });
-        if (!S.other.includes(item)) return;
+        if (!alive(item)) return;
         const hit = spellings.find((s) => key(s) === key(out.reading.number));
         if (hit) {
           if (!String(item.receiptNo || '').trim() || (item.auto && item.auto.receiptNo)) { item.receiptNo = hit; item.auto = Object.assign(item.auto || {}, { receiptNo: true }); }
           item.review = []; item.planB = `Checked with Claude: the receipt number is ${hit}.`;
         }
       } catch (e) { console.warn('Scan failed', e); }
-      if (!S.other.includes(item)) return;
+      if (!alive(item)) return;
       setOcr(item, 'done');
     }
     keepDraft(); renderLines(); refreshStatus();
@@ -1049,7 +1050,7 @@
   async function readPhoto(item) {
     const file = item.files[0].file;
     try {
-      const mp = monthParts();
+      const mp = item.mp || monthParts();          // a snapped receipt (My receipts) is read for the month it was snapped in
       const opts = { month: mp && mp.key, stations: stations() };
       // Claude first (a key is saved and this PC is set that way): one look at the photo. When it finds an amount and a date, is sure, and nothing looks
       // wrong, that is the reading and the slower reader on this PC is skipped; otherwise the reader on this PC checks it too
@@ -1057,14 +1058,14 @@
       if (PlanB.available() && PlanB.first() && !clearFile(file) && !item.askedClaude) {
         setOcr(item, 'reading');
         pre = await claudeFirst(item, file, mp);
-        if (!S.other.includes(item)) return;
-        if (pre.notReceipt) { dropItem(item); reject(file, pre.reason, true); return; }
+        if (!alive(item)) return;
+        if (pre.notReceipt) { refuse(item, file, pre.reason, true); return; }
         if (pre.c && PlanB.clean(pre.c, {})) { await finishFromClaude(item, pre.c); return; }
       }
       const parts = [];
       // quick when Claude is there to take over: a photo this PC cannot read well is handed on in seconds, not after a minute of extra looks
       const text = await OCR.read(file, Object.assign({ collect: parts, quick: PlanB.available(), onStart: () => setOcr(item, 'reading') }, Petrol.ocrChecks(opts)));       // when to stop looking: js/petrol.js
-      if (!S.other.includes(item)) return;              // removed while waiting
+      if (!alive(item)) return;              // removed while waiting
       let r = Petrol.best(parts.length ? parts : [text], opts);          // every reading votes, so one misread digit is outvoted
       const verdict = Validate.judge(text, 'photo');
       // the stricter check can miss an amount the voting reader did find (a lost decimal point): then the photo stays
@@ -1079,14 +1080,14 @@
       const b = pre && pre.c ? claudeChecked(pre.c, r, why)
         : (canRetry || PlanB.worthAsking(why, r)) && PlanB.available() && !item.askedClaude ? await askClaude(item, file, r, why, mp) : null;       // Claude only when it is needed
       const claudeErr = pre && pre.error ? pre.error : '';
-      if (!S.other.includes(item)) return;
-      if (b && b.notReceipt) { dropItem(item); reject(file, b.reason, true); return; }
+      if (!alive(item)) return;
+      if (b && b.notReceipt) { refuse(item, file, b.reason, true); return; }
       if (b && b.r && !(canRetry && !b.r.amount && !b.r.foreign)) {
         r = b.r; item.planB = b.note;
         const known = r.station && Petrol.station(r.station, stations()); if (known) r.station = known;      // Claude's shop name, as it was saved before
         item.review = (r.review || []).slice();          // where the two readers disagreed: Claude's reading is used, marked for a look
       }
-      else if (unreadable) { dropItem(item); reject(file, verdict.reason + (b ? (b.error ? ` Claude could not help: ${b.error}` : ' Claude could not read it either.') : ''), verdict.force, verdict.mc); return; }
+      else if (unreadable) { refuse(item, file, verdict.reason + (b ? (b.error ? ` Claude could not help: ${b.error}` : ' Claude could not read it either.') : ''), verdict.force, verdict.mc); return; }
       else if (why.length) {
         item.planB = 'Please check: ' + why.join('; ') + '.' + (b && b.error ? ` Claude could not help: ${b.error}` : '');
         if (why.includes('no invoice number found')) item.review = ['receiptNo'];
@@ -1096,7 +1097,7 @@
         const c = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
         if (c) { r.amount = c.myr.toFixed(2); item.fx = c; }
         else item.hint = `Receipt is in ${r.foreign.code} ${r.foreign.amount.toFixed(2)} – type the MYR amount from your card statement`;
-        if (!S.other.includes(item)) return;
+        if (!alive(item)) return;
       }
       const kind = guessCategory(text);
       if (!r.category && (kind === 'Accommodation' || kind === 'Medical' || kind === 'Parking')) r.category = kind;
@@ -1108,12 +1109,12 @@
       if (item.fx || item.hint || item.planB || r.category || item.bal) renderLines();       // a new type also moves the line to its place in the order
     } catch (e) {
       console.warn('OCR failed', e);
-      if (!S.other.includes(item)) return;
-      if (e && e.code === 'decode') { dropItem(item); reject(file, Validate.MSG.decode, true); return; }
+      if (!alive(item)) return;
+      if (e && e.code === 'decode') { refuse(item, file, Validate.MSG.decode, true); return; }
       item.ocrError = String((e && e.message) || e).slice(0, 220);
       // the normal reader broke (not just a poor photo): plan B reads it instead, when a key is saved
       const b = PlanB.available() && !item.askedClaude ? await askClaude(item, file, {}, ['the normal reader failed'], monthParts()) : null;
-      if (!S.other.includes(item)) return;
+      if (!alive(item)) return;
       if (b && b.r && (b.r.amount || b.r.foreign)) {
         applyOcr(item, b.r); item.planB = b.note; delete item.ocrError;
         if (!b.r.amount) item.hint = `Receipt is in ${b.r.foreign.code} ${b.r.foreign.amount.toFixed(2)} – type the MYR amount from your card statement`;
@@ -1143,7 +1144,7 @@
       const f = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
       if (f) { r.amount = f.myr.toFixed(2); item.fx = f; }
       else item.hint = `Receipt is in ${r.foreign.code} ${r.foreign.amount.toFixed(2)} – type the MYR amount from your card statement`;
-      if (!S.other.includes(item)) return;
+      if (!alive(item)) return;
     }
     applyOcr(item, r);
     if (c.confidence === 'medium' || c.notes) item.planB = c.notes ? `Read by Claude: ${c.notes.replace(/\.$/, '')}. Please check the photo.` : null;
@@ -1484,6 +1485,7 @@
         attachments: [{ name: zipName, blob }],
       };
       renderPack('claim');
+      walletClaimed(mp.key);                           // receipts picked from My receipts are now claimed in this month
       $('#pack').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       // the email is still how the zip travels; this also puts the claim on the accountant's dashboard
       pushToDashboard(S.packs.claim, {
@@ -1869,6 +1871,186 @@
   }
 
   /* ---------- init ---------- */
+  /* ---------- My receipts: snap a receipt with the phone right away, keep it, claim it later (storage and Google Drive: js/wallet.js) ----------
+     A snapped receipt is kept at once (before it is read), checked for blur while the paper is still in hand, read like any receipt photo, and
+     kept with what was read. At claim time the receipts are picked from My receipts (no reading again); once the claim is saved they are
+     marked claimed in that month and can't be picked again. */
+  const W = { list: [], sel: new Set() };
+  const owner = () => (S.user && S.user.email) || '';
+  const canDrive = () => !!(S.user && S.user.provider === 'google' && S.user.email && gmailClientId() && window.Wallet);
+  const monthNow = () => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() + 1, key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }; };
+  const monthWord = (key) => (/^\d{4}-\d{2}$/.test(key || '') ? `${MONTH_NAMES[+key.slice(5, 7) - 1]} ${key.slice(0, 4)}` : 'No date');
+  const alive = (item) => S.other.includes(item) || !!(item.snap && !item.snap.closed);
+  // a photo that is not a usable receipt: on the claim, a red note; in the snap window, said there
+  function refuse(item, file, reason, canForce, isMc) {
+    if (item.snap) { item.snap.refused = reason; return; }
+    dropItem(item); reject(file, reason, canForce, isMc);
+  }
+
+  // the Drive line under the snap and in My receipts: where the receipts are kept, and the one button that keeps a copy in Drive
+  function driveLine(after) {
+    if (!window.Wallet) return null;
+    if (!canDrive()) return h('p', { class: 'driveline', text: S.user && S.user.provider === 'google' ? 'Kept on this device.' : 'Kept on this device. Sign in with Google to keep a copy in your own Google Drive.' });
+    if (Wallet.connected()) return h('p', { class: 'driveline ok', text: 'Kept on this device and in your Google Drive (folder "WFC Receipts").' });
+    return h('p', { class: 'driveline' }, 'Kept on this device. ',
+      h('button', { class: 'link', type: 'button', text: 'Keep a copy in my Google Drive', onclick: () => driveConnect(after) }));
+  }
+  function driveConnect(after) {
+    Wallet.connect(gmailClientId(), owner())          // first, still inside the click (the Google window)
+      .then(() => Wallet.sync(owner())).then((res) => { W.list = res.list; if (res.errors.length) fileNote('warn', 'Google Drive: ' + res.errors[0]); if (after) after(); refreshWalletBar(); })
+      .catch((e) => { alert(e.message || 'Google Drive could not be reached.'); });
+  }
+  function driveSyncQuiet() { if (window.Wallet && Wallet.connected()) Wallet.sync(owner()).then((res) => { W.list = res.list; refreshWalletBar(); }).catch(() => {}); }
+
+  function openSnap() { const i = $('#snapInput'); i.value = ''; i.click(); }
+  function readingRows(r, compact) {
+    const rows = [['Type', r.category], ['Shop', r.name], ['Date', niceDate(r.date)], ['Amount', r.amount ? 'RM ' + money(num(r.amount)) : ''], ['Receipt no.', r.receiptNo]].filter((x) => x[1]);
+    if (!rows.length) return h('p', { class: 'muted', text: 'Nothing could be read from it. You can type the details when you claim it.' });
+    return h('dl', { class: compact ? 'rrows compact' : 'rrows' }, rows.map(([k, v]) => [h('dt', { text: k }), h('dd', { text: v })]).flat());
+  }
+  async function onSnapped(file) {
+    if (!file || !window.Wallet) return;
+    const dlg = $('#snapDlg'), body = $('#snapBody'), url = URL.createObjectURL(file);
+    const show = (...kids) => { body.textContent = ''; body.append(...kids.filter(Boolean)); };
+    const pic = h('img', { class: 'snappic', src: url, alt: 'The receipt you snapped' });
+    const close = () => { dlg.close(); };
+    if (!dlg.open) dlg.showModal();
+    show(pic, h('p', { class: 'snapst wait', text: 'Checking the photo…' }));
+    const q = await Wallet.quality(file);
+    if (!q.ok) {
+      const why = q.problem === 'dark' ? 'too dark' : q.problem === 'small' ? 'too small' : 'blurry';
+      const choice = await new Promise((resolve) => show(pic, h('p', { class: 'snapst bad', text: `This photo looks ${why}. Take it again while you still have the receipt?` }),
+        h('div', { class: 'snapacts' }, h('button', { class: 'primary', type: 'button', text: 'Take it again', onclick: () => resolve('again') }),
+          h('button', { class: 'ghost', type: 'button', text: 'Keep this one', onclick: () => resolve('keep') }))));
+      if (choice === 'again') { URL.revokeObjectURL(url); close(); openSnap(); return; }
+    }
+    let rec;
+    try { rec = await Wallet.add(file, owner(), {}); }         // kept before it is read: nothing is lost if the page is closed now
+    catch (e) { show(pic, h('p', { class: 'snapst bad', text: "This photo couldn't be kept on this device (" + (e.message || e) + '). Add it to the claim directly instead.' })); return; }
+    show(pic, h('p', { class: 'snapst wait', text: 'Saved. Reading the receipt…' }));
+    const mp = monthNow(), item = { id: uid(), kind: 'other', files: [{ file, url }], category: 'Petrol', name: '', date: '', auto: { category: true }, receiptNo: '', amount: '', snap: {}, mp };
+    try { await readPhoto(item); } catch (e) { console.warn('Reading the snap failed', e); }
+    item.snap.closed = true;
+    const refused = item.snap.refused;
+    rec = (await Wallet.setReading(rec.id, refused ? {} : Wallet.readingOf(item))) || rec;
+    driveSyncQuiet();
+    refreshWalletBar();
+    const r = rec.reading || {};
+    show(pic,
+      h('p', { class: 'snapst ' + (refused ? 'bad' : 'ok'), text: refused ? `Saved, but it could not be read as a receipt: ${refused.replace(/ Attach the receipt itself.*$/, '')}` : 'Saved to My receipts.' }),
+      refused ? null : readingRows(r),
+      !refused && r.review && r.review.length ? h('p', { class: 'snapst warn', text: 'Please check ' + plainList(r.review.map((k) => FIELD_WORD[k] || k)) + ' when you claim it.' }) : null,
+      driveLine(() => onSnappedDone(rec)),
+      h('div', { class: 'snapacts' },
+        h('button', { class: 'primary', type: 'button', text: 'Snap another', onclick: () => { close(); openSnap(); } }),
+        refused ? h('button', { class: 'ghost', type: 'button', text: 'Take it again', onclick: async () => { await Wallet.remove(rec.id); refreshWalletBar(); close(); openSnap(); } }) : null,
+        h('button', { class: 'ghost', type: 'button', text: 'Done', onclick: close })));
+  }
+  function onSnappedDone() { refreshWalletBar(); }
+
+  async function openWallet() {
+    if (!window.Wallet) return;
+    const dlg = $('#walletDlg');
+    W.sel = new Set();
+    if (!dlg.open) dlg.showModal();
+    paintWallet(true);
+    try { W.list = (await Wallet.sync(owner())).list; } catch (e) { W.list = []; fileNote('warn', "My receipts couldn't be opened: " + (e.message || e)); }
+    paintWallet(false);
+  }
+  function paintWallet(loading) {
+    const body = $('#walletBody'), mp = monthParts();
+    body.textContent = '';
+    const open = W.list.filter((r) => r.status !== 'claimed');
+    body.append(h('p', { class: 'muted', text: 'Receipts you snapped, newest first. Tick the ones for this claim, then press Add.' }), driveLine(() => paintWallet(false)));
+    if (loading) { body.append(h('p', { class: 'snapst wait', text: 'Opening your receipts…' })); return; }
+    if (!W.list.length) body.append(h('div', { class: 'empty', text: 'No receipts yet. Use "Snap a receipt" right after you pay, and they will wait here until you claim them.' }));
+    Wallet.byMonth(W.list).forEach((g) => {
+      const waiting = g.items.filter((r) => r.status !== 'claimed').length;
+      const inClaim = mp && g.month === mp.key;
+      body.append(h('div', { class: 'wmonth' }, h('h3', { text: monthWord(g.month) }), h('span', { class: 'muted', text: waiting ? `${waiting} not claimed` : 'all claimed' }),
+        waiting && inClaim ? h('button', { class: 'link', type: 'button', text: 'Tick all', onclick: () => { g.items.filter((r) => r.status !== 'claimed' && !S.other.some((o) => o.walletId === r.id)).forEach((r) => W.sel.add(r.id)); paintWallet(false); } }) : null));
+      body.append(h('div', { class: 'wgrid' }, g.items.map((r) => walletCard(r))));
+    });
+    const n = W.sel.size;
+    $('#walletAdd').disabled = !n;
+    $('#walletAdd').textContent = n ? `Add ${n} to this claim` : 'Add to this claim';
+    $('#walletCountTop').textContent = open.length ? `${open.length} not claimed` : '';
+  }
+  function walletCard(r) {
+    const rd = r.reading || {}, used = S.other.some((o) => o.walletId === r.id), claimed = r.status === 'claimed';
+    const pick = !claimed && !used;
+    const box = pick ? h('input', { type: 'checkbox', checked: W.sel.has(r.id), 'aria-label': 'Pick this receipt', onchange: (e) => { if (e.target.checked) W.sel.add(r.id); else W.sel.delete(r.id); paintWallet(false); } }) : null;
+    const chip = claimed ? h('span', { class: 'chip done', text: 'Claimed · ' + monthWord(r.claimedIn) }) : used ? h('span', { class: 'chip', text: 'In this claim' })
+      : rd.review && rd.review.length ? h('span', { class: 'chip warn', text: 'Check ' + plainList(rd.review.map((k) => FIELD_WORD[k] || k)) }) : null;
+    return h('label', { class: 'wcard' + (claimed || used ? ' off' : '') + (W.sel.has(r.id) ? ' on' : '') },
+      h('div', { class: 'wthumb' }, r.thumb ? h('img', { src: r.thumb, alt: '' }) : h('span', { class: 'wph', text: '🧾' }), box),
+      h('div', { class: 'wtext' },
+        h('b', { text: rd.amount ? 'RM ' + money(num(rd.amount)) : 'Amount not read' }),
+        h('span', { text: rd.name || rd.category || 'Receipt' }),
+        h('span', { class: 'muted', text: rd.date ? niceDate(rd.date) : 'Snapped ' + niceDate(String(r.createdAt || '').slice(0, 10)) }),
+        chip,
+        claimed ? h('button', { class: 'link subtle', type: 'button', text: 'Not claimed after all', onclick: async (e) => { e.preventDefault(); await Wallet.unclaim(r.id); W.list = (await Wallet.sync(owner())).list; paintWallet(false); refreshWalletBar(); } })
+          : h('button', { class: 'link subtle', type: 'button', text: 'Remove', onclick: async (e) => { e.preventDefault(); if (!confirmRemove(r)) return; await Wallet.remove(r.id); W.sel.delete(r.id); W.list = (await Wallet.sync(owner())).list; paintWallet(false); refreshWalletBar(); } })));
+  }
+  const confirmRemove = (r) => window.confirm(`Remove this receipt${r.reading && r.reading.amount ? ' (RM ' + money(num(r.reading.amount)) + ')' : ''} from My receipts?${r.driveId ? ' It goes to the bin of your Google Drive.' : ''}`);
+  async function addFromWallet(recs) {
+    let added = 0;
+    for (const rec of recs) {
+      if (S.other.some((o) => o.walletId === rec.id)) continue;
+      let blob = null;
+      try { blob = await Wallet.photo(rec); } catch (e) { blob = null; }
+      if (!blob) { fileNote('warn', `A receipt from ${monthWord(rec.month)} is in your Google Drive but couldn't be fetched just now. Try again in a moment.`); continue; }
+      const file = new File([blob], rec.name || 'Receipt.jpg', { type: blob.type || 'image/jpeg' });
+      const r = rec.reading || {};
+      const item = { id: uid(), kind: 'other', files: [{ file, url: URL.createObjectURL(file) }], category: r.category || '', name: r.name || '', date: r.date || '', receiptNo: r.receiptNo || '',
+        amount: r.amount || '', auto: Object.assign({}, r.auto || {}), review: (r.review || []).slice(), planB: r.planB || '', hint: r.hint || '', fx: r.fx || null, scan: r.scan || null,
+        litres: r.litres || null, fuel: r.fuel || '', askedClaude: !!r.askedClaude, ocr: 'done', walletId: rec.id };
+      item.orig = { category: item.category, name: item.name, date: item.date, receiptNo: item.receiptNo, amount: item.amount };      // corrections to what was read are logged
+      S.other.push(item); added++;
+    }
+    if (added) { refreshStatus(); renderLines(); fileNote('info', `Added ${added} receipt${added > 1 ? 's' : ''} from My receipts.`); }
+    return added;
+  }
+  async function walletAdd() {
+    const recs = W.list.filter((r) => W.sel.has(r.id));
+    $('#walletAdd').disabled = true; $('#walletAdd').textContent = 'Adding…';
+    await addFromWallet(recs);
+    W.sel = new Set();
+    $('#walletDlg').close();
+    refreshWalletBar();
+  }
+  /* the bar on the claim page: how many receipts wait, and the ones from this claim's month in one click */
+  async function refreshWalletBar() {
+    if (!window.Wallet) { $('#snapBar').hidden = true; return; }
+    let list = [];
+    try { list = (await Wallet.localAll(owner())).filter((r) => !r.removed); } catch (e) { return; }
+    if (W.list.length) { const ids = new Set(list.map((r) => r.id)); W.list.forEach((r) => { if (!ids.has(r.id)) list.push(r); }); }      // receipts only in Drive, once listed
+    const open = list.filter((r) => r.status !== 'claimed');
+    $('#walletCount').textContent = open.length ? String(open.length) : '';
+    $('#walletCount').hidden = !open.length;
+    const mp = monthParts();
+    const waiting = mp ? open.filter((r) => (r.month || Wallet.monthFor(r)) === mp.key && !S.other.some((o) => o.walletId === r.id)) : [];
+    const hint = $('#walletHint');
+    hint.textContent = ''; hint.hidden = !waiting.length;
+    if (waiting.length) hint.append(h('span', { text: `${waiting.length} snapped receipt${waiting.length > 1 ? 's' : ''} from ${monthLabel(mp)} ${waiting.length > 1 ? 'are' : 'is'} waiting.` }),
+      h('button', { class: 'link', type: 'button', text: 'Add to this claim', onclick: async () => { await addFromWallet(waiting); refreshWalletBar(); } }));
+  }
+  /* after the claim is saved: its receipts from My receipts are claimed in that month */
+  function walletClaimed(month) {
+    if (!window.Wallet) return;
+    const ids = S.other.filter((o) => o.walletId).map((o) => o.walletId);
+    if (!ids.length) return;
+    Wallet.markClaimed(ids, month).then(() => { driveSyncQuiet(); refreshWalletBar(); }).catch((e) => console.warn('Marking claimed failed', e));
+  }
+  function wireWallet() {
+    if (!window.Wallet || !window.indexedDB) { $('#snapBar').hidden = true; return; }
+    $('#btnSnap').addEventListener('click', openSnap);
+    $('#snapInput').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) onSnapped(f); });
+    $('#btnWallet').addEventListener('click', openWallet);
+    $('#walletAdd').addEventListener('click', walletAdd);
+    $('#walletClose').addEventListener('click', () => $('#walletDlg').close());
+  }
+
   function init() {
     S.restoring = true;       // until the saved draft has been looked for, nothing may overwrite it
     ClaimPdf.croppedLogo().then((l) => { $('#brandLogo').src = l.url; $('#loginLogo').src = l.url; }).catch(() => { $('#brandLogo').remove(); $('#loginLogo').remove(); });
@@ -1887,7 +2069,8 @@
 
     $('#claimant').addEventListener('input', () => { cfg.claimant = $('#claimant').value; saveCfg(); updateSummary(); });
     $('#signature').addEventListener('input', () => { cfg.signature = $('#signature').value; saveCfg(); updateSummary(); });
-    $('#month').addEventListener('input', () => { S.touched.month = true; renderLines(); });
+    $('#month').addEventListener('input', () => { S.touched.month = true; renderLines(); refreshWalletBar(); });
+    wireWallet();
     $('#daysOff').addEventListener('input', renderLines);
     $('#toEmail').addEventListener('input', () => { cfg.toEmail = $('#toEmail').value; saveCfg(); renderSteps(); });
     $('#subject').addEventListener('input', () => { S.touched.subject = true; renderSteps(); });
