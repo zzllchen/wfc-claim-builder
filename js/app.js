@@ -181,7 +181,7 @@
       tng: S.tng ? { file: S.tng.file } : null, overrides: Array.from(S.overrides), edits: S.edits,
       other: S.other.map((o) => ({ id: o.id, kind: o.kind, manual: !!o.manual, category: o.category || '', name: o.name || '', date: o.date || '', receiptNo: o.receiptNo || '',
         amount: o.amount == null ? '' : String(o.amount), auto: Object.assign({}, o.auto), hint: o.hint || '', planB: o.planB || '', bal: o.bal || null, fx: o.fx || null, litres: o.litres || null, fuel: o.fuel || '',
-        invoiceNo: o.invoiceNo || '', ocr: o.ocr || '', askedClaude: !!o.askedClaude, scan: o.scan || null, review: o.review || [], orig: o.orig || null, fixed: o.fixed || null,
+        invoiceNo: o.invoiceNo || '', ocr: o.ocr || '', askedClaude: !!o.askedClaude, scan: o.scan || null, review: o.review || [], orig: o.orig || null, fixed: o.fixed || null, pastOk: o.pastOk || '',
         files: o.files.map((x) => x.file) })),
     };
   }
@@ -288,10 +288,50 @@
     return S.other.find((x) => x !== o && Math.abs(num(x.amount) - a) < 0.005 && x.date === o.date
       && ((noKey(o.receiptNo) && noKey(o.receiptNo) === noKey(x.receiptNo)) || (so.length >= 4 && sellerKey(x.name).length >= 4 && (so.includes(sellerKey(x.name)) || sellerKey(x.name).includes(so))))) || null;
   }
+  /* ---------- receipts claimed before: in an earlier saved claim (any month, anyone) ----------
+     The claims inbox is asked while the claim is made, a moment after the lines settle, only about lines not asked about yet. It answers the
+     month, the status and whether it was this person's claim (never another person's name). Toll and parking lines are not compared (the
+     Touch 'n Go card number is the same every month). "Looks right" on the line says it is a different receipt. */
+  const PAST = { cache: new Map(), timer: 0, off: false, waitUntil: 0 };
+  const PAST_STATUS = { new: 'not checked yet', checked: 'checked', paid: 'paid', question: 'has a question' };
+  const pastKey = (o, mp, who) => [mp ? mp.key : '', sellerKey(who), noKey(o.receiptNo), sellerKey(o.name), o.date || '', num(o.amount).toFixed(2)].join('|');
+  const pastOpen = (o) => !!(o.past && o.pastOk !== o.past.key);
+  function pastText(p) {
+    const where = plainList(p.claims.map((c) => `${c.monthLabel} (${c.mine ? 'your claim' : "another person's claim"}${PAST_STATUS[c.status] ? ', ' + PAST_STATUS[c.status] : ''})`));
+    return p.check === 'receipt' ? `Claimed before: the same receipt no. is in ${where}` : `Possibly claimed before: the same shop, date and amount are in ${where}`;
+  }
+  const pastNote = (p) => (p.check === 'receipt' ? 'The same receipt number is on a line of an earlier claim.' : 'A line of an earlier claim has the same shop, date and amount.')
+    + ' If it is the same receipt, remove this line. If the receipt number was misread, correct it. If it is a different receipt, press Looks right.';
+  function schedulePastCheck() { clearTimeout(PAST.timer); PAST.timer = setTimeout(() => { checkPast().catch((e) => console.warn('Past-claims check failed', e)); }, 1500); }
+  async function checkPast() {
+    const api = dashApi(), mp = monthParts(), who = $('#claimant').value.trim();
+    if (!api || PAST.off || !window.Accounts || !Accounts.seen) return;
+    const ready = S.other.filter((o) => o.ocr !== 'queued' && o.ocr !== 'reading' && num(o.amount) > 0 && (noKey(o.receiptNo).length >= 3 || (o.name && o.date)));
+    const ask = ready.filter((o) => !PAST.cache.has(pastKey(o, mp, who)));
+    if (ask.length && Date.now() >= PAST.waitUntil) {
+      try {
+        const r = await Accounts.seen(api, { claimant: who, month: mp ? mp.key : '',
+          lines: ask.map((o, i) => ({ ref: String(i), category: o.category || '', date: o.date || '', name: o.name || '', receiptNo: o.receiptNo || '', amount: num(o.amount) })) });
+        const by = new Map((r.matches || []).map((m) => [m.ref, m]));
+        ask.forEach((o, i) => PAST.cache.set(pastKey(o, mp, who), by.get(String(i)) || null));
+      } catch (e) {
+        if (/unknown action/i.test(e.message || '')) PAST.off = true;          // an inbox that has not been updated yet: nothing to ask
+        else PAST.waitUntil = Date.now() + 60000;                              // out of reach: try again in a minute
+      }
+    }
+    let changed = false;
+    S.other.forEach((o) => {
+      const k = pastKey(o, mp, who), m = ready.includes(o) ? PAST.cache.get(k) : null;
+      const now = m ? k : '';
+      if ((o.past ? o.past.key : '') !== now) { o.past = m ? Object.assign({ key: k }, m) : null; changed = true; }
+    });
+    if (changed) { if ($('#lines').contains(document.activeElement)) refreshHeads(); else renderLines(); }       // never pull the box out from under someone typing
+  }
   function lineStatus(o, kind) {
     if (kind === 'other' && (o.ocr === 'queued' || o.ocr === 'reading')) return { level: 'wait', text: o.askedClaude ? 'Claude is reading it…' : 'Reading…' };
     const missing = ['category', 'date', 'name', 'amount'].filter((k) => isBlank(o, k));
     if (missing.length) return { level: 'bad', text: 'Please fill in: ' + plainList(missing.map((k) => FIELD_WORD[k])) };
+    if (kind === 'other' && pastOpen(o)) return { level: 'warn', text: pastText(o.past) };
     if (kind === 'other' && twinOf(o)) return { level: 'warn', text: 'Possible duplicate: another line has the same amount, date and seller' };
     if (o.review && o.review.length) return { level: 'warn', text: 'Needs review: ' + plainList(o.review.map((k) => FIELD_WORD[k] || k)) };
     const guessed = ['category', 'date', 'name', 'receiptNo', 'amount'].filter((k) => o.auto && o.auto[k]);
@@ -380,7 +420,7 @@
     }
     // what Claude said, or what looked odd, lives in the details so the line itself stays tidy (the "Please check" status on top is enough)
     const sc = o.scan;
-    const notes = [o.planB, o.dateWarn].concat(sc ? sc.notes : []).filter(Boolean);
+    const notes = [pastOpen(o) ? pastNote(o.past) : '', o.planB, o.dateWarn].concat(sc ? sc.notes : []).filter(Boolean);
     if (notes.length) fields.push(h('div', { class: 'ainote' }, h('b', { text: 'About this reading' }), notes.map((t) => h('span', { text: t }))));
     // the rest of what the receipt says (not on the claim form, kept with the claim for the accountant)
     const more = sc ? [sc.docType && `Document: ${sc.docType}`, sc.currency && sc.currency !== 'MYR' && sc.total != null && `Total: ${sc.currency} ${money(sc.total)}`,
@@ -394,8 +434,8 @@
       o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
       o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
       o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null,       // gone once the amount is typed over
-      (o.review && o.review.length) || (o.auto && Object.keys(o.auto).length) ? h('button', { class: 'link okbtn', type: 'button', text: 'Looks right', title: 'Accept what was filled in',
-        onclick: () => { o.review = []; o.auto = {}; keepDraft(); renderLines(); refreshStatus(); } }) : null,
+      (o.review && o.review.length) || (o.auto && Object.keys(o.auto).length) || pastOpen(o) ? h('button', { class: 'link okbtn', type: 'button', text: 'Looks right', title: 'Accept what was filled in',
+        onclick: () => { o.review = []; o.auto = {}; if (o.past) o.pastOk = o.past.key; keepDraft(); renderLines(); refreshStatus(); } }) : null,
     ];
     const below = o.files.length ? h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x)))) : null;
     return lineCard(o, { key: l.key, pick: true, autoOpen: !!o.manual, status: () => lineStatus(o, 'other'), fields, tags, below, onRemove: () => removeOther(o), removeTitle: 'Remove this line' });
@@ -738,6 +778,7 @@
   }
 
   function updateSummary() {
+    schedulePastCheck();
     const { lines, tv } = compileLines();
     refreshHeads();
     renderSide(lines);
