@@ -296,7 +296,7 @@
   const TUNED = ['Petrol', 'Medical', 'Parking', 'Accommodation'];
   const forGeneral = (x, p, text) => !FUEL_WORDS.test(text) && !(p && (p.litres || TUNED.includes(p.category))) && !TUNED.includes(x.category);
 
-  /* The same document number printed twice in the text but read two ways (2610011512044396z and 26100115120443962, a scan read on this PC):
+  /* The same document number printed twice in the text but read two ways (4815162342108800q and 48151623421088002, a scan read on this PC):
      the other spellings, one character apart. Any found means the number is not sure. */
   function twinsOf(value, text) {
     const v = String(value || '').replace(/[^A-Za-z0-9]/g, '');

@@ -165,9 +165,9 @@ ok('who reads it: fuel slips, clinic, parking and hotel papers keep their tuned 
 });
 
 ok('a number printed twice but read two ways (a scan): the other spelling is found, so the number needs a second look', () => {
-  const text = 'Gmail - Fwd: MBSJ FLEXI PARKING Receipt 26100115120443962\nSubject: MBSJ FLEXI PARKING Receipt 2610011512044396z\nReceipt No 2610011512044396z';
-  assert.deepStrictEqual(X.twinsOf('26100115120443962', text), ['2610011512044396z']);
-  assert.deepStrictEqual(X.twinsOf('2610011512044396z', 'Receipt 2610011512044396z and again 2610011512044396z'), []);
+  const text = 'Gmail - Fwd: PARKING PASS Receipt 48151623421088002\nSubject: PARKING PASS Receipt 4815162342108800q\nReceipt No 4815162342108800q';
+  assert.deepStrictEqual(X.twinsOf('48151623421088002', text), ['4815162342108800q']);
+  assert.deepStrictEqual(X.twinsOf('4815162342108800q', 'Receipt 4815162342108800q and again 4815162342108800q'), []);
   assert.deepStrictEqual(X.twinsOf('60770c', 'Invoice No 60770c, site 123456'), [], 'a different number of the same length is not a twin');
 });
 
