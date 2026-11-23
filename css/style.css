@@ -510,13 +510,20 @@ button.sso svg { width: 21px; height: 21px; flex: none; }
 .lstat .okbtn { font-size: 13px; font-weight: 650; padding: 2px 4px; color: var(--ok, #067647); }
 .lstat .okbtn:hover { text-decoration: underline; }
 
-/* ---------- My receipts: the snap bar, the snap window and the receipts gallery ---------- */
-.snapbar { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 10px 12px; margin: 0 0 18px; padding: 14px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 1px 2px rgba(13, 27, 62, .04); }
-.snapbar svg { width: 20px; height: 20px; flex: none; }
-.snapbtn, .walletbtn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 12px; font-weight: 600; white-space: nowrap; }
-.walletbtn .count { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--blue); color: #fff; font-size: 12.5px; line-height: 22px; text-align: center; }
-.snaptip { margin: 0; color: var(--muted); font-size: 13.5px; }
-.wallethint { grid-column: 1 / -1; margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--blue-50); border: 1px solid var(--blue-100); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 14px; }
+/* ---------- My receipts: the camera in the header, the row in step 2, the snap window and the receipts gallery ---------- */
+.iconbtn { width: 40px; height: 40px; padding: 0; border-radius: 50%; background: #fff; border: 1px solid var(--line-2); color: var(--blue); display: inline-grid; place-items: center; flex: none; }
+.iconbtn:hover { background: var(--blue-50); border-color: #b9c6e6; }
+.iconbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.iconbtn[hidden], .fromphone[hidden], .wallethint[hidden], .acmenu button[hidden] { display: none !important; }
+.acmenu .mcount { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--blue); color: #fff; font-size: 12px; line-height: 22px; text-align: center; }
+.fromphone { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin-top: 12px; }
+.fptext { color: var(--muted); font-size: 13.5px; margin-right: 2px; }
+.chipbtn { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 999px; background: #fff; border: 1px solid var(--line-2); color: var(--ink); font-size: 13.5px; font-weight: 600; }
+.chipbtn:hover { background: var(--blue-50); border-color: #b9c6e6; }
+.chipbtn svg { width: 17px; height: 17px; fill: none; stroke: var(--blue); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.chipbtn .count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--blue); color: #fff; font-size: 11.5px; line-height: 20px; text-align: center; }
+
+.wallethint { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--blue-50); border: 1px solid var(--blue-100); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 14px; }
 .wallethint .link { font-weight: 600; }
 dialog.sheet { width: min(760px, 96vw); }
 .sheetin { display: flex; flex-direction: column; max-height: 90vh; }
@@ -555,9 +562,6 @@ dialog.sheet { width: min(760px, 96vw); }
 .wtext .chip.warn { background: var(--warn-bg); color: var(--warn); }
 .wtext .link { justify-self: start; font-size: 12.5px; margin-top: 2px; }
 @media (max-width: 640px) {
-  .snapbar { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
-  .snapbtn, .walletbtn { justify-content: center; padding: 0 12px; }
-  .snaptip { grid-column: 1 / -1; font-size: 13px; }
   dialog.sheet { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: 18px 18px 0 0; max-height: 94vh; }
   .sheetin { max-height: 94vh; }
   .sheethead, .sheetbody, .sheetfoot { padding-left: 16px; padding-right: 16px; }
@@ -567,4 +571,9 @@ dialog.sheet { width: min(760px, 96vw); }
 }
 @media (max-width: 640px) {
   .lhead .icon { min-width: 36px; min-height: 36px; font-size: 20px; }      /* the remove button on a claim line: big enough for a thumb */
+}
+@media (max-width: 430px) { .bname { display: none; } .headbar .topbtns { gap: 8px; } }      /* a phone: the logo alone, so the camera, Claude and the account fit on one line */
+@media (max-width: 430px) {
+  .fromphone .fptext { display: none; }                                   /* a phone: two equal buttons, side by side */
+  .fromphone .chipbtn { flex: 1 1 0; justify-content: center; height: 42px; }
 }

@@ -205,14 +205,14 @@
       // photos that were still being read when the page closed are read again
       S.other.filter((o) => o.ocr === 'queued' || o.ocr === 'reading').forEach((o) => { o.ocr = 'queued'; if (cfg.ocr || PlanB.available()) readPhoto(o); });
       const bar = $('#resumeBar');
-      bar.querySelector('span').textContent = `Your unfinished claim from ${new Date(d.savedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${new Date(d.savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} is back. It is kept on this computer only.`;
+      bar.querySelector('span').textContent = `Your unfinished claim from ${new Date(d.savedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${new Date(d.savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} is back. It is kept on this device only.`;
       bar.hidden = false;
     } catch (e) { console.warn('Could not put the draft back', e); }
     S.restoring = false;
   }
   // Start over: the page as it was on the first visit (the claimant name stays, it is remembered anyway)
   function startOver() {
-    if (!window.confirm('Start again from the beginning?\n\nThis clears the expense claim and the leave application on this page, and the copy kept on this computer. Your original files are not touched.')) return;
+    if (!window.confirm('Start again from the beginning?\n\nThis clears the expense claim and the leave application on this page, and the copy kept on this device. Your original files are not touched.')) return;
     Draft.cancel(); clearAll(true);
     const now = new Date(), last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     $('#month').value = `${last.getFullYear()}-${pad(last.getMonth() + 1)}`; S.touched.month = false; $('#daysOff').value = '';
@@ -428,7 +428,7 @@
       sc.paymentMethod && `Paid by ${sc.paymentMethod}${sc.last4 ? ' ending ' + sc.last4 : ''}`, !sc.paymentMethod && sc.last4 && `Card ending ${sc.last4}`,
       sc.periodStart && `Period: ${niceDate(sc.periodStart)}${sc.periodEnd ? ' – ' + niceDate(sc.periodEnd) : ''}`, sc.dueDate && `Due: ${niceDate(sc.dueDate)}`,
       sc.why && sc.why.total && `Total chosen: ${sc.why.total}`, sc.why && sc.why.date && `Date chosen: ${sc.why.date}`,
-      `Read by ${sc.source === 'claude' ? 'Claude' + (sc.model ? ' (' + sc.model.replace(/^claude-/, '') + ')' : '') : 'this computer'}`].filter(Boolean) : [];
+      `Read by ${sc.source === 'claude' ? 'Claude' + (sc.model ? ' (' + sc.model.replace(/^claude-/, '') + ')' : '') : 'this device'}`].filter(Boolean) : [];
     if (more.length) fields.push(h('div', { class: 'ainote more' }, h('b', { text: 'From this receipt' }), more.map((t) => h('span', { text: t }))));
     const tags = [
       o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
@@ -712,7 +712,7 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !acMenu.hidden) { setMenu(false); acBtn.focus(); } });
     $('#btnSignOut').addEventListener('click', () => {
       // the page keeps the unfinished claim on this computer and puts it back after the reload (pagehide saves it)
-      if (S.user && S.user.email && !window.confirm('Sign out?\n\nYour unfinished claim stays on this computer.')) return;
+      if (S.user && S.user.email && !window.confirm('Sign out?\n\nYour unfinished claim stays on this device.')) return;
       Draft.flush(draftSnapshot); Auth.signOut(); location.reload();
     });
     // the sign-in script and the popup have to be ready before the click
@@ -955,7 +955,7 @@
         }
         const m = Scan.merge(x, out.reading, { ocr });          // read from a picture: Claude wins where the two disagree (marked for review)
         f = m.fields; review = m.needsReview; notes = m.notes; source = 'claude'; model = out.model;
-      } catch (e) { console.warn('Scan failed', e); notes.push(`Claude could not help (${PlanB.explain(e)}), so this was read on this computer.`); }
+      } catch (e) { console.warn('Scan failed', e); notes.push(`Claude could not help (${PlanB.explain(e)}), so this was read on this device.`); }
     }
     if (!alive(item)) return;
     // the claim is in ringgit: the ringgit charge when printed, else the total, else converted at the day's rate
@@ -1092,7 +1092,7 @@
         item.planB = 'Please check: ' + why.join('; ') + '.' + (b && b.error ? ` Claude could not help: ${b.error}` : '');
         if (why.includes('no invoice number found')) item.review = ['receiptNo'];
       }
-      if (claudeErr && !item.planB) item.planB = `Claude could not help (${claudeErr}), so this was read on this computer. Please check the photo.`;
+      if (claudeErr && !item.planB) item.planB = `Claude could not help (${claudeErr}), so this was read on this device. Please check the photo.`;
       if (!r.amount && r.foreign) {                     // a receipt in another currency is claimed in ringgit
         const c = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
         if (c) { r.amount = c.myr.toFixed(2); item.fx = c; }
@@ -2021,13 +2021,12 @@
   }
   /* the bar on the claim page: how many receipts wait, and the ones from this claim's month in one click */
   async function refreshWalletBar() {
-    if (!window.Wallet) { $('#snapBar').hidden = true; return; }
+    if (!window.Wallet || !window.indexedDB) return;
     let list = [];
     try { list = (await Wallet.localAll(owner())).filter((r) => !r.removed); } catch (e) { return; }
     if (W.list.length) { const ids = new Set(list.map((r) => r.id)); W.list.forEach((r) => { if (!ids.has(r.id)) list.push(r); }); }      // receipts only in Drive, once listed
     const open = list.filter((r) => r.status !== 'claimed');
-    $('#walletCount').textContent = open.length ? String(open.length) : '';
-    $('#walletCount').hidden = !open.length;
+    ['#walletCount', '#walletCount2'].forEach((id) => { $(id).textContent = open.length ? String(open.length) : ''; $(id).hidden = !open.length; });
     const mp = monthParts();
     const waiting = mp ? open.filter((r) => (r.month || Wallet.monthFor(r)) === mp.key && !S.other.some((o) => o.walletId === r.id)) : [];
     const hint = $('#walletHint');
@@ -2042,11 +2041,13 @@
     if (!ids.length) return;
     Wallet.markClaimed(ids, month).then(() => { driveSyncQuiet(); refreshWalletBar(); }).catch((e) => console.warn('Marking claimed failed', e));
   }
+  /* where it lives: a small camera in the header (any step), My receipts in the account menu, and one slim row in step 2 (Add your files) */
   function wireWallet() {
-    if (!window.Wallet || !window.indexedDB) { $('#snapBar').hidden = true; return; }
-    $('#btnSnap').addEventListener('click', openSnap);
+    if (!window.Wallet || !window.indexedDB) return;          // an old browser: none of it shows
+    ['#btnSnap', '#snapBar', '#btnWallet'].forEach((id) => { $(id).hidden = false; });
+    $('#btnSnap').addEventListener('click', openSnap); $('#btnSnap2').addEventListener('click', openSnap);
     $('#snapInput').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) onSnapped(f); });
-    $('#btnWallet').addEventListener('click', openWallet);
+    $('#btnWallet').addEventListener('click', openWallet); $('#btnWallet2').addEventListener('click', openWallet);
     $('#walletAdd').addEventListener('click', walletAdd);
     $('#walletClose').addEventListener('click', () => $('#walletDlg').close());
   }

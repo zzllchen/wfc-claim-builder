@@ -23,9 +23,9 @@
   function refreshPrivacy() {
     const el = $('#privacyNote'); if (!el) return;
     const key = P.apiKey(), m = P.mode();
-    el.textContent = (!key && !P.teamOn()) || m === 'off' ? 'Your photos stay on this computer.'
-      : m === 'first' ? (key ? 'Camera photos are sent to Claude to be read (a key is saved on this computer). PDFs stay on this computer.' : 'Camera photos are sent to Claude to be read, through the company account. PDFs stay on this computer.')
-        : 'Your photos stay on this computer, unless it cannot read one.';
+    el.textContent = (!key && !P.teamOn()) || m === 'off' ? 'Your photos stay on this device.'
+      : m === 'first' ? (key ? 'Camera photos are sent to Claude to be read (a key is saved on this device). PDFs stay on this device.' : 'Camera photos are sent to Claude to be read, through the company account. PDFs stay on this device.')
+        : 'Your photos stay on this device, unless it cannot read one.';
   }
   const refresh = () => { refreshChip(); refreshPrivacy(); if (dlg && dlg.open) render(); };
 
