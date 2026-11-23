@@ -60,7 +60,9 @@
       return Object.assign(t, { text, pdf: true });
     }
     const parts = [];
-    text = await OCR.read(file, Object.assign({ collect: parts }, Petrol.ocrChecks(opts)));       // the claim tool's own steps (turning a sideways photo, second looks)
+    const trace = [], t0 = Date.now();
+    text = await OCR.read(file, Object.assign({ collect: parts, trace, quick: !!B.quick }, Petrol.ocrChecks(opts)));       // B.quick: as the claim tool reads when Claude is on
+    B.timing = B.timing || {}; B.timing[file.name] = { ms: Date.now() - t0, trace };       // the claim tool's own steps (turning a sideways photo, second looks)
     const r = Petrol.best(parts.length ? parts : [text], opts);
     const verdict = Validate.judge(text, 'photo');
     if (verdict.status !== 'ok' && !(r.amount && verdict.reason === Validate.MSG.noAmount)) {

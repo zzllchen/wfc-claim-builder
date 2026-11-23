@@ -1062,7 +1062,8 @@
         if (pre.c && PlanB.clean(pre.c, {})) { await finishFromClaude(item, pre.c); return; }
       }
       const parts = [];
-      const text = await OCR.read(file, Object.assign({ collect: parts, onStart: () => setOcr(item, 'reading') }, Petrol.ocrChecks(opts)));       // when to stop looking: js/petrol.js
+      // quick when Claude is there to take over: a photo this PC cannot read well is handed on in seconds, not after a minute of extra looks
+      const text = await OCR.read(file, Object.assign({ collect: parts, quick: PlanB.available(), onStart: () => setOcr(item, 'reading') }, Petrol.ocrChecks(opts)));       // when to stop looking: js/petrol.js
       if (!S.other.includes(item)) return;              // removed while waiting
       let r = Petrol.best(parts.length ? parts : [text], opts);          // every reading votes, so one misread digit is outvoted
       const verdict = Validate.judge(text, 'photo');

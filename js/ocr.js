@@ -246,7 +246,7 @@
   }
   // the lines worth a second look: the top of the slip (shop, date) and every line with an amount, a label or a number we need
   const WORTH = /\d{2}|total|jumlah|subsid|budi|prim|ron|diesel|rm|l\s?@|inv|bal|tran|amount|bayar/i;
-  async function rescue(prep, lines, collect, faint, ok, enough) {
+  async function rescue(prep, lines, collect, faint, ok, enough, rounds) {
     if (!lines || !lines.length || !(prep.hi || prep.crop)) return null;
     // the top of the slip (shop, date, items, total, subsidy) and, further down, only the lines that carry a number we need (balances, invoice no)
     // the invoice line comes first (it is read by its label, and the label is often misread: "lnvoice", "Invo1ce"), so a long list of balance lines further down can't push it out
@@ -255,7 +255,7 @@
       .sort((a, b) => (INV_LINE.test(b.l.t) ? 1 : 0) - (INV_LINE.test(a.l.t) ? 1 : 0)).slice(0, 18);
     const w = await worker();
     await w.setParameters({ tessedit_pageseg_mode: '7' });
-    const variants = faint ? [{ h: 60, adapt: true }, { h: 60, blur: 1.5, adapt: true }, { h: 60 }] : [{ h: 60 }, { h: 60, blur: 1.5 }, { h: 90, blur: 2.5 }];
+    const variants = (faint ? [{ h: 60, adapt: true }, { h: 60, blur: 1.5, adapt: true }, { h: 60 }] : [{ h: 60 }, { h: 60, blur: 1.5 }, { h: 90, blur: 2.5 }]).slice(0, rounds || 3);
     let done = 0;
     for (const v of variants) {
       const texts = lines.map((l) => l.t);
@@ -295,6 +295,7 @@
   async function recognize(prep, opts) {
     const canvas = prep.crop || prep.full;       // the paper alone when it could be found, else the whole picture
     const texts = opts.collect || [];             // the caller may want every reading, not only the text returned
+    const t0 = Date.now(), mark = (stage) => { if (opts.trace) opts.trace.push({ stage, ms: Date.now() - t0 }); };      // opts.trace: how long each look took (the test bench)
     const ok = (t) => !opts.good || opts.good(t);
     const attempt = async (cv, psm, withLines) => {
       try { return await pass(cv, psm, withLines); }
@@ -308,26 +309,42 @@
     let cv = canvas;
     const order = prep.crop ? ['6', '4', '11'] : ['4', '6', '11'];     // on a clean cut-out the block layout reads best
     const first = await attempt(cv, order[0], true);
-    texts.push(first.text);
+    texts.push(first.text); mark('first');
     if (ok(first.text)) return first.text;
     let lines = first.lines && first.lines.length >= 10 && first.conf >= 25 ? first.lines : null;       // a first look that found paper to read (not a sideways photo)
     let faint = false;
     if (prep.crop && opts.rescue !== false) {                    // a second look at the same cut-out with faint print brought out
       const a = await attempt(adaptive(prep.crop, 90, 0.12), '6', true);
       if (a) {
-        texts.push(a.text);
+        texts.push(a.text); mark('faint');
         if (ok(a.text)) return a.text;
         if (a.lines && a.lines.length >= 10 && a.conf >= 25 && (!lines || understood(a.text) > understood(first.text))) { lines = a.lines; faint = !!first.lines && understood(a.text) > understood(first.text); }       // it read clearly more: its lines are the ones to re-read
       }
     }
+    /* opts.quick: Claude will look at the photo when this reading falls short (the claim tool with Claude on), so the slow extra looks are kept
+       short: a first look that found no paper to read (sideways, blurry, dark) stops here, and one that found lines gets one round of single-line
+       second looks instead of three, and is not turned or read in other layouts. Without Claude every look is taken: this PC is the only reader. */
+    const upright = /total|jumlah|invoice|receipt|subsid|petronas|\bRM\s?\d/i.test(first.text) && alnumCount(first.text) > 150;      // the words of a receipt, the right way up: no need to try it sideways
+    const poor = prep.turnable !== false && !upright && (opts.turnIfMissing || first.conf < 60 || alnumCount(first.text) < 60);       // a poor first look of a PHOTO: the paper may be sideways in the frame
+    if (opts.quick && !lines) {
+      // a sideways printout reads perfectly once turned (two quick looks), and then needs no Claude; anything else goes to Claude now
+      if (poor) for (const deg of [90, 270]) {
+        const res = await attempt(turned(canvas, deg), '4');
+        if (!res) break;
+        texts.push(res.text); mark('turned ' + deg);
+        if (ok(res.text)) return res.text;
+      }
+      mark('quick stop'); return texts.join('\n');
+    }
     if (opts.rescue !== false && lines) {                       // the single-line second look first: it is the one that fixes dot-matrix print
       let page = null;
-      try { page = await rescue(prep, lines, texts, faint, ok, opts.enough); } catch (e) { console.warn('second look failed', e); }
+      try { page = await rescue(prep, lines, texts, faint, ok, opts.enough, opts.quick ? 1 : 3); } catch (e) { console.warn('second look failed', e); }
+      mark('lines');
       if (page) return page;
       if (opts.enough && opts.enough(texts)) return texts.join('\n');       // an amount and a date were found: the slower page layouts below add nothing
     }
-    const upright = /total|jumlah|invoice|receipt|subsid|petronas|\bRM\s?\d/i.test(first.text) && alnumCount(first.text) > 150;      // the words of a receipt, the right way up: no need to try it sideways
-    if (prep.turnable !== false && !upright && (opts.turnIfMissing || first.conf < 60 || alnumCount(first.text) < 60)) {      // turnIfMissing: the caller knows what it must find (the MC title), so a sideways page of big print is turned even when the engine feels sure      // a poor first look of a PHOTO: the paper may be sideways or upside down in the frame
+    if (opts.quick) { mark('quick stop'); return texts.join('\n'); }
+    if (poor) {      // turnIfMissing: the caller knows what it must find (the MC title), so a sideways page of big print is turned even when the engine feels sure      // a poor first look of a PHOTO: the paper may be sideways or upside down in the frame
       let best = { cv: canvas, conf: first.conf };
       for (const deg of [90, 270, 180]) {
         const r = turned(canvas, deg);
@@ -338,16 +355,17 @@
         if (res.conf > best.conf + 8) best = { cv: r, conf: res.conf };
       }
       cv = best.cv;                                             // carry on with the way up that read best
+      mark('turned');
     }
     for (const psm of order.slice(1)) {
       const res = await attempt(cv, psm);
       if (!res) break;
-      texts.push(res.text);
+      texts.push(res.text); mark('layout ' + psm);
       if (ok(res.text)) return res.text;
     }
     if (prep.crop) {                              // the crop may have cut something off: one look at the whole picture too
       const res = await attempt(prep.full, '4');
-      if (res) { texts.push(res.text); if (ok(res.text)) return res.text; }
+      if (res) { texts.push(res.text); mark('whole'); if (ok(res.text)) return res.text; }
     }
     return texts.join('\n');
   }
@@ -359,7 +377,7 @@
   }
 
   /* photo file -> recognised text */
-  const read = (file, opts) => queue(async () => recognize(await prepare(file), opts || {}), opts);
+  const read = (file, opts) => queue(async () => { const t = Date.now(), prep = await prepare(file); if (opts && opts.trace) opts.trace.push({ stage: 'prepare', ms: Date.now() - t }); return recognize(prep, opts || {}); }, opts);
   /* a canvas (e.g. a rendered PDF page) -> recognised text */
   const readCanvas = (canvas, opts) => queue(async () => recognize({ full: enhance(canvas), crop: null, turnable: false }, opts || {}), opts);
 
