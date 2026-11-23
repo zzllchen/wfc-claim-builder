@@ -67,6 +67,9 @@
       total = totals.slice().sort((a, b) => rank(b) - rank(a) || b.line - a.line)[0];
       why = `labelled "${(total.label.match(L_TOTAL) || [''])[0].trim()}"`;
       conf = rank(total) >= 2 ? 0.85 : 0.7;
+    } else if (labelled(/\bamount\s*[:=]?\s*(?:\(?(?:rm|myr|usd)\)?)?$/i, L_NOT_TOTAL).length === 1) {
+      total = labelled(/\bamount\s*[:=]?\s*(?:\(?(?:rm|myr|usd)\)?)?$/i, L_NOT_TOTAL)[0];          // a payment slip: "Amount : MYR 60.70", the only amount so labelled
+      why = 'labelled "Amount"'; conf = 0.75;
     } else if (pos.length) {
       total = pos.reduce((a, b) => (b.value > a.value ? b : a));
       why = 'the largest amount (no total label found)';
@@ -90,7 +93,9 @@
       if (y < 100) y += 2000;
       if (!(mth >= 1 && mth <= 12 && d >= 1 && d <= 31 && y >= 2015 && y <= 2099)) return;
       const line = lines[li], before = line.slice(Math.max(0, idx - 40), idx);
-      out.push({ iso: `${y}-${pad(mth)}-${pad(d)}`, ambiguous, raw, line: li, label: before + (li > 0 && !/[A-Za-z一-鿿]{3,}/.test(before) ? ' ' + lines[li - 1] : '') });
+      // no label in front: the line above is its label only when it is a label ("Invoice Date:"), not a line with its own value ("Change Due : 0.00")
+      const above = li > 0 && !/[A-Za-z一-鿿]{3,}/.test(before) && !/\d\s*$/.test(lines[li - 1]) ? ' ' + lines[li - 1] : '';
+      out.push({ iso: `${y}-${pad(mth)}-${pad(d)}`, ambiguous, raw, line: li, label: before + above });
     };
     lines.forEach((line, li) => {
       let m;
@@ -151,21 +156,29 @@
     ['bill', /\b(?:bill|cheque|check|doc(?:ument)?)\s*(?:no\.?|number|#)|\bno\.?\s*bil/i],
     ['order', /\border\s*(?:no\.?|number|id|#)|订单号|訂單號/i],
     ['booking', /\b(?:booking|reservation|confirmation)\s*(?:no\.?|number|id|ref(?:erence)?|code|#)|\bpnr\b|\bbooking\s*ref/i],
-    ['receipt', /\b(?:transaction|txn|trans)\s*(?:no\.?|id|#)|\breference\s*(?:no\.?|number|#)|\bref\.?\s*(?:no\.?|#)/i],
+    ['receipt', /\b(?:transaction|txn|trans)\s*(?:no\.?|number|num|id|#)|\breference\s*(?:no\.?|number|#)|\bref\.?\s*(?:no\.?|#)/i],
+    ['receipt', null],          // a bare "No." (BARE_NO below), last
   ];
+  // "No. CS-1-26100000", "Number : CS-050000" at the start of a line (never an address)
+  const BARE_NO = /^(?:no|number|nombor|num)\.?\s*[:.#]?(?=\s*[A-Za-z]{0,4}[-/]?\d)/i;
+  NUM_LABELS[NUM_LABELS.length - 1][1] = BARE_NO;
   const NOT_NUM = /^(?:sst|gst|tin|roc|reg|company|tel|phone|fax|date|time|page|no)$/i;
   function numberOf(lines) {
     for (const [kind, re] of NUM_LABELS) {
       for (let li = 0; li < lines.length; li++) {
         const line = lines[li], m = re.exec(line);
         if (!m) continue;
+        const bare = re === BARE_NO;
+        if (bare && (ADDRESS.test(line.slice(m[0].length)) || /\b(?:tel|phone|fax|acc(?:ount)?|bank)\b/i.test(line))) continue;      // "No. 8-1, Jalan 4/1": an address
         // the value right after the label, or on the next line (labels and values in two columns)
         const rest = line.slice(m.index + m[0].length).replace(/^[\s:#.]+/, '');
         const cand = [rest.split(/\s{1,}/)[0], (rest.split(/\s+/).slice(0, 2).join('')), (lines[li + 1] || '').split(/\s+/)[0]];
         for (const c0 of cand) {
           const c = (c0 || '').replace(/[,;)]+$/, '');
+          if (bare && (c.length < 5 || !/^[A-Za-z]{1,4}[-/]?\d|^\d{5,}/.test(c))) continue;          // a bare "No." only for a document-shaped value (CS-050000, 250000)
+          if (/^\d{5,8}-[A-Z]$/.test(c) || /^(?:19|20)\d{10}$/.test(c)) continue;                     // a company registration number (1087547-V, 200801003042), never the receipt's
           if (c.length >= 3 && c.length <= 30 && /\d/.test(c) && /^[A-Za-z0-9][A-Za-z0-9\-/_.]*$/.test(c) && !NOT_NUM.test(c) && !/^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$/.test(c) && !/^\d+\.\d{2}$/.test(c))
-            return { number: c, kind, conf: kind === 'receipt' && /transaction|txn|reference|ref/i.test(m[0]) ? 0.6 : 0.85 };
+            return { number: c, kind, conf: bare ? 0.6 : kind === 'receipt' && /transaction|txn|reference|ref/i.test(m[0]) ? 0.6 : 0.85 };
         }
       }
     }
@@ -185,20 +198,35 @@
     ['OpenAI', /openai|chatgpt/i], ['Anthropic', /anthropic/i], ['Runway', /runway\s*ai|runwayml/i], ['ElevenLabs', /eleven\s*labs/i], ['Canva', /canva/i], ['Adobe', /adobe/i], ['Metricool', /metricool/i],
   ];
   const LEGAL = /\b([A-Z0-9][A-Za-z0-9&'.\-]*(?:\s+[A-Z0-9&][A-Za-z0-9&'.\-]*){0,5})\s*,?\s+(SDN\.?\s*BHD\.?|BHD\.?|PLT|ENTERPRISE|ENT\.?|TRADING|RESOURCES|HOLDINGS|INC\.?|LLC|LTD\.?|LIMITED|PBC|CORP\.?|GMBH|PTE\.?\s*LTD\.?|S\.?L\.?|CO\.?\s*LTD\.?)(?![A-Za-z])/i;
-  const NOT_SELLER = /\b(bill(?:ed)?\s*to|customer|sold\s*to|ship\s*to|deliver(?:y)?\s*to|attention|attn|pelanggan|kepada)\b|客户|收货人/i;
+  const NOT_SELLER = /\b(bill(?:ed)?\s*to|invoiced?\s*to|issued\s*to|charged\s*to|customer|sold\s*to|ship\s*to|deliver(?:y)?\s*to|attention|attn|pelanggan|kepada)\b|客户|收货人/i;
+  // a Malaysian company registration number beside a name: (003796478-V), (978196-K), 200001016930 (519537-X)
+  const REG_NO = /\(?\b(?:(?:19|20)\d{10}\s*)?\(?\d{5,9}-[A-Z]\)?\)?|\b(?:19|20)\d{10}\b/;
+  // a line about paying ("<<< TOUCH N GO >>>", "Paid by GrabPay"): a brand on it is how it was paid, not who sold it
+  const PAY_LINE = /\b(paid|payment|pay|via|tender(?:ed)?|method|wallet|e-?wallet|bayar|bayaran|card)\b|<<|>>/i;
   const ADDRESS = /\b(jalan|jln|lorong|taman|no\.|lot|level|floor|blok|block|street|road|avenue|suite|seksyen|persiaran|bandar|kuala\s*lumpur|selangor|johor|penang|pulau|melaka|perak|sabah|sarawak|\d{5})\b/i;
   function vendorOf(lines, ctx) {
     const self = (ctx && ctx.company) ? new RegExp(ctx.company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : /\bwfc\s*systems?\b/i;
+    // the customer block: after "Bill to" / "Invoiced to", the first company named is the customer, never the seller
+    const customer = new Set();
+    for (let li = 0, until = -1, taken = false; li < lines.length; li++) {
+      if (NOT_SELLER.test(lines[li]) && li > until) { until = li + 3; taken = false; }
+      if (li <= until && !taken && (LEGAL.test(lines[li]) || REG_NO.test(lines[li]) && /[A-Za-z]{3,}/.test(lines[li].replace(NOT_SELLER, '')))) { customer.add(li); taken = true; }
+    }
     // 1. a company named with its legal form, not in the customer block
     for (let li = 0; li < lines.length; li++) {
       const m = LEGAL.exec(lines[li]);
-      if (!m) continue;
-      const near = lines.slice(Math.max(0, li - 3), li + 1).join(' ');
-      if (NOT_SELLER.test(near) && !/\bfrom\b/i.test(lines[Math.max(0, li - 1)]) || self.test(m[0])) continue;
+      if (!m || customer.has(li) || self.test(m[0])) continue;
       return { vendor: m[0].replace(/\s+/g, ' ').trim(), conf: 0.85, why: 'company name with its legal form' };          // as printed, "Notion Labs, Inc."
     }
+    // 1b. a name with its company registration number, on the line or the line just below it ("WARISAN LESTARI VENTURES" / "(002543766-H)")
+    for (let li = 0; li < Math.min(lines.length, 12); li++) {
+      if (customer.has(li) || !REG_NO.test(lines[li])) continue;
+      const own = lines[li].replace(REG_NO, ' ').replace(/[()\[\]]/g, ' ').replace(/\b(?:co(?:mpany)?|reg(?:istration)?|roc|ssm)\.?\s*(?:no\.?)?\s*:?/gi, ' ').replace(/\s+/g, ' ').trim();
+      const name = /[A-Za-z]{3,}/.test(own) ? own : (li > 0 && !customer.has(li - 1) ? lines[li - 1] : '');
+      if (name && /[A-Za-z]{3,}/.test(name) && !ADDRESS.test(name) && name.length <= 60 && !self.test(name) && !NOT_SELLER.test(name)) return { vendor: name, conf: 0.8, why: 'the name beside its company registration number' };
+    }
     // 2. a known brand
-    const text = lines.join(' ');
+    const text = lines.filter((l) => !PAY_LINE.test(l)).join(' ');
     for (const [name, re] of BRANDS) if (re.test(text)) return { vendor: name, conf: 0.8, why: 'a known brand' };
     // 3. a "From" / "Merchant" label
     for (let li = 0; li < lines.length; li++) {
@@ -219,7 +247,7 @@
   function paymentOf(lines) {
     const text = lines.join(' ');
     const methods = [['Visa', /\bvisa\b/i], ['Mastercard', /master\s*card|\bmc\b(?=.*\d{4})/i], ['American Express', /amex|american\s*express/i], ['UnionPay', /unionpay|银联/i],
-      ['MyDebit', /mydebit/i], ['Touch \'n Go eWallet', /touch\s*'?n\s*go\s*e-?wallet|\btng\s*e-?wallet/i], ['GrabPay', /grabpay/i], ['Boost', /\bboost\b/i], ['ShopeePay', /shopeepay/i],
+      ['MyDebit', /mydebit/i], ['Touch \'n Go eWallet', /touch\s*'?\s*n\s*'?\s*go|\btng\s*e?-?wallet|tngwallet/i], ['GrabPay', /grabpay/i], ['Boost', /\bboost\b/i], ['ShopeePay', /shopeepay/i],
       ['DuitNow', /duitnow/i], ['FPX / online banking', /\bfpx\b|online\s*banking/i], ['Debit card', /debit\s*card/i], ['Credit card', /credit\s*card|kad\s*kredit/i], ['Cash', /\b(cash|tunai)\b|现金/i]];
     let method = '';
     for (const [name, re] of methods) if (re.test(text)) { method = name; break; }
@@ -247,11 +275,11 @@
     ['Accommodation', /\b(hotel|resort|inn|motel|homestay|guest\s*house|check[\s-]?in|check[\s-]?out|room\s*(?:no|rate|night)|nights?|airbnb|agoda|booking\.com|penginapan)\b|酒店|住宿/i, 2],
     ['Travel', /\b(airline|airlines|airasia|firefly|batik\s*air|flight|boarding|e-?ticket|itinerary|pnr|passenger|depart|ktm|ets|bus\s*ticket|easybook|redbus|ferry|tiket\s*penerbangan)\b|机票|航班/i, 3],
     ['Transport', /\b(grab(?:car|taxi)?|e-?hailing|taxi|teksi|ride|trip\s*fare|pick[\s-]?up|drop[\s-]?off|indrive|mycar|maxim)\b/i, 2],
-    ['Online shopping', /\b(shopee|lazada|tiktok\s*shop|zalora|amazon|order\s*(?:id|no)|shipping\s*fee|seller|delivery\s*fee|online\s*order)\b/i, 2],
-    ['AI tools', /\b(subscription|openai|chatgpt|anthropic|claude|runway|eleven\s*labs|metricool|canva|adobe|midjourney|software|saas|api|credits?|per\s*month|\/\s?month|plan)\b/i, 2],
+    ['Online shopping', /\b(shopee|lazada|tiktok\s*shop|zalora|amazon|order\s*(?:id|no)|shipping\s*fee|seller|delivery\s*fee|online\s*order|hardware|perkakasan|supplies|mr\.?\s*diy|daiso|eco\s*shop|ikea)\b/i, 2],          // shopping and supplies
+    ['AI tools', /\b(subscription|openai|chatgpt|anthropic|claude|runway|eleven\s*labs|metricool|canva|adobe|midjourney|software|saas|api|credits?|per\s*month|\/\s?month|plan|domain|hosting|web\s*hosting|ssl|exabytes|google\s*workspace|microsoft\s*365)\b/i, 2],          // software and online services
     ['Meals', /\b(restaurant|restoran|cafe|café|kopitiam|food|beverage|makanan|minuman|nasi|mee|teh|kopi|coffee|tea|starbucks|mcdonald|kfc|tealive|zus|dine[\s-]?in|take[\s-]?away|bungkus|mamak|bakery|lunch|dinner|breakfast)\b|餐|饭|茶|咖啡|面/i, 2],
     ['Stationery', /\b(stationery|alat\s*tulis|popular\s*book|pen|pens|paper|a4|printer\s*ink|toner|notebook|file|folder)\b|文具/i, 1],
-    ['Supplier invoice', /\b(purchase\s*order|p\.?o\.?\s*no|delivery\s*order|terms?\s*:?\s*\d+\s*days|payment\s*terms|quotation|supplier)\b/i, 2],
+    ['Supplier invoice', /\b(purchase\s*order|p\s*[./]?\s*o\.?\s*no|delivery\s*order|terms?\s*:?\s*\d+\s*days|payment\s*terms|quotation|supplier|bill\s*to|account\s*no)\b/i, 2],
   ];
   function categoryOf(text, docType) {
     const scores = CATEGORY_WORDS.map(([name, re, w]) => {

@@ -32,6 +32,28 @@
   };
   const apiKey = () => ls.get(KEY);
   const model = () => (MODELS[ls.get(MODEL)] ? ls.get(MODEL) : DEFAULT_MODEL);
+
+  /* ---------- the same file is never paid for twice ----------
+     Claude's answer is kept on this PC under a fingerprint of what was sent (the picture or PDF, the instructions, the model; not today's
+     date). The same receipt added again, in another claim or after a reload, is read from here for free. */
+  const ANSWERS = 'wfc-claude-answers', ANSWERS_MAX = 120;
+  async function answerKey(body, action) {
+    try {
+      if (typeof crypto === 'undefined' || !crypto.subtle || typeof TextEncoder === 'undefined') return '';
+      const s = (action || 'claude') + '|' + JSON.stringify(body).replace(/Today is \d{4}-\d{2}-\d{2}\.?/g, '');
+      const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
+      return Array.from(h.slice(0, 16)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) { return ''; }
+  }
+  const answers = () => { try { return JSON.parse(ls.get(ANSWERS) || '{}') || {}; } catch (e) { return {}; } };
+  const remembered = (k) => { const a = k && answers()[k]; return a ? a.j : null; };
+  function remember(k, j) {
+    if (!k || !j || j.stop_reason === 'refusal') return;
+    const a = answers(); a[k] = { t: Date.now(), j: { content: j.content, stop_reason: j.stop_reason, model: j.model } };
+    Object.keys(a).sort((x, y) => a[y].t - a[x].t).slice(ANSWERS_MAX).forEach((x) => delete a[x]);
+    ls.set(ANSWERS, JSON.stringify(a));
+  }
+  let saved = 0;                        // answers read from this PC instead of paid for, this visit
   const MODE = 'wfc-claude-mode', SPEND = 'wfc-claude-spend', TESTED = 'wfc-claude-tested';
   // when Claude reads: 'first' = camera photos go to Claude first, 'backup' = only when the reader on this PC fails or doubts, 'off' = never
   const mode = () => { const m = ls.get(MODE); return m === 'backup' || m === 'off' || m === 'first' ? m : 'backup'; };          // default: only when the reader on this PC is unsure
@@ -58,6 +80,7 @@
     if (r.sure === false) out.push('the amount may be wrong');
     if (r.invoiceDoubt) out.push(r.receiptNo ? `the invoice number (${r.receiptNo}) may be misread` : 'no invoice number found');
     if (r.station && /[()|\[\]{}<>=_*~^\\]/.test(r.station)) out.push('the shop name may be misread');
+    if (!r.station && cat !== 'Petrol') out.push('no name found');          // a clinic, hotel, shop: the name is a box the claim needs (a fuel slip starts with the saved station)
     if (!r.date) out.push('no date found');
     else {
       const t = Date.parse(r.date + 'T12:00:00Z');
@@ -66,6 +89,10 @@
     }
     return out;
   }
+
+  /* Is a doubt worth a Claude reading? Not when the only thing missing is the receipt number and the rest is sure (the sums on the slip add up,
+     the date was read): the person types the number (or leaves it, a slip may print it only as a QR code), and no credit is spent. */
+  const worthAsking = (why, r) => (why || []).length > 0 && !((why || []).every((w) => w === 'no invoice number found') && r && r.sure === true && r.date);
 
   /* ---------- Claude's answer ---------- */
   const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -109,7 +136,7 @@
   function clean(c, ctx) {
     if (!c || !c.isReceipt || c.confidence === 'low' || !c.date || !(c.amount || c.foreign)) return false;
     const cat = ['Medical', 'Parking', 'Accommodation', 'AI tools'].includes(c.kind) ? c.kind : (c.kind === 'Other' ? 'Other' : 'Petrol');
-    return doubts({ amount: c.amount, foreign: c.foreign, date: c.date }, Object.assign({}, ctx, { category: cat })).length === 0;
+    return doubts({ amount: c.amount, foreign: c.foreign, date: c.date, station: c.merchant }, Object.assign({}, ctx, { category: cat })).length === 0;
   }
 
   /* the normal reading + Claude's -> the reading to use, and a sentence saying what happened (shown on the line) */
@@ -124,12 +151,14 @@
       else { if (ocr.amount) { notes.push(`Amount was RM${ocr.amount}, now RM${c.amount}.`); review.push('amount'); } out.amount = c.amount; out.sure = null; out.foreign = null; }
     } else if (c.foreign && !ocr.amount) { out.foreign = c.foreign; }
     if (c.date && c.date !== ocr.date) { if (ocr.date) { notes.push(`Date was ${ocr.date}, now ${c.date}.`); review.push('date'); } out.date = c.date; }
-    if (c.merchant && (!out.station || !sameName(out.station, c.merchant))) { if (out.station) review.push('name'); out.station = c.merchant; }
+    // the name: Claude's spelling (this PC's may be garbled, "Tram Wawasan Er Terprise"); the claim tool then matches it to a name saved before. A different shop is marked for review
+    if (c.merchant && out.station !== c.merchant) { if (out.station && !sameName(out.station, c.merchant)) review.push('name'); out.station = c.merchant; }
     const hex = /^[0-9a-f]{6}$/i.test(String(c.receiptNo || '').trim()) ? String(c.receiptNo).trim().toLowerCase() : '';
-    if (hex && out.receiptNo !== hex && (why || []).some((w) => /invoice number/.test(w))) { if (out.receiptNo) { notes.push(`Invoice number was ${out.receiptNo}, now ${hex}.`); review.push('receiptNo'); } out.receiptNo = hex; out.invoiceDoubt = false; }
-    else if (!out.receiptNo && c.receiptNo) out.receiptNo = c.receiptNo;
-    else if (hex && hex === out.receiptNo) out.invoiceDoubt = false;
-    if (!out.category && ['Medical', 'Parking', 'Accommodation', 'AI tools'].includes(c.kind)) out.category = c.kind;
+    const cNo = hex || String(c.receiptNo || '').trim(), key = (s) => String(s || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+    // the number: where the two differ, Claude's reading is used (a six-character code, or the slip's own Invoice # / Transaction number), marked for review
+    if (cNo && key(out.receiptNo) !== key(cNo)) { if (out.receiptNo) { notes.push(`Receipt number was ${out.receiptNo}, now ${cNo}.`); review.push('receiptNo'); } out.receiptNo = cNo; out.invoiceDoubt = false; }
+    else if (cNo && key(cNo) === key(out.receiptNo)) out.invoiceDoubt = false;
+    if (!out.category && c.kind && c.kind !== 'Petrol' && KINDS.includes(c.kind)) out.category = c.kind;          // a meal, a clinic, a hotel ... (a photo starts as Petrol)
     if (!out.litres && c.litres) { out.litres = c.litres; out.fuelType = c.fuelType || 'petrol'; }
     out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
     if (review.length) out.review = review;
@@ -138,10 +167,10 @@
 
   /* ---------- the call ---------- */
   const SYSTEM = `You read one photo of a receipt for a Malaysian company's monthly expense claim and answer with ONLY one JSON object, no other text.
-{"isReceipt": true or false, "kind": "Petrol" | "Medical" | "Parking" | "Accommodation" | "AI tools" | "Other", "merchant": "shop, station, clinic or hotel name as printed", "date": "YYYY-MM-DD", "amount": number, "currency": "MYR", "receiptNo": "the receipt, invoice or transaction number", "litres": number or null, "fuelType": "petrol" | "diesel" | null, "confidence": "high" | "medium" | "low", "notes": "one short sentence, only if something is unclear"}
+{"isReceipt": true or false, "kind": "Petrol" | "Medical" | "Parking" | "Accommodation" | "AI tools" | "Meals" | "Travel" | "Transport" | "Online shopping" | "Supplier invoice" | "Other", "merchant": "shop, station, clinic or hotel name as printed", "date": "YYYY-MM-DD", "amount": number, "currency": "MYR", "receiptNo": "the receipt, invoice or transaction number", "litres": number or null, "fuelType": "petrol" | "diesel" | null, "confidence": "high" | "medium" | "low", "notes": "one short sentence, only if something is unclear"}
 Rules:
 - merchant: on a fuel slip that starts with a brand (PETRONAS, SHELL, CALTEX), the dealer's name on the next line (for example KEJAYAAN TEGUH ENT), never the brand alone.
-- receiptNo: the invoice number. On a Petronas or Caltex fuel slip that is the value after "Invoice No" (six characters, 0-9 and a-f, for example 60770c or 1b0eb6), not the site, transaction, STAN or reference number.
+- receiptNo: the document's own number. Petronas and some Caltex slips print "Invoice No" with six characters, 0-9 and a-f (for example 60770c, 1b0eb6, 00b360): that is it. Otherwise the value after "Invoice #", "Receipt No" or "Bill No"; a slip with none of those (many Caltex slips): its "Transaction number". Never the site, STAN, pump, POS, terminal, approval, company registration (Co. No) or phone number. null only when the slip prints no number at all (only a QR code).
 - litres and fuelType: only on a fuel receipt, the litres pumped as printed (for example 40.835) and whether it is petrol (RON95, RON97, Primax, V-Power, Techron) or diesel; null on any other receipt.
 - If the photo is a phone screenshot of an e-invoice page, read it the same way (invoice number, date, shop, total).
 - amount is the FINAL amount actually paid. A fuel receipt with a Budi95 or other subsidy: the TOTAL after the subsidy, never the item line before it. Cash given and change are never the amount. A hotel bill: the SUB TOTAL, never the deposit. A clinic receipt: the amount paid (it may be written in words). MBSJ Flexi Parking: the Payment line.
@@ -179,29 +208,34 @@ Rules:
   /* one photo -> { reading, usage, costRM } ; throws with .status on an API problem. ctx._data lets a test hand in the photo already prepared */
   async function read(file, ctx) {
     const key = apiKey(); if (!key && !team.on) throw new Error('No Claude key saved.');
-    calls++;
     const data = (ctx && ctx._data) || await prepare(file), m = model();
-    const ask = (b) => (key ? post(b, key) : relay(b));
-    const j = await ask({
+    const body = {
       model: m, max_tokens: 2000, system: SYSTEM, output_config: { effort: 'low' },
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } },
         { type: 'text', text: `Today is ${(ctx && ctx.today) || new Date().toISOString().slice(0, 10)}.${ctx && ctx.month ? ` The claim is for ${ctx.month}.` : ''} Read this receipt.` }] }],
-    });
+    };
+    const k = await answerKey(body, key ? 'own' : 'claude'), known = remembered(k);
+    let j = known, rm = 0;
+    if (known) saved++;
+    else { calls++; j = await (key ? post(body, key) : relay(body)); }
     if (j.stop_reason === 'refusal') throw new Error('Claude declined to read this photo.');
     const reading = parseReply((j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n'));
     if (!reading) throw new Error('Claude answered, but not in a form the tool could read.');
-    const rm = costRM(key ? m : (MODELS[j.model] ? j.model : m), j.usage); addSpend(rm);
-    return { reading, usage: j.usage, costRM: rm };
+    if (!known) { rm = costRM(key ? m : (MODELS[j.model] ? j.model : m), j.usage); addSpend(rm); remember(k, j); }
+    return { reading, usage: known ? null : j.usage, costRM: rm, remembered: !!known };
   }
   /* any request to Claude, with the saved key or through the company inbox (action: 'claude' for the photo check, 'scan' for the receipt scanner).
      Counts towards the per-visit limit and the cost shown in the Claude panel. */
   async function send(body, action) {
     const key = apiKey(); if (!key && !team.on) throw new Error('No Claude key saved.');
+    const k = await answerKey(body, (key ? 'own:' : '') + (action || 'claude')), known = remembered(k);
+    if (known) { saved++; return Object.assign({ remembered: true }, known); }        // the same file, read before: free
     if (calls >= MAX_CALLS) throw new Error('Claude has read enough files for one visit. Reload the page to read more.');
     calls++;
     const j = key ? await post(body, key) : await relay(body, action);
     addSpend(costRM(MODELS[j.model] ? j.model : body.model, j.usage));
+    remember(k, j);
     return j;
   }
   // a one-word question: does the key work with this model?
@@ -242,6 +276,6 @@ Rules:
     return m;
   }
 
-  return { send, doubts, parseReply, merge, asReading, clean, read, test, runTest, explain, available, first, mode, setMode, spend, addSpend, resetSpend, tested, state, apiKey, model, useTeam, teamOn: () => team.on, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
+  return { send, savedCount: () => saved, worthAsking, doubts, parseReply, merge, asReading, clean, read, test, runTest, explain, available, first, mode, setMode, spend, addSpend, resetSpend, tested, state, apiKey, model, useTeam, teamOn: () => team.on, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
     setKey: (v) => ls.set(KEY, v), setModel: (v) => ls.set(MODEL, v), resetCalls: () => { calls = 0; } };
 });

@@ -39,6 +39,10 @@ eq('the same page counted twice is still one reading', P.best([twoA, twoA], opts
 eq('no invoice number found on a subsidy slip is a doubt too', P.best([slip('Ref 1')], opts).invoiceDoubt, true);
 eq('a slip with no subsidy has no such doubt', P.best(['SHELL\nTOTAL RM40.00\n21OCT2026 09:35AM'], opts).invoiceDoubt, undefined);
 const asked = PB.merge(one, { isReceipt: true, kind: 'Petrol', merchant: 'Padi Emas Petroleum Sdn Bhd', date: '2026-10-21', amount: 81.26, receiptNo: '1b0eb6', confidence: 'high' }, ['the invoice number (1b0eb5) may be misread']);
-eq('Claude\'s six-character number replaces the doubtful one, and says so', asked.r.receiptNo + ' | ' + asked.note, '1b0eb6 | Claude agrees with RM81.26. Invoice number was 1b0eb5, now 1b0eb6.');
-eq('Claude giving something that is not six hex characters changes nothing', PB.merge(one, { isReceipt: true, kind: 'Petrol', receiptNo: '1234567890' }, ['the invoice number (1b0eb5) may be misread']).r.receiptNo, '1b0eb5');
+eq('Claude\'s six-character number replaces the doubtful one, and says so', asked.r.receiptNo + ' | ' + asked.note, '1b0eb6 | Claude agrees with RM81.26. Receipt number was 1b0eb5, now 1b0eb6.');
+const other = PB.merge(one, { isReceipt: true, kind: 'Petrol', receiptNo: '21240000' }, ['the invoice number (1b0eb5) may be misread']);
+eqj('a doubted number and Claude reads the slip\'s own number (Petron "Invoice #"): Claude\'s is used, marked for review, the note says what this PC read',
+  [other.r.receiptNo, other.r.review, other.note], ['21240000', ['receiptNo'], 'Receipt number was 1b0eb5, now 21240000.']);
+const undoubted = PB.merge(Object.assign({}, one, { invoiceDoubt: false }), { isReceipt: true, kind: 'Petrol', receiptNo: '1b0eb6' }, []);
+eqj('even a number nobody doubted: where Claude (who saw the photo) reads it differently, its reading is used and marked for review', [undoubted.r.receiptNo, undoubted.r.review], ['1b0eb6', ['receiptNo']]);
 console.log(fails ? `${fails} FAILED` : 'all passed'); process.exit(fails ? 1 : 0);

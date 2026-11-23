@@ -171,4 +171,25 @@ ok('a number printed twice but read two ways (a scan): the other spelling is fou
   assert.deepStrictEqual(X.twinsOf('60770c', 'Invoice No 60770c, site 123456'), [], 'a different number of the same length is not a twin');
 });
 
+ok('the seller beside its registration number; a payment brand is how it was paid, not the seller', () => {
+  const r = X.read('NASI KANDAR SEDAP\n(RESTORAN SEDAP BARU (001234567-V))\n1-G JALAN EKO 12\nINVOICE # 115600\nDATE 05/10/2026 15:24:39\nNasi Ayam 1 8.90\nTOTAL AMOUNT RM 23.40\n<<< TOUCH N GO >>>\nTHANK YOU', { month: '2026-10', today: new Date('2026-11-23') });
+  assert.deepStrictEqual(pick(r, ['vendor', 'number', 'total', 'paymentMethod', 'category']), { vendor: 'RESTORAN SEDAP BARU', number: '115600', total: 23.4, paymentMethod: "Touch 'n Go eWallet", category: 'Meals' });
+  const p = X.read('PETRON SOMEWHERE\nLESTARI MAJU VENTURES\n(001234567-H)\nINVOICE #: 21240000\nDATE: 01/10/2026\nBlaze 95 113.57\nBUDI95 -63.57\nTotal RM 50.00', { month: '2026-10', today: new Date('2026-11-23') });
+  assert.deepStrictEqual(pick(p, ['vendor', 'number', 'total']), { vendor: 'LESTARI MAJU VENTURES', number: '21240000', total: 50 });
+});
+
+ok('"Invoiced To" is the customer; a bare "No." or "Transaction number" is the number; a registration number never is', () => {
+  const ctx10 = { month: '2026-10', today: new Date('2026-11-23') };
+  const inv = X.read('hostco\nInvoice #MY-PAID-10000001\nInvoice Date: 15/10/2026\nInvoiced To\nACME TRADING SDN BHD\nATTN: A Person\nHostco Network Sdn. Bhd.\nCompany Registration No. 200201000001\nDomain Registration - acme.com.my - 1 Year RM60.70\nSub Total RM60.70\nTotal RM60.70', ctx10);
+  assert.deepStrictEqual(pick(inv, ['vendor', 'number', 'category', 'total']), { vendor: 'Hostco Network Sdn. Bhd.', number: 'MY-PAID-10000001', category: 'AI tools', total: 60.7 });
+  const cs = X.read('ABC HARDWARE TRADING SDN BHD\n(900000-K)\nNO. 8-1, JALAN 4/1, TAMAN SERDANG,\nCash Sales\nNo. CS-1-26100000\nEAR PLUG 1.00 1.50\nTotal Amount : 1.50\nChange Due : 0.00\n27/10/2026 15:05:38', ctx10);
+  assert.deepStrictEqual(pick(cs, ['vendor', 'number', 'date', 'category', 'unsure']), { vendor: 'ABC HARDWARE TRADING SDN BHD', number: 'CS-1-26100000', date: '2026-10-27', category: 'Online shopping', unsure: false });
+  const fuel = X.read('CALTEX\nSome Petroleum Sdn Bhd\nCo. No: 1000000-V\nTotal RM 60.00\nTransaction number: 01000000001\nDate Time Num\n09/10/26 17:47 37539', ctx10);
+  assert.deepStrictEqual(pick(fuel, ['number', 'date']), { number: '01000000001', date: '2026-10-09' });
+  const sup = X.read('SEALS SUPPLY SDN. BHD.\nBill To:\nACME TRADING SDN BHD\nINVOICE (CASH SALES)\nNumber : CS-050000 Terms :\nDate : 29/10/2026 P/O No. :\nTotal 112.00', ctx10);
+  assert.deepStrictEqual(pick(sup, ['vendor', 'number', 'category']), { vendor: 'SEALS SUPPLY SDN. BHD.', number: 'CS-050000', category: 'Supplier invoice' });
+  const paid = X.read('hostco\nTransaction details:\nDate/Time : 15-Oct-2026 10:49:10 AM\nRef No : 9800001\nAmount : MYR 60.70\nPayment Method : TNGWalletOnline\nMerchant\'s Name : Hostco Network Sdn Bhd', ctx10);
+  assert.deepStrictEqual(pick(paid, ['total', 'number', 'paymentMethod']), { total: 60.7, number: '9800001', paymentMethod: "Touch 'n Go eWallet" });
+});
+
 console.log('extract tests passed');

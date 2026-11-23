@@ -103,17 +103,24 @@ Fields:
   /* Put the two readings together, field by field: the surer one wins; when both are sure and disagree, the field needs review.
      local: the reader on this PC (js/extract.js shape); claude: clean() above. -> { fields, confidence, needsReview, notes } */
   const SAME = { total: (a, b) => Math.abs(a - b) < 0.01, date: (a, b) => a === b, number: (a, b) => String(a).replace(/[^a-z0-9]/gi, '').toLowerCase() === String(b).replace(/[^a-z0-9]/gi, '').toLowerCase(),
-    vendor: (a, b) => { const k = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); return k(a).includes(k(b)) || k(b).includes(k(a)); }, category: (a, b) => a === b };
+    // the same seller written another way: one inside the other, or every word of the shorter name in the longer ("PACIFIC sk OIL SEALS SDN, BHD")
+    vendor: (a, b) => {
+      const k = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); if (k(a).includes(k(b)) || k(b).includes(k(a))) return true;
+      const w = (s) => String(s).toLowerCase().split(/[^a-z0-9]+/).filter((x) => x.length >= 3 && !/^(sdn|bhd|berhad|enterprise|ent|trading|inc|ltd|llc|the|pte|plt)$/.test(x));
+      const [x, y] = w(a).length <= w(b).length ? [w(a), w(b)] : [w(b), w(a)];
+      return x.length > 0 && x.every((t) => y.includes(t));
+    }, category: (a, b) => a === b };
   const SURE = 0.75;
-  function merge(local, claude) {
-    local = local || { confidence: {} }; const lc = local.confidence || {}, cc = claude.confidence || {};
+  // opts.ocr: this PC's text was read from a picture (a photo or a scanned PDF), where it misreads letters; then Claude, who looks at the picture itself, wins every disagreement
+  function merge(local, claude, opts) {
+    local = local || { confidence: {} }; const lc = local.confidence || {}, cc = claude.confidence || {}, ocr = !!(opts && opts.ocr);
     const out = Object.assign({}, claude), conf = {}, review = [], notes = [];
     FIELDS.forEach((f) => {
       const a = local[f], b = claude[f], ca = lc[f] || 0, cb = cc[f] || 0;
       const has = (v) => v != null && v !== '';
       if (has(a) && has(b) && !SAME[f](a, b)) {
         // they disagree: the surer one wins; when both are sure, the person decides
-        out[f] = cb >= ca ? b : a; conf[f] = Math.max(ca, cb) * 0.6;
+        out[f] = ocr || cb >= ca ? b : a; conf[f] = Math.max(ca, cb) * 0.6;
         if (ca >= SURE && cb >= SURE) notes.push(`${f}: this PC read ${a}, Claude read ${b}`);
       } else if (has(a) && has(b)) { out[f] = b; conf[f] = Math.min(1, Math.max(ca, cb) + 0.1); }
       else { out[f] = has(b) ? b : has(a) ? a : (f === 'total' ? null : ''); conf[f] = has(b) ? cb : has(a) ? ca : 0; }

@@ -28,7 +28,7 @@
     const amt = parseFloat(p.amount);
     const why = PlanB.doubts(p, { category: p.category || 'Petrol' });
     return { path, docType: 'receipt', category: p.category || 'Petrol', vendor: p.station || '', date: p.date || '', number: p.receiptNo || '',
-      total: amt > 0 ? amt : p.foreign ? p.foreign.amount : null, currency: amt > 0 ? 'MYR' : p.foreign ? p.foreign.code : '', totalMyr: amt > 0 ? amt : null, unsure: why.length > 0, doubts: why };
+      total: amt > 0 ? amt : p.foreign ? p.foreign.amount : null, currency: amt > 0 ? 'MYR' : p.foreign ? p.foreign.code : '', totalMyr: amt > 0 ? amt : null, unsure: PlanB.worthAsking(why, p), doubts: why };
   }
   function fromExtract(x, path) {
     return { path, docType: x.docType, category: x.category, vendor: x.vendor, date: x.date, number: x.number, total: x.total, currency: x.currency || 'MYR',
@@ -53,14 +53,14 @@
       const verdict = Validate.judge(text, s.hasText ? 'pdf' : 'scan');
       if (verdict.status !== 'ok') return { path: 'refused', docType: 'not a receipt', reason: verdict.reason, unsure: false, text };
       const p = Petrol.parse(text, opts), x = Extract.read(s.lines && s.lines.length ? s.lines : text, ctx);
-      if (Extract.forGeneral(x, p, text)) return Object.assign(fromExtract(x, 'general'), { text, pdf: true });
+      if (Extract.forGeneral(x, p, text)) return Object.assign(fromExtract(x, 'general'), { text, pdf: true, ocr: !s.hasText });
       const t = fromPetrol(fillGaps(p, x), 'tuned (pdf)'), twins = p.receiptNo ? Extract.twinsOf(p.receiptNo, text) : [];
       // as the claim tool: a number printed two ways is not sure, and Claude picks the spelling
       if (twins.length) Object.assign(t, { unsure: true, spellings: [p.receiptNo].concat(twins) });
       return Object.assign(t, { text, pdf: true });
     }
     const parts = [];
-    text = await OCR.read(file, { collect: parts });
+    text = await OCR.read(file, Object.assign({ collect: parts }, Petrol.ocrChecks(opts)));       // the claim tool's own steps (turning a sideways photo, second looks)
     const r = Petrol.best(parts.length ? parts : [text], opts);
     const verdict = Validate.judge(text, 'photo');
     if (verdict.status !== 'ok' && !(r.amount && verdict.reason === Validate.MSG.noAmount)) {
@@ -70,11 +70,15 @@
     }
     const x = Extract.read(text, ctx);
     if (!r.category) { const g = x.category; if (['Medical', 'Parking', 'Accommodation'].includes(g)) r.category = g; }
-    return Object.assign(Extract.forGeneral(x, r, text) ? fromExtract(x, 'general') : fromPetrol(fillGaps(r, x), 'tuned (photo)'), { text, photo: true, r });
+    return Object.assign(Extract.forGeneral(x, r, text) ? fromExtract(x, 'general') : fromPetrol(fillGaps(r, x), 'tuned (photo)'), { text, photo: true, ocr: true, r });
   }
   // the claim tool's gap filling (js/app.js fillGaps), the same rule
   function fillGaps(r, x) {
-    if (!r.receiptNo && x.number && x.confidence.number >= 0.6) r.receiptNo = x.number;
+    if (!r.receiptNo && x.number && x.confidence.number >= 0.6) {
+      r.receiptNo = x.number;
+      // the slip's own number beside its label (Petron "Invoice #", Caltex "Transaction number"): not the six-character code that dot-matrix print garbles
+      if (r.invoiceDoubt && !/^[0-9a-f]{6}$/i.test(x.number)) r.invoiceDoubt = false;
+    }
     if (!r.station && x.vendor && x.confidence.vendor >= 0.75) r.station = x.vendor;
     if (!r.date && x.date && x.confidence.date >= 0.8) r.date = x.date;
     if (!r.category && ['Medical', 'Parking', 'Accommodation'].includes(x.category)) r.category = x.category;
@@ -93,7 +97,7 @@
     if (loc.path === 'general') {
       const out = await Scan.read(file, { month: ctxOf(label).month, model: MODELS[model], text: loc.text });
       if (!out.reading.isReceipt) return fromClaude(out.reading, 'general + claude ' + model);
-      const m = Scan.merge(loc.x, out.reading), f = m.fields;
+      const m = Scan.merge(loc.x, out.reading, { ocr: !!loc.ocr }), f = m.fields;
       return { path: 'general + claude ' + model, docType: f.docType || loc.docType, category: f.category, vendor: f.vendor, date: f.date, number: f.number, total: f.total, currency: f.currency || 'MYR',
         totalMyr: f.totalMyr != null ? f.totalMyr : ((f.currency || 'MYR') === 'MYR' ? f.total : null), needsReview: m.needsReview, notes: m.notes };
     }
@@ -146,7 +150,7 @@
     const refused = res.docType === 'not a receipt';
     out.rejected = refused === e.rejected;
     if (e.rejected) return out;
-    if (e.category != null) out.category = res.category === e.category;
+    if (e.category != null) out.category = res.category === e.category || (label.categoryAlt || []).includes(res.category);
     if (e.vendor != null) out.vendor = sameVendor(res.vendor, e.vendor) || (label.vendorAlt || []).some((v) => sameVendor(res.vendor, v));
     if (e.date != null) out.date = res.date === e.date || (label.periodStart && res.date === label.periodStart);
     if (e.number != null) out.number = norm(res.number) === norm(e.number);
@@ -180,11 +184,12 @@
   }
 
   /* ---------- running ---------- */
-  async function run(which) {
+  // which: the ways to read (default all five); only: file names to run (default every labelled sample)
+  async function run(which, only) {
     if (B.running) return; B.running = true;
     try {
       const labels = await (await fetch(ROOT + 'labels.json', { cache: 'no-store' })).json();
-      const names = (await listSamples()).filter((n) => labels[n]);
+      const names = (await listSamples()).filter((n) => labels[n] && (!only || only.includes(n)));
       const cfgs = which || ['pc', 'tool-sonnet', 'tool-opus', 'claude-sonnet', 'claude-opus'];
       PlanB.resetCalls();
       for (const n of names) {

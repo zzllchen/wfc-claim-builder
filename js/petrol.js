@@ -512,8 +512,14 @@
     const official = /(?:official\s+receipt|resit)[\s\S]{0,200}?\b((?!MC)[A-Z]{2,4}\d{6,})\b/i.exec(text);
     if (official) return official[1].toUpperCase();
     // printed pad numbers ("No 257947", "№ 257947") on hotel bills and hand-written receipts: five or more digits right after No
-    const padNo = /(?:^|[\s:])(?:no|n[o°º]|№)\.?\s*[:.#]?\s*(\d{5,9})\b/im.exec(text);
-    return padNo ? padNo[1] : '';
+    const PAD = /(?:^|[\s:])(?:no|n[o°º]|№)\.?\s*[:.#]?\s*(\d{5,9})\b(?!-[A-Z])/gim;
+    let padNo;
+    while ((padNo = PAD.exec(text))) {
+      const before = text.slice(Math.max(0, padNo.index - 14), padNo.index + 1);
+      if (/\b(?:co|company|reg(?:istration)?|roc|ssm|sst|gst|tin|tel|phone|fax|acc(?:ount)?|bank)\.?\s*$/i.test(before)) continue;      // the company's registration, phone or bank number
+      return padNo[1];
+    }
+    return '';
   }
 
   /* opts: { month: 'YYYY-MM', stations: [names seen before] } */
@@ -727,5 +733,14 @@
     return Array.from(out, ([id, why]) => ({ id, why }));
   }
 
-  return { parse, best, orderCheck, dates, datesDetailed, amount, station, receiptNo, inWords, mc, isMcText, foreignTotal, foreignAmounts, stripForeign, myrCharged, fuelFacts, fuelTotal, snapTotal };
+  /* what the photo reader (js/ocr.js) is told: when one reading is good enough to stop, and when two looks are enough.
+     The claim tool and the test bench use the same, so the bench measures what the tool really does. */
+  function ocrChecks(opts) {
+    return {
+      enough: (texts) => { const b = best(texts, opts); return !!(b.amount && (b.date || b.sure === true)); },       // the second look stops here: an amount that adds up, or an amount and a date
+      // good enough to stop: an amount and a date, and on a subsidy receipt the sums must add up (item - subsidy = total)
+      good: (t) => { const p = parse(t, opts); return !!((p.amount || p.foreign) && p.date && (/subsid|budi/i.test(t) ? p.sure === true : p.sure !== false)); },
+    };
+  }
+  return { parse, best, ocrChecks, orderCheck, dates, datesDetailed, amount, station, receiptNo, inWords, mc, isMcText, foreignTotal, foreignAmounts, stripForeign, myrCharged, fuelFacts, fuelTotal, snapTotal };
 });

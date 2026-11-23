@@ -10,7 +10,7 @@ eq('normal fuel receipt: no doubts', d({ amount: '60.00', date: '2026-10-19', su
 eq('normal fuel receipt, unsure flag null', d({ amount: '84.35', date: '2026-10-28', sure: null }), []);
 // the RM7 fuel receipt from the brief
 eq('RM7 fuel receipt: doubtful', d({ amount: '7.00', date: '2026-10-19' }).length, 1);
-eq('RM7 on a parking receipt is fine', d({ amount: '7.00', date: '2026-10-19' }, 'Parking'), []);
+eq('RM7 on a parking receipt is fine', d({ amount: '7.00', date: '2026-10-19', station: 'MBSJ Flexi Parking' }, 'Parking'), []);
 eq('RM900 fuel: doubtful', /too big/.test(d({ amount: '900.00', date: '2026-10-19' })[0]), true);
 eq('no amount: doubtful', d({ amount: '', date: '2026-10-19' }), ['no amount found']);
 eq('foreign amount is not "no amount"', d({ amount: '', foreign: { code: 'USD', amount: 11 }, date: '2026-10-19' }), []);
@@ -19,7 +19,8 @@ eq('no date: doubtful', d({ amount: '60.00', date: '' }), ['no date found']);
 eq('future date: doubtful', /looks wrong/.test(d({ amount: '60.00', date: '2026-12-25' })[0]), true);
 eq('date 5 months ago: doubtful', /looks wrong/.test(d({ amount: '60.00', date: '2026-05-01' })[0]), true);
 eq('date a month ago: fine', d({ amount: '60.00', date: '2026-10-01' }), []);
-eq('missing shop name or receipt number alone is NOT a doubt', d({ amount: '60.00', date: '2026-10-19', station: '', receiptNo: '' }), []);
+eq('missing shop name or receipt number alone is NOT a doubt on a fuel slip (the saved station is filled in)', d({ amount: '60.00', date: '2026-10-19', station: '', receiptNo: '' }), []);
+eq('a clinic, hotel or shop with no name: worth a look (the name is a box the claim needs)', d({ amount: '75.00', date: '2026-10-19', station: '' }, 'Medical'), ['no name found']);
 eq('several doubts at once', d({ amount: '5.00', date: '' }).length, 2);
 
 // Claude's answer
@@ -46,9 +47,15 @@ eq('missing date filled from Claude', m.r.date, '2026-10-20');
 m = P.merge({ amount: '60.00', date: '2026-10-02', station: 'Involece' }, P.parseReply('{"isReceipt":true,"date":"2026-10-29","merchant":"KEJAYAAN TEGUH ENT","amount":60}'), []);
 eq('the readers disagree on the date and the name: Claude (who saw the photo) wins, both marked for review', [m.r.date, m.r.station, m.r.review], ['2026-10-29', 'KEJAYAAN TEGUH ENT', ['date', 'name']]);
 m = P.merge({ amount: '60.00', date: '2026-10-29', station: 'KEJAYAAN TEGUH ENTERPRISE' }, P.parseReply('{"isReceipt":true,"date":"2026-10-29","merchant":"KEJAYAAN TEGUH ENT","amount":60}'), []);
-eq('the same shop written shorter, the same date: the saved name is kept, nothing to review', [m.r.station, m.r.review], ['KEJAYAAN TEGUH ENTERPRISE', undefined]);
+eq('the same shop, written another way: Claude\'s spelling (the claim tool matches it to the saved name), nothing to review', [m.r.station, m.r.review], ['KEJAYAAN TEGUH ENT', undefined]);
 m = P.merge({ amount: '', date: '', station: '', receiptNo: '' }, P.parseReply('{"isReceipt":true,"kind":"Medical","merchant":"Klinik Putra Care","date":"2026-10-10","amount":75}'), ['no amount found']);
 eq('unreadable photo read by Claude: category follows the kind', [m.r.amount, m.r.category, m.r.station], ['75.00', 'Medical', 'Klinik Putra Care']);
+// Claude only when it is needed
+eq('only the receipt number missing, the sums add up and the date was read: no Claude (the person types the number)',
+  P.worthAsking(['no invoice number found'], { sure: true, date: '2026-10-04' }), false);
+eq('the number missing and the amount not proven: Claude is asked', P.worthAsking(['no invoice number found'], { sure: null, date: '2026-10-04' }), true);
+eq('a missing date is always worth asking', P.worthAsking(['no date found'], { sure: true }), true);
+eq('nothing in doubt: no Claude', P.worthAsking([], { sure: true }), false);
 
 // the safety limits
 eq('no key saved: plan B is not available', P.available(), false);
@@ -110,6 +117,11 @@ P.resetSpend(); eq('reset', P.spend(), 0);
     eq('team: the request is one photo and one short note', [calls[0].body.request.messages.length, calls[0].body.request.messages[0].content.map((c) => c.type)], [1, ['image', 'text']]);
     eq('team: the reading comes back as before', [r.reading.date, r.reading.amount, r.reading.merchant, r.reading.receiptNo], ['2026-10-29', '58.37', 'KEJAYAAN TEGUH ENT', '60770c']);
     eq('team: the cost is counted on this PC', r.costRM > 0, true);
+    // the same photo again (another claim, after a reload, another day): read from this PC, nothing sent, nothing paid
+    const again = await P.read({ name: 'x.jpg' }, { _data: 'QUJD', month: '2026-10', today: '2026-12-01' });
+    eq('the same photo again: no second call, the same reading, free', [calls.length, again.remembered, again.costRM, again.reading.receiptNo], [1, true, 0, '60770c']);
+    await P.read({ name: 'y.jpg' }, { _data: 'REVG', month: '2026-10' });
+    eq('a different photo is read by Claude', calls.length, 2);
 
     // the inbox refusing (daily limit, no credit, bad key) is shown in plain words and does not break the claim
     global.fetch = async () => ({ json: async () => ({ ok: false, error: "The company's Claude limit for today is used up.", code: 429 }) });

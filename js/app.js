@@ -278,10 +278,21 @@
   const niceDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${+m[3]} ${MONTH_NAMES[+m[2] - 1].slice(0, 3)} ${m[1]}` : ''; };
 
   /* level: wait (still reading the photo) | bad (something required is empty) | warn (filled in by the app, please check) | ok */
+  // the same purchase twice (an invoice and its payment slip, or one slip photographed again): the same amount and date, and the same
+  // receipt no. or seller. Only a warning: the person attaches one to the other ("Same receipt as another line?") or removes it.
+  const sellerKey = (s) => String(s || '').toLowerCase().replace(/\b(sdn|bhd|berhad|enterprise|ent|trading|the)\b/g, '').replace(/[^a-z0-9]/g, '');
+  const noKey = (s) => String(s || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+  function twinOf(o) {
+    const a = num(o.amount); if (!(a > 0) || !o.date) return null;
+    const so = sellerKey(o.name);
+    return S.other.find((x) => x !== o && Math.abs(num(x.amount) - a) < 0.005 && x.date === o.date
+      && ((noKey(o.receiptNo) && noKey(o.receiptNo) === noKey(x.receiptNo)) || (so.length >= 4 && sellerKey(x.name).length >= 4 && (so.includes(sellerKey(x.name)) || sellerKey(x.name).includes(so))))) || null;
+  }
   function lineStatus(o, kind) {
     if (kind === 'other' && (o.ocr === 'queued' || o.ocr === 'reading')) return { level: 'wait', text: o.askedClaude ? 'Claude is reading it…' : 'Reading…' };
     const missing = ['category', 'date', 'name', 'amount'].filter((k) => isBlank(o, k));
     if (missing.length) return { level: 'bad', text: 'Please fill in: ' + plainList(missing.map((k) => FIELD_WORD[k])) };
+    if (kind === 'other' && twinOf(o)) return { level: 'warn', text: 'Possible duplicate: another line has the same amount, date and seller' };
     if (o.review && o.review.length) return { level: 'warn', text: 'Needs review: ' + plainList(o.review.map((k) => FIELD_WORD[k] || k)) };
     const guessed = ['category', 'date', 'name', 'receiptNo', 'amount'].filter((k) => o.auto && o.auto[k]);
     if (guessed.length) return { level: 'warn', text: 'Please check: ' + plainList(guessed.map((k) => FIELD_WORD[k])) };
@@ -874,7 +885,11 @@
      fuel slips keep their own, tuned readers. */
   // a tuned reader's result with gaps (no receipt number, no name, no date): the general reader fills them when it is sure
   function fillGaps(r, x) {
-    if (!r.receiptNo && x.number && x.confidence.number >= 0.6) r.receiptNo = x.number;
+    if (!r.receiptNo && x.number && x.confidence.number >= 0.6) {
+      r.receiptNo = x.number;
+      // the slip's own number beside its label (Petron "Invoice #", Caltex "Transaction number"): not the six-character code that dot-matrix print garbles
+      if (r.invoiceDoubt && !/^[0-9a-f]{6}$/i.test(x.number)) r.invoiceDoubt = false;
+    }
     if (!r.station && x.vendor && x.confidence.vendor >= 0.75) r.station = x.vendor;
     if (!r.date && x.date && x.confidence.date >= 0.8) r.date = x.date;
     if (!r.category && TUNED_KINDS.includes(x.category) && x.category !== 'Petrol') r.category = x.category;
@@ -884,7 +899,7 @@
   // the general reader takes it: no fuel words, and neither reader sees one of the kinds with a tuned reader (the rule lives in js/extract.js)
   const forGeneral = (x, p, text) => Extract.forGeneral(x, p, text);
   const KEY_OF = { vendor: 'name', number: 'receiptNo', total: 'amount', date: 'date', category: 'category' };
-  async function finishGeneral(item, file, x, text, mp) {
+  async function finishGeneral(item, file, x, text, mp, ocr) {
     let f = Object.assign({}, x), review = (x.needsReview || []).slice(), notes = [], source = 'pc', model = '';
     if (x.unsure && PlanB.available() && !item.askedClaude && window.Scan) {
       item.askedClaude = true; setOcr(item, 'reading');
@@ -896,7 +911,7 @@
           reject(file, `Claude looked at this and it does not seem to be a receipt${out.reading.notes ? ': ' + out.reading.notes.replace(/\.$/, '') : ''}. Attach the receipt itself, or add it anyway and type the details.`, true);
           return;
         }
-        const m = Scan.merge(x, out.reading);
+        const m = Scan.merge(x, out.reading, { ocr });          // read from a picture: Claude wins where the two disagree (marked for review)
         f = m.fields; review = m.needsReview; notes = m.notes; source = 'claude'; model = out.model;
       } catch (e) { console.warn('Scan failed', e); notes.push(`Claude could not help (${PlanB.explain(e)}), so this was read on this computer.`); }
     }
@@ -1006,13 +1021,7 @@
         if (pre.c && PlanB.clean(pre.c, {})) { await finishFromClaude(item, pre.c); return; }
       }
       const parts = [];
-      const text = await OCR.read(file, {
-        collect: parts,
-        enough: (texts) => { const b = Petrol.best(texts, opts); return !!(b.amount && (b.date || b.sure === true)); },       // the second look stops here: an amount that adds up, or an amount and a date
-        onStart: () => setOcr(item, 'reading'),
-        // good enough to stop: an amount and a date, and on a subsidy receipt the sums must add up (item - subsidy = total)
-        good: (t) => { const p = Petrol.parse(t, opts); return !!((p.amount || p.foreign) && p.date && (/subsid|budi/i.test(t) ? p.sure === true : p.sure !== false)); },
-      });
+      const text = await OCR.read(file, Object.assign({ collect: parts, onStart: () => setOcr(item, 'reading') }, Petrol.ocrChecks(opts)));       // when to stop looking: js/petrol.js
       if (!S.other.includes(item)) return;              // removed while waiting
       let r = Petrol.best(parts.length ? parts : [text], opts);          // every reading votes, so one misread digit is outvoted
       const verdict = Validate.judge(text, 'photo');
@@ -1022,11 +1031,11 @@
       const canRetry = unreadable && (verdict.reason === Validate.MSG.photoUnreadable || verdict.reason === Validate.MSG.noAmount);
       // not a fuel slip, clinic, parking or hotel paper (a meal, a ride, a ticket, a shop ...): the general reader, and Claude when it is unsure
       const gx = !pre && !unreadable && window.Extract ? Extract.read(text, { month: mp && mp.key }) : null;
-      if (gx && forGeneral(gx, r, text)) { await finishGeneral(item, file, gx, text, mp); return; }
+      if (gx && forGeneral(gx, r, text)) { await finishGeneral(item, file, gx, text, mp, true); return; }
       if (gx) fillGaps(r, gx);              // a tuned reading: what it left empty, the general reader fills when it is sure
       const why = !unreadable || canRetry ? PlanB.doubts(r, { category: r.category || guessCategory(text) || item.category }) : [];
       const b = pre && pre.c ? claudeChecked(pre.c, r, why)
-        : (canRetry || why.length) && PlanB.available() && !item.askedClaude ? await askClaude(item, file, r, why, mp) : null;
+        : (canRetry || PlanB.worthAsking(why, r)) && PlanB.available() && !item.askedClaude ? await askClaude(item, file, r, why, mp) : null;       // Claude only when it is needed
       const claudeErr = pre && pre.error ? pre.error : '';
       if (!S.other.includes(item)) return;
       if (b && b.notReceipt) { dropItem(item); reject(file, b.reason, true); return; }
@@ -1036,7 +1045,10 @@
         item.review = (r.review || []).slice();          // where the two readers disagreed: Claude's reading is used, marked for a look
       }
       else if (unreadable) { dropItem(item); reject(file, verdict.reason + (b ? (b.error ? ` Claude could not help: ${b.error}` : ' Claude could not read it either.') : ''), verdict.force, verdict.mc); return; }
-      else if (why.length) item.planB = 'Please check: ' + why.join('; ') + '.' + (b && b.error ? ` Claude could not help: ${b.error}` : '');
+      else if (why.length) {
+        item.planB = 'Please check: ' + why.join('; ') + '.' + (b && b.error ? ` Claude could not help: ${b.error}` : '');
+        if (why.includes('no invoice number found')) item.review = ['receiptNo'];
+      }
       if (claudeErr && !item.planB) item.planB = `Claude could not help (${claudeErr}), so this was read on this computer. Please check the photo.`;
       if (!r.amount && r.foreign) {                     // a receipt in another currency is claimed in ringgit
         const c = await Fx.toMyr(r.foreign.code, r.foreign.amount, r.date);
@@ -1048,7 +1060,7 @@
       if (!r.category && (kind === 'Accommodation' || kind === 'Medical' || kind === 'Parking')) r.category = kind;
       item.bal = r.bal || null;                         // litres left before and after, for the order check
       applyOcr(item, r);
-      if (item.review && item.review.length) item.review = item.review.filter((k) => item.auto && item.auto[k]);      // only boxes the app filled
+      if (item.review && item.review.length) item.review = item.review.filter((k) => (item.auto && item.auto[k]) || isBlank(item, k));      // only boxes the app filled, or left empty
       if (item.category === 'Accommodation' && !String(item.amount || '').trim()) item.hint = 'Hand-written bill: type the SUB TOTAL (not the deposit) and the check-in date';
       setOcr(item, 'done');
       if (item.fx || item.hint || item.planB || r.category || item.bal) renderLines();       // a new type also moves the line to its place in the order
@@ -1187,7 +1199,7 @@
             if (same) { same.files.push(mk()); added.invoices++; continue; }          // the same document number: another copy of it
             blank({ category: '', ocr: 'reading' });
             const item = S.other[S.other.length - 1];
-            finishGeneral(item, file, x, text, mp).catch((e) => { console.warn('Reading failed', e); if (S.other.includes(item)) { setOcr(item, 'done'); renderLines(); } });       // Claude may take a few seconds: the line shows at once and fills in
+            finishGeneral(item, file, x, text, mp, source === 'scan').catch((e) => { console.warn('Reading failed', e); if (S.other.includes(item)) { setOcr(item, 'done'); renderLines(); } });       // Claude may take a few seconds: the line shows at once and fills in
             added.invoices++;
             continue;
           }
