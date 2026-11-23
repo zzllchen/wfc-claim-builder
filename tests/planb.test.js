@@ -43,8 +43,10 @@ m = P.merge(ocr, P.parseReply('{"isReceipt":true,"date":"2026-10-19","amount":7}
 eq('Claude agrees: amount kept, note says so', [m.r.amount, m.note], ['7.00', 'Claude agrees with RM7.00.']);
 m = P.merge({ amount: '60.00', date: '', station: 'X', found: true }, P.parseReply('{"isReceipt":true,"date":"2026-10-20","amount":60}'), ['no date found']);
 eq('missing date filled from Claude', m.r.date, '2026-10-20');
-m = P.merge({ amount: '60.00', date: '2026-10-19', station: 'Real Name' }, P.parseReply('{"isReceipt":true,"date":"2026-10-21","merchant":"Other Name","amount":60}'), []);
-eq('a date and name the normal reader already has are kept when nothing was doubted', [m.r.date, m.r.station], ['2026-10-19', 'Real Name']);
+m = P.merge({ amount: '60.00', date: '2026-10-02', station: 'Involece' }, P.parseReply('{"isReceipt":true,"date":"2026-10-29","merchant":"KEJAYAAN TEGUH ENT","amount":60}'), []);
+eq('the readers disagree on the date and the name: Claude (who saw the photo) wins, both marked for review', [m.r.date, m.r.station, m.r.review], ['2026-10-29', 'KEJAYAAN TEGUH ENT', ['date', 'name']]);
+m = P.merge({ amount: '60.00', date: '2026-10-29', station: 'KEJAYAAN TEGUH ENTERPRISE' }, P.parseReply('{"isReceipt":true,"date":"2026-10-29","merchant":"KEJAYAAN TEGUH ENT","amount":60}'), []);
+eq('the same shop written shorter, the same date: the saved name is kept, nothing to review', [m.r.station, m.r.review], ['KEJAYAAN TEGUH ENTERPRISE', undefined]);
 m = P.merge({ amount: '', date: '', station: '', receiptNo: '' }, P.parseReply('{"isReceipt":true,"kind":"Medical","merchant":"Klinik Putra Care","date":"2026-10-10","amount":75}'), ['no amount found']);
 eq('unreadable photo read by Claude: category follows the kind', [m.r.amount, m.r.category, m.r.station], ['75.00', 'Medical', 'Klinik Putra Care']);
 
@@ -54,7 +56,7 @@ eq('errors are explained in plain words', [P.explain({ status: 401 }).slice(0, 2
 eq('cost of a 1,500-token photo on Sonnet 5.5 is about 3 sen', +P.costRM('claude-sonnet-5-5', { input_tokens: 1500, output_tokens: 300 }).toFixed(3), 0.026);
 // Claude first: when is Claude's reading good enough to use as it is?
 const good = P.parseReply('{"isReceipt":true,"kind":"Petrol","merchant":"KEJAYAAN TEGUH ENT","date":"2026-10-29","amount":58.37,"currency":"MYR","receiptNo":"60770c","confidence":"high"}');
-eq('Claude first is on by default', P.first(), true);
+eq('Claude only when unsure by default (as chosen, 23 Nov 2026)', P.first(), false);
 eq('a clear reading is used as it is', P.clean(good, {}), true);
 eq('not sure: the reader on this PC checks it too', P.clean(Object.assign({}, good, { confidence: 'low' }), {}), false);
 eq('no date: the reader on this PC checks it too', P.clean(Object.assign({}, good, { date: '' }), {}), false);
@@ -78,7 +80,7 @@ eq('last test failed', P.state(), 'bad');
 mem['wfc-claude-tested'] = JSON.stringify({ ok: true, at: 1, ms: 900, model: P.model(), tail: '9999' });
 eq('a different key needs a new test', P.state(), 'saved');
 P.setModel('claude-haiku-5-5'); eq('a different model needs a new test', P.state(), 'saved'); P.setModel('claude-sonnet-5-5');
-eq('default mode is camera photos first', [P.mode(), P.first(), P.available()], ['first', true, true]);
+eq('default mode is only when unsure', [P.mode(), P.first(), P.available()], ['backup', false, true]);
 P.setMode('backup'); eq('only when needed', [P.mode(), P.first(), P.available()], ['backup', false, true]);
 P.setMode('off'); eq('off: Claude is never used and the dot says so', [P.mode(), P.first(), P.available(), P.state()], ['off', false, false, 'off']);
 P.setMode('first');

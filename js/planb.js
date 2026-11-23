@@ -14,7 +14,7 @@
     'claude-haiku-5-5': { label: 'Haiku 5.5 (cheapest)', inUsd: 0.1, outUsd: 0.5 },
     'claude-opus-5-5': { label: 'Opus 5.5 (smartest)', inUsd: 4, outUsd: 20 },
   };
-  const KINDS = ['Petrol', 'Medical', 'Parking', 'Accommodation', 'AI tools', 'Other'];
+  const KINDS = ['Petrol', 'Medical', 'Parking', 'Accommodation', 'AI tools', 'Meals', 'Travel', 'Transport', 'Online shopping', 'Supplier invoice', 'Other'];
   const MAX_CALLS = 60;                 // per page visit: a pile of photos cannot run up a bill
   let calls = 0;
 
@@ -34,7 +34,7 @@
   const model = () => (MODELS[ls.get(MODEL)] ? ls.get(MODEL) : DEFAULT_MODEL);
   const MODE = 'wfc-claude-mode', SPEND = 'wfc-claude-spend', TESTED = 'wfc-claude-tested';
   // when Claude reads: 'first' = camera photos go to Claude first, 'backup' = only when the reader on this PC fails or doubts, 'off' = never
-  const mode = () => { const m = ls.get(MODE); return m === 'backup' || m === 'off' || m === 'first' ? m : (ls.get(FIRST) === '0' ? 'backup' : 'first'); };
+  const mode = () => { const m = ls.get(MODE); return m === 'backup' || m === 'off' || m === 'first' ? m : 'backup'; };          // default: only when the reader on this PC is unsure
   const setMode = (m) => { ls.set(MODE, m); ls.set(FIRST, ''); };
   const available = () => (!!apiKey() || team.on) && mode() !== 'off' && calls < MAX_CALLS;
   // Claude reads every photo first (the default once a key is saved); switched off, it is only asked when the reader on this PC fails or doubts
@@ -113,21 +113,26 @@
   }
 
   /* the normal reading + Claude's -> the reading to use, and a sentence saying what happened (shown on the line) */
+  /* When the two readers disagree, Claude's reading wins: it looks at the photo itself, where this PC reads letters it recognised first
+     (29OCT read as 02OCT, "Invoice" read as a shop called "Involece"). The field is then marked for review (out.review), never changed silently. */
+  const NAME_WORDS = (s) => String(s || '').toUpperCase().split(/[^A-Z0-9]+/).filter((w) => w.length >= 4 && !/^(SDN|BHD|ENTERPRISE|TRADING|STATION|PETROL|SERVICE|SERVICES|STESEN|MINYAK|BERHAD)$/.test(w));
+  const sameName = (a, b) => { const wa = NAME_WORDS(a), wb = NAME_WORDS(b); return wa.some((w) => wb.some((v) => v.startsWith(w) || w.startsWith(v))); };
   function merge(ocr, c, why) {
-    const out = Object.assign({}, ocr), notes = [], hadDateDoubt = (why || []).some((w) => /date|wrong/.test(w));
+    const out = Object.assign({}, ocr), notes = [], review = [];
     if (c.amount) {
       if (ocr.amount && Math.abs(parseFloat(ocr.amount) - parseFloat(c.amount)) < 0.005) notes.push(`Claude agrees with RM${c.amount}.`);
-      else { if (ocr.amount) notes.push(`Amount was RM${ocr.amount}, now RM${c.amount}.`); out.amount = c.amount; out.sure = null; out.foreign = null; }
+      else { if (ocr.amount) { notes.push(`Amount was RM${ocr.amount}, now RM${c.amount}.`); review.push('amount'); } out.amount = c.amount; out.sure = null; out.foreign = null; }
     } else if (c.foreign && !ocr.amount) { out.foreign = c.foreign; }
-    if (c.date && (!ocr.date || hadDateDoubt)) { if (ocr.date && ocr.date !== c.date) notes.push(`Date was ${ocr.date}, now ${c.date}.`); out.date = c.date; }
-    if (c.merchant && (!out.station || (why || []).some((w) => /shop name/.test(w)))) out.station = c.merchant;
+    if (c.date && c.date !== ocr.date) { if (ocr.date) { notes.push(`Date was ${ocr.date}, now ${c.date}.`); review.push('date'); } out.date = c.date; }
+    if (c.merchant && (!out.station || !sameName(out.station, c.merchant))) { if (out.station) review.push('name'); out.station = c.merchant; }
     const hex = /^[0-9a-f]{6}$/i.test(String(c.receiptNo || '').trim()) ? String(c.receiptNo).trim().toLowerCase() : '';
-    if (hex && out.receiptNo !== hex && (why || []).some((w) => /invoice number/.test(w))) { if (out.receiptNo) notes.push(`Invoice number was ${out.receiptNo}, now ${hex}.`); out.receiptNo = hex; out.invoiceDoubt = false; }
+    if (hex && out.receiptNo !== hex && (why || []).some((w) => /invoice number/.test(w))) { if (out.receiptNo) { notes.push(`Invoice number was ${out.receiptNo}, now ${hex}.`); review.push('receiptNo'); } out.receiptNo = hex; out.invoiceDoubt = false; }
     else if (!out.receiptNo && c.receiptNo) out.receiptNo = c.receiptNo;
     else if (hex && hex === out.receiptNo) out.invoiceDoubt = false;
     if (!out.category && ['Medical', 'Parking', 'Accommodation', 'AI tools'].includes(c.kind)) out.category = c.kind;
     if (!out.litres && c.litres) { out.litres = c.litres; out.fuelType = c.fuelType || 'petrol'; }
     out.found = !!(out.date || out.amount || out.foreign || out.station || out.receiptNo);
+    if (review.length) out.review = review;
     return { r: out, note: notes.join(' ') };
   }
 
@@ -165,8 +170,8 @@ Rules:
     return j;
   }
   /* the same question, asked through the company inbox: it answers with Claude's reading (content, stop_reason, usage) or says why not */
-  async function relay(body) {
-    const res = await fetch(team.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'claude', request: body }) });
+  async function relay(body, action) {
+    const res = await fetch(team.api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action || 'claude', request: body }) });
     const j = await res.json().catch(() => null);
     if (!j || !j.ok) { const e = new Error((j && j.error) || 'The company Claude connection did not answer.'); e.status = j && j.code; e.team = true; throw e; }
     return j.reply;
@@ -188,6 +193,16 @@ Rules:
     if (!reading) throw new Error('Claude answered, but not in a form the tool could read.');
     const rm = costRM(key ? m : (MODELS[j.model] ? j.model : m), j.usage); addSpend(rm);
     return { reading, usage: j.usage, costRM: rm };
+  }
+  /* any request to Claude, with the saved key or through the company inbox (action: 'claude' for the photo check, 'scan' for the receipt scanner).
+     Counts towards the per-visit limit and the cost shown in the Claude panel. */
+  async function send(body, action) {
+    const key = apiKey(); if (!key && !team.on) throw new Error('No Claude key saved.');
+    if (calls >= MAX_CALLS) throw new Error('Claude has read enough files for one visit. Reload the page to read more.');
+    calls++;
+    const j = key ? await post(body, key) : await relay(body, action);
+    addSpend(costRM(MODELS[j.model] ? j.model : body.model, j.usage));
+    return j;
   }
   // a one-word question: does the key work with this model?
   async function test() {
@@ -227,6 +242,6 @@ Rules:
     return m;
   }
 
-  return { doubts, parseReply, merge, asReading, clean, read, test, runTest, explain, available, first, mode, setMode, spend, addSpend, resetSpend, tested, state, apiKey, model, useTeam, teamOn: () => team.on, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
+  return { send, doubts, parseReply, merge, asReading, clean, read, test, runTest, explain, available, first, mode, setMode, spend, addSpend, resetSpend, tested, state, apiKey, model, useTeam, teamOn: () => team.on, MODELS, KEY, MODEL, DEFAULT_MODEL, KINDS, SYSTEM, costRM,
     setKey: (v) => ls.set(KEY, v), setModel: (v) => ls.set(MODEL, v), resetCalls: () => { calls = 0; } };
 });

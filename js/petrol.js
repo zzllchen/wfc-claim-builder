@@ -371,6 +371,7 @@
     return FUEL_NAMES.some((b) => editDistance(L, b) <= Math.max(1, Math.floor(b.length * 0.4)));
   }
 
+  const SLIP_LABELS = ['INVOICE', 'RECEIPT', 'SUBSIDY', 'BALANCE', 'TERMINAL', 'PREVIOUS', 'REMAINING', 'APPROVED', 'APPROVAL', 'THANKYOU', 'CUSTOMER', 'CASHIER'];
   /* station: a station seen before if its name appears in the text, else the first name-like line */
   function station(text, known) {
     const st = stationRaw(text, known);
@@ -378,6 +379,8 @@
     if (fuzzyBrand(st) && !FUEL_BRAND.test(st.replace(/[^A-Za-z ]/g, '').trim())) return '';       // "Pe Yrong" is PETRONAS misread, not a shop
     const letters = st.toUpperCase().replace(/[^A-Z]/g, '');
     if (/FORMAT|SUBSID|INVOIC|TOTAL|PRICE|BALANCE|APPROV|TERMINAL|THANK|PUMP|REMAIN|PREVIOUS/.test(letters)) return '';      // a label of the slip, not a name
+    // the same labels misread by a letter or two ("Involece" is INVOICE): one word close to a label is a label too
+    if (!/\s/.test(st.trim()) && letters.length >= 6 && SLIP_LABELS.some((w) => Math.abs(w.length - letters.length) <= 2 && editDistance(letters, w) <= 2)) return '';
     if (/[A-Za-z]\d|\d[A-Za-z]/.test(st) && !(known || []).some((k) => k.toLowerCase() === st.toLowerCase())) return '';  // letters and digits fused ("Rin1l13") is noise
     return st;
   }

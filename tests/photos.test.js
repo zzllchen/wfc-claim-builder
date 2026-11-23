@@ -38,4 +38,5 @@ const shot = ['5¢cc50b                                     RM 55.64', '11 Oct 2
 const ei = P.parse(shot, opts);
 eq('e-invoice page: date, amount, shop, invoice number', [ei.date, ei.amount, ei.station, ei.receiptNo], ['2026-10-11', '55.64', 'Kejayaan Teguh Enterprise', '5cc50b']);
 eq('e-invoice page of a shop never seen: the legal name, without its registration number', P.parse(shot.replace('KEJAYAAN TEGUH ENTERPRISE (001401458-V)', 'ACME PETRO SDN BHD (123456-X)'), opts).station, 'Acme Petro Sdn Bhd');
+eq('a slip label misread by a letter or two ("Involece", "Recelpt") is not a shop name', [P.station('Involece\nRON95 20.5', []), P.station('Recelpt\nTotal 50.00', []), P.station('MESRA MART\nRON95', [])], ['', '', 'Mesra Mart']);
 console.log(fails ? `${fails} FAILED` : 'all passed'); process.exit(fails ? 1 : 0);

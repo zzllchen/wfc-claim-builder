@@ -10,13 +10,19 @@
 
   const pdfReady = () => (root.Lazy ? root.Lazy.need('pdf') : Promise.resolve());       // the PDF reader is loaded after the page is up (js/lazy.js)
 
-  async function pdfStrings(buffer) {
+  async function pdfStrings(buffer, lines) {
     await pdfReady();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer.slice(0)) }).promise;
     const out = [];
     for (let p = 1; p <= Math.min(pdf.numPages, 3); p++) {
       const tc = await (await pdf.getPage(p)).getTextContent();
       tc.items.forEach((it) => { const s = it.str.trim(); if (s) out.push(s); });
+      // the same text as lines: pieces at the same height, left to right (a label and its value end up on one line)
+      if (lines) {
+        const rows = [];
+        tc.items.filter((it) => it.str.trim()).forEach((it) => { const y = it.transform[5], x = it.transform[4]; let row = rows.find((r) => Math.abs(r.y - y) < 3); if (!row) { row = { y, parts: [] }; rows.push(row); } row.parts.push({ x, s: it.str.trim() }); });
+        rows.sort((a, b) => b.y - a.y).forEach((r) => lines.push(r.parts.sort((a, b) => a.x - b.x).map((q) => q.s).join(' ')));
+      }
     }
     return out;
   }
@@ -131,7 +137,8 @@
   /* -> { isTng, stripe, hotel, text, hasText } ; hasText is false for scans / image-only PDFs */
   async function readPdf(buffer) {
     let strs;
-    try { strs = await pdfStrings(buffer); } catch (e) { return { isTng: false, stripe: null, hotel: null, text: '', hasText: false, broken: true }; }
+    const lines = [];
+    try { strs = await pdfStrings(buffer, lines); } catch (e) { return { isTng: false, stripe: null, hotel: null, text: '', lines: [], hasText: false, broken: true }; }
     // the PDF font maps hyphens to NUL, so "PZS6NSFF-0001" arrives as "PZS6NSFF", NUL, "0001"
     const text = strs.join(' ').replace(/\s*\u0000\s*/g, '-');
     return {
@@ -139,6 +146,7 @@
       stripe: parseStripe(strs, text),
       hotel: parseHotel(text),
       text,
+      lines,
       hasText: text.replace(/[^A-Za-z0-9]/g, '').length >= 25,
     };
   }

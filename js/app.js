@@ -6,7 +6,7 @@
   const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   // file-name style the team already uses: WFC - JUNE Claim form
   const MONTH_TAG = ['JAN', 'FEB', 'MAR', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  const CATEGORIES = ['Petrol', 'AI tools', 'Accommodation', 'Medical', 'Parking', 'Toll', 'Meals', 'Stationery', 'Other'];
+  const CATEGORIES = ['Petrol', 'AI tools', 'Accommodation', 'Medical', 'Parking', 'Toll', 'Meals', 'Stationery', 'Travel', 'Transport', 'Online shopping', 'Supplier invoice', 'Other'];
   const round2 = TNG.round2;
   const money = ClaimPdf.money;
 
@@ -99,10 +99,9 @@
     const tv = tollView();
     const mp = monthParts();
     const lines = [];
-    // order on the claim form and its PDF: fuel, toll, parking, then medical, AI tools, accommodation, everything else
-    const rankOf = (cat) => (/petrol|fuel/i.test(cat) ? 0 : /toll/i.test(cat) ? 1 : /parking/i.test(cat) ? 2
-      : /medical|klinik|clinic|pharmac|farmasi/i.test(cat) ? 3 : /\bai\b|software|subscription|saas/i.test(cat) ? 4
-        : /accommodation|hotel/i.test(cat) ? 5 : 6);
+    // order on the claim form and its PDF: fuel, toll, parking, transport, travel, then medical, AI tools, accommodation, everything else
+    const RANK = { fuel: 0, toll: 1, parking: 2, transport: 3, travel: 4, medical: 5, ai: 6, stay: 7 };
+    const rankOf = (cat) => { const k = kindOf(cat); return k in RANK ? RANK[k] : 8; };
     S.other.forEach((o) => lines.push({ key: o.id, rank: rankOf(o.category), kind: 'other', src: o, category: o.category, date: o.date, name: o.name, receiptNo: o.receiptNo, amount: o.amount, litres: o.litres || null, fuel: o.fuel || '', files: o.files.map((x) => x.file) }));
     // toll / parking are calculated from the ticked trips, but every field can be typed over (S.edits)
     if (tv && tv.toll > 0 && mp) lines.push(Object.assign({ key: 'toll', rank: 1, kind: 'toll', category: 'Toll', date: monthEndIso(mp), name: "Touch 'n Go", receiptNo: S.tng.header.serial, amount: tv.toll, calc: tv.toll, files: [S.tng.file] }, S.edits.toll));
@@ -123,6 +122,8 @@
     i.addEventListener('input', () => {
       obj[key] = i.value;
       if (obj.auto) delete obj.auto[key];
+      if (obj.review && obj.review.includes(key)) obj.review = obj.review.filter((k) => k !== key);
+      if (obj.orig && key in obj.orig) { obj.fixed = obj.fixed || {}; obj.fixed[key] = i.value; }      // a correction to what the app filled in
       i.classList.remove('guess', 'bad');
       if (key === 'name' && /petrol|fuel/i.test(obj.category || '')) store.set('wfc-last-station', i.value);
       updateSummary();
@@ -180,7 +181,8 @@
       tng: S.tng ? { file: S.tng.file } : null, overrides: Array.from(S.overrides), edits: S.edits,
       other: S.other.map((o) => ({ id: o.id, kind: o.kind, manual: !!o.manual, category: o.category || '', name: o.name || '', date: o.date || '', receiptNo: o.receiptNo || '',
         amount: o.amount == null ? '' : String(o.amount), auto: Object.assign({}, o.auto), hint: o.hint || '', planB: o.planB || '', bal: o.bal || null, fx: o.fx || null, litres: o.litres || null, fuel: o.fuel || '',
-        invoiceNo: o.invoiceNo || '', ocr: o.ocr || '', askedClaude: !!o.askedClaude, files: o.files.map((x) => x.file) })),
+        invoiceNo: o.invoiceNo || '', ocr: o.ocr || '', askedClaude: !!o.askedClaude, scan: o.scan || null, review: o.review || [], orig: o.orig || null, fixed: o.fixed || null,
+        files: o.files.map((x) => x.file) })),
     };
   }
   const keepDraft = () => { if (!S.restoring) Draft.schedule(draftSnapshot); };
@@ -251,12 +253,19 @@
     stay: svg('<path d="M3 20V5"/><path d="M3 16h18v4"/><path d="M21 16v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="12" r="2"/>'),
     meals: svg('<path d="M6 3v6a3 3 0 0 0 6 0V3"/><path d="M9 3v18"/><path d="M17 21V3c-2.5 1-4 4-4 8h4"/>'),
     stationery: svg('<path d="M4 20l1-5L16 4a2.1 2.1 0 0 1 3 3L8 18z"/><path d="M14 6l3 3"/>'),
+    travel: svg('<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>'),
+    transport: svg('<path d="M5 17h14v-5l-1.8-4.6A2 2 0 0 0 15.3 6H8.7a2 2 0 0 0-1.9 1.4L5 12z"/><path d="M5 12h14"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/>'),
+    shopping: svg('<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>'),
+    supplier: svg('<path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>'),
     other: svg('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'),
   };
-  const KIND_LABEL = { fuel: 'Fuel', toll: 'Toll', parking: 'Parking', medical: 'Medical', ai: 'AI tools', stay: 'Accommodation', meals: 'Meals', stationery: 'Stationery', other: 'Other' };
+  const KIND_LABEL = { fuel: 'Fuel', toll: 'Toll', parking: 'Parking', medical: 'Medical', ai: 'AI tools', stay: 'Accommodation', meals: 'Meals', stationery: 'Stationery',
+    travel: 'Travel', transport: 'Transport', shopping: 'Online shopping', supplier: 'Supplier invoice', other: 'Other' };
   const kindOf = (cat) => {
     const c = String(cat || '');
-    return /petrol|fuel/i.test(c) ? 'fuel' : /toll/i.test(c) ? 'toll' : /parking/i.test(c) ? 'parking'
+    return /transport|grab|e-?hailing|taxi/i.test(c) ? 'transport' : /travel|flight|air\s?ticket|airfare|\btrains?\b|bus\s?ticket|ferry/i.test(c) ? 'travel'
+      : /online|shopping|shopee|lazada/i.test(c) ? 'shopping' : /supplier|purchase/i.test(c) ? 'supplier'
+      : /petrol|fuel/i.test(c) ? 'fuel' : /toll/i.test(c) ? 'toll' : /parking/i.test(c) ? 'parking'
       : /medical|klinik|clinic|pharmac|farmasi/i.test(c) ? 'medical' : /\bai\b|software|subscription|saas/i.test(c) ? 'ai'
         : /accommodation|hotel/i.test(c) ? 'stay' : /meal|food|lunch|dinner|makan/i.test(c) ? 'meals' : /stationer|office suppl/i.test(c) ? 'stationery' : 'other';
   };
@@ -270,9 +279,10 @@
 
   /* level: wait (still reading the photo) | bad (something required is empty) | warn (filled in by the app, please check) | ok */
   function lineStatus(o, kind) {
-    if (kind === 'other' && (o.ocr === 'queued' || o.ocr === 'reading')) return { level: 'wait', text: 'Reading the photo…' };
+    if (kind === 'other' && (o.ocr === 'queued' || o.ocr === 'reading')) return { level: 'wait', text: o.askedClaude ? 'Claude is reading it…' : 'Reading…' };
     const missing = ['category', 'date', 'name', 'amount'].filter((k) => isBlank(o, k));
     if (missing.length) return { level: 'bad', text: 'Please fill in: ' + plainList(missing.map((k) => FIELD_WORD[k])) };
+    if (o.review && o.review.length) return { level: 'warn', text: 'Needs review: ' + plainList(o.review.map((k) => FIELD_WORD[k] || k)) };
     const guessed = ['category', 'date', 'name', 'receiptNo', 'amount'].filter((k) => o.auto && o.auto[k]);
     if (guessed.length) return { level: 'warn', text: 'Please check: ' + plainList(guessed.map((k) => FIELD_WORD[k])) };
     const mp = monthParts();
@@ -358,12 +368,23 @@
       fields.push(h('label', { class: 'f mg' }, h('span', { text: 'Same receipt as another line? Attach this file to it' }), sel));
     }
     // what Claude said, or what looked odd, lives in the details so the line itself stays tidy (the "Please check" status on top is enough)
-    const notes = [o.planB, o.dateWarn].filter(Boolean);
+    const sc = o.scan;
+    const notes = [o.planB, o.dateWarn].concat(sc ? sc.notes : []).filter(Boolean);
     if (notes.length) fields.push(h('div', { class: 'ainote' }, h('b', { text: 'About this reading' }), notes.map((t) => h('span', { text: t }))));
+    // the rest of what the receipt says (not on the claim form, kept with the claim for the accountant)
+    const more = sc ? [sc.docType && `Document: ${sc.docType}`, sc.currency && sc.currency !== 'MYR' && sc.total != null && `Total: ${sc.currency} ${money(sc.total)}`,
+      sc.subtotal != null && `Subtotal: ${money(sc.subtotal)}`, sc.tax != null && `${sc.taxType || 'Tax'}: ${money(sc.tax)}`,
+      sc.paymentMethod && `Paid by ${sc.paymentMethod}${sc.last4 ? ' ending ' + sc.last4 : ''}`, !sc.paymentMethod && sc.last4 && `Card ending ${sc.last4}`,
+      sc.periodStart && `Period: ${niceDate(sc.periodStart)}${sc.periodEnd ? ' – ' + niceDate(sc.periodEnd) : ''}`, sc.dueDate && `Due: ${niceDate(sc.dueDate)}`,
+      sc.why && sc.why.total && `Total chosen: ${sc.why.total}`, sc.why && sc.why.date && `Date chosen: ${sc.why.date}`,
+      `Read by ${sc.source === 'claude' ? 'Claude' + (sc.model ? ' (' + sc.model.replace(/^claude-/, '') + ')' : '') : 'this computer'}`].filter(Boolean) : [];
+    if (more.length) fields.push(h('div', { class: 'ainote more' }, h('b', { text: 'From this receipt' }), more.map((t) => h('span', { text: t }))));
     const tags = [
       o.ocr ? h('span', { class: 'tag ocr', 'data-ocr': o.id, 'data-state': o.ocr, text: ocrText(o), hidden: !ocrText(o) }) : null,
       o.hint && !String(o.amount || '').trim() ? h('span', { class: 'tag hint', text: o.hint }) : null,
       o.fx && o.auto && o.auto.amount ? h('span', { class: 'tag hint', text: Fx.note(o.fx) }) : null,       // gone once the amount is typed over
+      (o.review && o.review.length) || (o.auto && Object.keys(o.auto).length) ? h('button', { class: 'link okbtn', type: 'button', text: 'Looks right', title: 'Accept what was filled in',
+        onclick: () => { o.review = []; o.auto = {}; keepDraft(); renderLines(); refreshStatus(); } }) : null,
     ];
     const below = o.files.length ? h('div', { class: 'files' }, o.files.map((x) => chip(x.file, x.url, () => removeFile(o, x)))) : null;
     return lineCard(o, { key: l.key, pick: true, autoOpen: !!o.manual, status: () => lineStatus(o, 'other'), fields, tags, below, onRemove: () => removeOther(o), removeTitle: 'Remove this line' });
@@ -847,6 +868,109 @@
     updateSummary();
   }
 
+  /* ---------- the general reader and the scanner: receipts that are not fuel slips (meals, rides, tickets, shops, software, suppliers ...) ----------
+     The reader on this PC (js/extract.js) reads the text; when it is unsure of a main field, Claude reads the file itself (js/scan.js) and
+     the two are put together field by field. Fields that are still not sure are marked "Needs review". Clinic, parking and hotel papers and
+     fuel slips keep their own, tuned readers. */
+  // a tuned reader's result with gaps (no receipt number, no name, no date): the general reader fills them when it is sure
+  function fillGaps(r, x) {
+    if (!r.receiptNo && x.number && x.confidence.number >= 0.6) r.receiptNo = x.number;
+    if (!r.station && x.vendor && x.confidence.vendor >= 0.75) r.station = x.vendor;
+    if (!r.date && x.date && x.confidence.date >= 0.8) r.date = x.date;
+    if (!r.category && TUNED_KINDS.includes(x.category) && x.category !== 'Petrol') r.category = x.category;
+    return r;
+  }
+  const TUNED_KINDS = ['Petrol', 'Medical', 'Parking', 'Accommodation'];
+  // the general reader takes it: no fuel words, and neither reader sees one of the kinds with a tuned reader (the rule lives in js/extract.js)
+  const forGeneral = (x, p, text) => Extract.forGeneral(x, p, text);
+  const KEY_OF = { vendor: 'name', number: 'receiptNo', total: 'amount', date: 'date', category: 'category' };
+  async function finishGeneral(item, file, x, text, mp) {
+    let f = Object.assign({}, x), review = (x.needsReview || []).slice(), notes = [], source = 'pc', model = '';
+    if (x.unsure && PlanB.available() && !item.askedClaude && window.Scan) {
+      item.askedClaude = true; setOcr(item, 'reading');
+      try {
+        const out = await Scan.read(file, { text, month: mp && mp.key });
+        if (!S.other.includes(item)) return;
+        if (!out.reading.isReceipt) {
+          dropItem(item);
+          reject(file, `Claude looked at this and it does not seem to be a receipt${out.reading.notes ? ': ' + out.reading.notes.replace(/\.$/, '') : ''}. Attach the receipt itself, or add it anyway and type the details.`, true);
+          return;
+        }
+        const m = Scan.merge(x, out.reading);
+        f = m.fields; review = m.needsReview; notes = m.notes; source = 'claude'; model = out.model;
+      } catch (e) { console.warn('Scan failed', e); notes.push(`Claude could not help (${PlanB.explain(e)}), so this was read on this computer.`); }
+    }
+    if (!S.other.includes(item)) return;
+    // the claim is in ringgit: the ringgit charge when printed, else the total, else converted at the day's rate
+    let amount = null, fx = null, hint = '';
+    const cur = (f.currency || 'MYR').toUpperCase();
+    if (f.totalMyr != null) amount = f.totalMyr;
+    else if (f.total != null && cur === 'MYR') amount = f.total;
+    else if (f.total != null) {
+      const c = await Fx.toMyr(cur, f.total, f.date);
+      if (c) { amount = c.myr; fx = c; } else hint = `Receipt is in ${cur} ${f.total.toFixed(2)} – type the MYR amount from your card statement`;
+      if (!S.other.includes(item)) return;
+    }
+    fillScan(item, f, { amount, fx, hint, review, notes, source, model });
+    setOcr(item, 'done');
+    renderLines();
+  }
+  // a PDF that prints its number two ways (a scan read on this PC): the number is marked for review, and with Claude on, Claude reads the PDF and picks the spelling
+  async function settleNumber(item, file, text, spellings, mp) {
+    const key = (s) => String(s || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+    item.review = ['receiptNo'];
+    item.planB = `The receipt number is printed two ways (${spellings.join(', ')}). Please check which is right.`;
+    if (PlanB.available() && window.Scan && !item.askedClaude) {
+      item.askedClaude = true; setOcr(item, 'reading'); renderLines();
+      try {
+        const out = await Scan.read(file, { text, month: mp && mp.key });
+        if (!S.other.includes(item)) return;
+        const hit = spellings.find((s) => key(s) === key(out.reading.number));
+        if (hit) {
+          if (!String(item.receiptNo || '').trim() || (item.auto && item.auto.receiptNo)) { item.receiptNo = hit; item.auto = Object.assign(item.auto || {}, { receiptNo: true }); }
+          item.review = []; item.planB = `Checked with Claude: the receipt number is ${hit}.`;
+        }
+      } catch (e) { console.warn('Scan failed', e); }
+      if (!S.other.includes(item)) return;
+      setOcr(item, 'done');
+    }
+    keepDraft(); renderLines(); refreshStatus();
+  }
+  // a reading -> the line: only blank boxes or boxes the app filled are changed; what was filled is kept, to learn from corrections
+  function fillScan(item, f, info) {
+    item.auto = item.auto || {};
+    const set = (key, value) => {
+      if (value == null || value === '') return;
+      if (String(item[key] || '').trim() && !item.auto[key]) return;
+      item[key] = value; item.auto[key] = true;
+    };
+    set('category', f.category); set('name', f.vendor); set('date', f.date); set('receiptNo', f.number);
+    if (info.amount != null) set('amount', info.amount.toFixed(2));
+    if (info.fx) item.fx = info.fx;
+    if (info.hint) item.hint = info.hint;
+    if (f.litres) { item.litres = f.litres; item.fuel = f.fuelType || 'petrol'; }
+    item.orig = { category: item.category, name: item.name, date: item.date, receiptNo: item.receiptNo, amount: item.amount };
+    item.review = (info.review || []).map((k) => KEY_OF[k] || k).filter((k) => item.auto[k] || isBlank(item, k));
+    item.scan = {
+      source: info.source || 'pc', model: info.model || '', docType: f.docType || '', currency: (f.currency || '').toUpperCase(), total: f.total != null ? f.total : null,
+      subtotal: f.subtotal != null ? f.subtotal : null, tax: f.tax != null ? f.tax : null, taxType: f.taxType || '', paymentMethod: f.paymentMethod || '', last4: (String(f.last4 || '').match(/\d{4}$/) || [''])[0],
+      dueDate: f.dueDate || '', periodStart: f.periodStart || '', periodEnd: f.periodEnd || '', numberKind: f.numberKind || '',
+      lineItems: (f.lineItems || []).slice(0, 15), why: f.why || {}, notes: (info.notes || []).filter(Boolean),
+    };
+  }
+  // the corrections people made to what the app filled in: sent with the claim, so the weak spots show up (never the files themselves)
+  function scanLog() {
+    const out = [];
+    S.other.forEach((o) => {
+      if (!o.orig || !o.fixed) return;
+      Object.keys(o.fixed).forEach((k) => {
+        const from = String(o.orig[k] == null ? '' : o.orig[k]), to = String(o.fixed[k] == null ? '' : o.fixed[k]);
+        if (from.trim() !== to.trim()) out.push({ field: k, from: from.slice(0, 80), to: to.slice(0, 80), source: (o.scan && o.scan.source) || 'pc', docType: (o.scan && o.scan.docType) || '', category: String(o.category || '').slice(0, 40) });
+      });
+    });
+    return out.slice(0, 60);
+  }
+
   /* ---------- files that were refused: always say why ---------- */
   function reject(file, reason, canForce, isMc) {
     const note = h('div', { class: 'note bad reject' },
@@ -896,13 +1020,21 @@
       const unreadable = verdict.status !== 'ok' && !(r.amount && verdict.reason === Validate.MSG.noAmount);
       // plan B: only when the normal reader could not read the photo, or what it read does not make sense, and only with a saved key
       const canRetry = unreadable && (verdict.reason === Validate.MSG.photoUnreadable || verdict.reason === Validate.MSG.noAmount);
+      // not a fuel slip, clinic, parking or hotel paper (a meal, a ride, a ticket, a shop ...): the general reader, and Claude when it is unsure
+      const gx = !pre && !unreadable && window.Extract ? Extract.read(text, { month: mp && mp.key }) : null;
+      if (gx && forGeneral(gx, r, text)) { await finishGeneral(item, file, gx, text, mp); return; }
+      if (gx) fillGaps(r, gx);              // a tuned reading: what it left empty, the general reader fills when it is sure
       const why = !unreadable || canRetry ? PlanB.doubts(r, { category: r.category || guessCategory(text) || item.category }) : [];
       const b = pre && pre.c ? claudeChecked(pre.c, r, why)
         : (canRetry || why.length) && PlanB.available() && !item.askedClaude ? await askClaude(item, file, r, why, mp) : null;
       const claudeErr = pre && pre.error ? pre.error : '';
       if (!S.other.includes(item)) return;
       if (b && b.notReceipt) { dropItem(item); reject(file, b.reason, true); return; }
-      if (b && b.r && !(canRetry && !b.r.amount && !b.r.foreign)) { r = b.r; item.planB = b.note; }
+      if (b && b.r && !(canRetry && !b.r.amount && !b.r.foreign)) {
+        r = b.r; item.planB = b.note;
+        const known = r.station && Petrol.station(r.station, stations()); if (known) r.station = known;      // Claude's shop name, as it was saved before
+        item.review = (r.review || []).slice();          // where the two readers disagreed: Claude's reading is used, marked for a look
+      }
       else if (unreadable) { dropItem(item); reject(file, verdict.reason + (b ? (b.error ? ` Claude could not help: ${b.error}` : ' Claude could not read it either.') : ''), verdict.force, verdict.mc); return; }
       else if (why.length) item.planB = 'Please check: ' + why.join('; ') + '.' + (b && b.error ? ` Claude could not help: ${b.error}` : '');
       if (claudeErr && !item.planB) item.planB = `Claude could not help (${claudeErr}), so this was read on this computer. Please check the photo.`;
@@ -916,6 +1048,7 @@
       if (!r.category && (kind === 'Accommodation' || kind === 'Medical' || kind === 'Parking')) r.category = kind;
       item.bal = r.bal || null;                         // litres left before and after, for the order check
       applyOcr(item, r);
+      if (item.review && item.review.length) item.review = item.review.filter((k) => item.auto && item.auto[k]);      // only boxes the app filled
       if (item.category === 'Accommodation' && !String(item.amount || '').trim()) item.hint = 'Hand-written bill: type the SUB TOTAL (not the deposit) and the check-in date';
       setOcr(item, 'done');
       if (item.fx || item.hint || item.planB || r.category || item.bal) renderLines();       // a new type also moves the line to its place in the order
@@ -1037,7 +1170,8 @@
           }
           added.invoices++;
         } else if (s.hotel) {                             // Agoda receipt
-          blank({ category: 'Accommodation', name: s.hotel.merchant, date: s.hotel.date, amount: s.hotel.amount != null ? s.hotel.amount.toFixed(2) : '' });
+          const hx = window.Extract ? Extract.read(s.lines && s.lines.length ? s.lines : s.text, { month: mp && mp.key }) : null;          // its booking number
+          blank({ category: 'Accommodation', name: s.hotel.merchant, date: s.hotel.date, amount: s.hotel.amount != null ? s.hotel.amount.toFixed(2) : '', receiptNo: hx && hx.confidence.number >= 0.6 ? hx.number : '' });
           added.hotel++;
         } else {                                          // any other PDF: must really be a receipt or invoice
           let text = s.text, source = 'pdf';
@@ -1047,6 +1181,16 @@
           const verdict = Validate.judge(text, source);
           if (verdict.status !== 'ok') { reject(file, verdict.reason, verdict.force, verdict.mc); added.rejected++; continue; }
           const p = Petrol.parse(text, { month: mp && mp.key, stations: stations() });
+          const x = window.Extract ? Extract.read(s.lines && s.lines.length ? s.lines : text, { month: mp && mp.key }) : null;
+          if (x && forGeneral(x, p, text)) {
+            const same = x.number && S.other.find((o) => !o.invoiceNo && String(o.receiptNo || '').replace(/\W/g, '').toLowerCase() === x.number.replace(/\W/g, '').toLowerCase());
+            if (same) { same.files.push(mk()); added.invoices++; continue; }          // the same document number: another copy of it
+            blank({ category: '', ocr: 'reading' });
+            const item = S.other[S.other.length - 1];
+            finishGeneral(item, file, x, text, mp).catch((e) => { console.warn('Reading failed', e); if (S.other.includes(item)) { setOcr(item, 'done'); renderLines(); } });       // Claude may take a few seconds: the line shows at once and fills in
+            added.invoices++;
+            continue;
+          }
           const target = p.receiptNo && S.other.find((o) => o.receiptNo === p.receiptNo && !o.invoiceNo);
           if (target) { target.files.push(mk()); }       // same document number: group with the other copy
           else {
@@ -1060,6 +1204,8 @@
             ['date', 'amount', 'receiptNo'].forEach((k) => { if (p[k]) auto[k] = true; });
             if (p.station) auto.name = true;
             blank({ category: p.category || guessCategory(text), name: p.station, date: p.date, amount: p.amount, receiptNo: p.receiptNo, auto, fx, hint });
+            const twins = p.receiptNo && window.Extract ? Extract.twinsOf(p.receiptNo, text) : [];
+            if (twins.length) settleNumber(S.other[S.other.length - 1], file, text, [p.receiptNo].concat(twins), mp).catch((e) => console.warn('Number check failed', e));
           }
           added.invoices++;
         }
@@ -1230,7 +1376,8 @@
         }
       }
       const claimLines = lines.map((l) => Object.assign({ category: String(l.category).trim(), date: l.date, name: String(l.name).trim(), receiptNo: String(l.receiptNo || '').trim(), amount: num(l.amount) },
-        /petrol|fuel/i.test(l.category) && l.litres ? { litres: Math.round(num(l.litres) * 1000) / 1000, fuel: l.fuel === 'diesel' ? 'diesel' : 'petrol' } : {}));       // litres: for the dashboard's carbon figures
+        /petrol|fuel/i.test(l.category) && l.litres ? { litres: Math.round(num(l.litres) * 1000) / 1000, fuel: l.fuel === 'diesel' ? 'diesel' : 'petrol' } : {},       // litres: for the dashboard's carbon figures
+        l.src && l.src.scan ? { scan: (({ docType, currency, total, subtotal, tax, taxType, paymentMethod, last4, dueDate, periodStart, periodEnd, source }) => ({ docType, currency, total, subtotal, tax, taxType, paymentMethod, last4, dueDate, periodStart, periodEnd, source }))(l.src.scan) } : {}));
       const signDate = localIso(new Date());
       const base = { year: mp.y, month: mp.m, claimant, signature, signDate, lines: claimLines };
 
@@ -1286,7 +1433,7 @@
       $('#pack').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       // the email is still how the zip travels; this also puts the claim on the accountant's dashboard
       pushToDashboard(S.packs.claim, {
-        claimant, month: mp.key, lines: claimLines.map((l) => Object.assign({}, l, { amount: round2(l.amount) })),
+        claimant, month: mp.key, lines: claimLines.map((l) => Object.assign({}, l, { amount: round2(l.amount) })), scanLog: scanLog(),
         from: $('#fromEmail').value.trim(), to: $('#toEmail').value.trim(), subject: $('#subject').value,
       }, entries, 'claim');
     } catch (e) {
