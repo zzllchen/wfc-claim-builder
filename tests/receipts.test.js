@@ -55,4 +55,37 @@ ok('numbers elsewhere on the page are not mistaken for it (dates, addresses, the
   assert.strictEqual(r.invoiceNo, 'OUXVRV1G-0002');
 });
 
+// Runway's newer invoice layout (Nov 2026): "INVOICE #", "ISSUED", a FROM block and a total billed in ringgit. Invented details, same layout.
+const RUNWAY_NEW = ['QWE1R2TY-0002', 'Invoice', 'INVOICE #', 'QWE1R2TY-0002', 'ISSUED', 'November 22, 2026', 'STATUS', 'PAID', 'FROM', 'Runway AI, Inc.', '1 Example Ave',
+  'New York, NY 10000', 'United States', 'support@runwayml.com', 'BILL TO', 'ALEX TAN', '1 Jalan Contoh', 'MY', 'DESCRIPTION', 'QUANTITY', 'UNIT PRICE', 'AMOUNT',
+  '1 × Pro (at $35.00 / month)', 'Nov 22, 2026 — Dec 22, 2026', '1', 'MYR 148.65', 'MYR 148.65', 'SUBTOTAL', 'MYR 148.65', 'TOTAL', 'MYR 148.65', 'AMOUNT PAID', '-MYR 148.65',
+  'AMOUNT DUE', 'MYR 0.00', 'QWE1R2TY-0002 • MYR 148.65 paid'];
+// Metricool: the date alone at the top, "Invoice number: 1875801", the company only in the footer, billed in USD
+const METRICOOL = ['November 21, 2026', 'Account: 1234567', 'Invoice number: 1875801', 'Invoice', 'From November 21, 2026 to December 21, 2026', 'Bill to:', 'Example Sdn Bhd',
+  '1 Jalan Contoh 43300 Seri Kembangan, Selangor', 'Country: MY', 'Payment method: credit card', 'Description', 'Amount', 'Monthly subscription: STARTER - 5 Brands', '25.00 USD',
+  '(22.75 EUR)', 'Total', '25.00 USD', '(22.75 EUR)', '© Metricool Software SL - C/ Example 12 28007 Madrid (Spain) - VAT id: ESB00000000'];
+const parseStrs = (strs) => R.parseStripe(strs, strs.join(' '));
+
+ok("Runway's newer layout: INVOICE #, ISSUED, FROM and a ringgit total", () => {
+  const r = parseStrs(RUNWAY_NEW);
+  assert.deepStrictEqual([r.invoiceNo, r.date, r.merchant, r.amount], ['QWE1R2TY-0002', '2026-11-22', 'Runway AI', 148.65]);
+});
+ok('Metricool: "Invoice number:" with a colon, the date at the top, the company from its legal name in the footer; USD left for converting', () => {
+  const r = parseStrs(METRICOOL);
+  assert.deepStrictEqual([r.invoiceNo, r.date, r.merchant, r.amount], ['1875801', '2026-11-21', 'Metricool Software', null]);
+});
+ok('a labelled number counts only on a software invoice: fuel, clinic and plain papers stay with their own readers', () => {
+  assert.strictEqual(parse('e-Invoice Invoice No. 2041 Caltex Kajang RON95 20.00 litres RM 39.80 subscription'), null, 'a fuel e-invoice');
+  assert.strictEqual(parse('KLINIK SEHAT Invoice No: 5521 Consultation RM 75.00 monthly'), null, 'a clinic bill');
+  assert.strictEqual(parse('Invoice No. 2041 Hardware shop RM 39.80'), null, 'not software');
+  assert.strictEqual(parse('Invoice number Receipt number Date paid November 2, 2026 subscription'), null, 'a label after a label is not a number');
+});
+ok('the label in other common forms, and dates written day first', () => {
+  assert.strictEqual(R.labelledInvoiceNo('Invoice No. INV-2041 Notion Labs subscription'), 'INV-2041');
+  assert.strictEqual(R.labelledInvoiceNo('INVOICE # 88812'), '88812');
+  assert.strictEqual(R.isoFromLong('21 November 2026'), '2026-11-21');
+  assert.strictEqual(parse('Invoice No: CV-0099 Issue date 3 December 2026 Canva Pty Ltd subscription Total MYR 54.90').date, '2026-12-03');
+  assert.strictEqual(parse('Invoice No: CV-0099 Issue date 3 December 2026 Canva Pty Ltd subscription Total MYR 54.90').amount, 54.9);
+});
+
 console.log('receipts tests passed');

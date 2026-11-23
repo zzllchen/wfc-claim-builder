@@ -1,6 +1,6 @@
 /* Looks inside a dropped PDF and says what it is, so one drop box can sort everything:
    - a Touch 'n Go statement,
-   - a Stripe-style invoice / receipt (Eleven Labs, Runway, ...) -> merchant, date, MYR amount, invoice number,
+   - a software invoice / receipt (Eleven Labs, Runway, Metricool, Anthropic ...) -> merchant, date, MYR amount, invoice number,
    - an Agoda hotel receipt -> hotel, check-in date, MYR total.
    Anything it can't read is left for the user to type. */
 (function (root) {
@@ -21,10 +21,13 @@
     return out;
   }
 
+  // "November 21, 2026" or "21 November 2026" -> '2026-11-21'
   function isoFromLong(s) {
-    const m = s && s.match(/([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})/);
-    if (!m || !MONTHS[m[1].toLowerCase()]) return '';
-    return `${m[3]}-${String(MONTHS[m[1].toLowerCase()]).padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+    let m = s && s.match(/([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})/), mon, day, year;
+    if (m) { mon = m[1]; day = m[2]; year = m[3]; }
+    else if ((m = s && s.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/))) { day = m[1]; mon = m[2]; year = m[3]; }
+    if (!m || !MONTHS[mon.toLowerCase()]) return '';
+    return `${year}-${String(MONTHS[mon.toLowerCase()]).padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
 
   // every kind of dash a PDF font may use for the hyphen (soft hyphen, non-breaking hyphen, en / em dash, minus sign ...)
@@ -45,21 +48,63 @@
     return '';
   }
 
+  /* An invoice number written next to its label in any common way: "Invoice number: 1875801" (Metricool), "INVOICE # YJE6F0DZ-0002" (Runway's newer
+     layout), "Invoice No. INV-2041". It must hold a digit, so a label followed by another label ("Invoice number Receipt number") is never taken. */
+  function labelledInvoiceNo(text) {
+    const re = /\bInvoice\s*(?:number|no\.?|#)\s*[:#.]?\s*([A-Z0-9][A-Z0-9-]{2,30}[A-Z0-9])(?![A-Z0-9-])/gi;
+    let m;
+    while ((m = re.exec(String(text).replace(DASHES, '-')))) if (/\d/.test(m[1])) return m[1].toUpperCase();
+    return '';
+  }
+
+  // software and AI tools seen on claims: the name to show when an invoice has no company line
+  const VENDORS = [['Runway', /runway\s*ai|runwayml/i], ['Metricool', /metricool/i], ['ElevenLabs', /eleven\s*labs/i], ['OpenAI', /openai|chatgpt/i], ['Anthropic', /anthropic/i],
+    ['Canva', /canva/i], ['Adobe', /adobe/i], ['Midjourney', /midjourney/i], ['CapCut', /capcut/i], ['Notion', /notion\s*labs|notion\.so/i], ['Figma', /figma/i],
+    ['Zoom', /\bzoom\s*(?:video|communications)/i], ['Suno', /\bsuno\b/i], ['HeyGen', /heygen/i], ['Kling', /\bkling\b/i], ['Perplexity', /perplexity/i], ['Cursor', /anysphere|cursor\.com/i],
+    ['GitHub', /github/i], ['Higgsfield', /higgsfield/i], ['Freepik', /freepik/i]];
+  const knownVendor = (text) => { for (const [name, re] of VENDORS) if (re.test(text)) return name; return ''; };
+  const LEGAL = "(?:PBC|Inc\\.?|LLC|Ltd\\.?|Limited|Corp\\.?|GmbH|Pte\\.?(?: Ltd\\.?)?|Sdn\\.? Bhd\\.?|S\\.?L\\.?|S\\.A\\.|B\\.V\\.|SAS|SRL)";
+  const stripLegal = (s) => String(s || '').replace(new RegExp(`,?\\s+${LEGAL}\\s*$`), '').trim();
+
   /* -> { invoiceNo, merchant, date, amount|null, isReceipt } or null when it isn't this kind of document */
   function parseStripe(strs, text) {
     text = String(text).replace(DASHES, '-');
-    const invoiceNo = findInvoiceNo(text);
+    let invoiceNo = findInvoiceNo(text);
+    if (!invoiceNo) {
+      // other invoice layouts: a labelled number on a software invoice. Fuel, clinic and hotel papers are left to their own readers.
+      const other = labelledInvoiceNo(text);
+      const software = knownVendor(text) || /\b(subscriptions?|per month|\/\s?month|monthly|credits?|seats?|software|saas|api usage)\b/i.test(text);
+      if (other && software && !/\b(petrol|diesel|ron\s?9\d|litres?|liters?|pump|klinik|clinic|hospital|agoda|hotel)\b/i.test(text)) invoiceNo = other;
+    }
     if (!invoiceNo) return null;
     const isReceipt = /\bReceipt number\b/i.test(text) && /Date paid/i.test(text);
     // the date next to its label, or (when the labels and values are read as two blocks) the first long date on the page: "November 2, 2026"
-    const dateM = text.match(/Date paid\s+([A-Za-z]+ \d{1,2}, \d{4})/) || text.match(/Date of issue\s+([A-Za-z]+ \d{1,2}, \d{4})/) || text.match(/\b((?:January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4})/);
-    const charged = text.match(/Charged\s+RM\s*([\d,]+\.\d{2})/i);
+    const dateM = text.match(/Date paid\s+([A-Za-z]+ \d{1,2}, \d{4})/) || text.match(/(?:Date of issue|ISSUED|Invoice date|Issue date)\s*:?\s+([A-Za-z]+ \d{1,2}, \d{4}|\d{1,2} [A-Za-z]+ \d{4})/i)
+      || text.match(/\b((?:January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4})/)
+      || text.match(/\b(\d{1,2} (?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4})/);
+    // the ringgit amount: what the card was charged ("Charged RM93.39"), or a total billed in ringgit ("TOTAL MYR 148.65")
+    const charged = text.match(/Charged\s+RM\s*([\d,]+\.\d{2})/i) || text.match(/(?<![A-Za-z])(?:TOTAL|Amount paid|Total paid)\s*:?\s*-?\s*(?:MYR|RM)\s*([\d,]+\.\d{2})/i);
     let merchant = '';
     const at = strs.findIndex((s, i) => i > 0 && /^@\w+/.test(s));
     if (at > 0) merchant = strs[at - 1];
     if (!merchant) { const m = text.match(/([A-Z][\w.,&' -]{2,40}?)\s+@\w+/); if (m) merchant = m[1].trim(); }
-    // no @handle (Anthropic): the company name in front of its legal form, "Anthropic, PBC"
-    if (!merchant) { const m = text.match(/\b([A-Z][A-Za-z0-9&'.-]{1,30}(?: [A-Z][A-Za-z0-9&'.-]{1,30}){0,2}),?\s+(?:PBC|Inc\.?|LLC|Ltd\.?|Limited|Corp\.?|GmbH|Pte\.?|Sdn\.? Bhd\.?)(?![A-Za-z])/); if (m) merchant = m[1].trim(); }
+    // a FROM block (Runway's newer layout): the line after it, without its legal form
+    if (!merchant) { const f = strs.findIndex((s) => /^from:?$/i.test(s)); if (f >= 0 && strs[f + 1] && /[A-Za-z]/.test(strs[f + 1])) merchant = stripLegal(strs[f + 1]); }
+    // no @handle (Anthropic): the company name in front of its legal form, "Anthropic, PBC", "Metricool Software SL";
+    // never the customer, so a name just after "Bill to" is skipped
+    if (!merchant) {
+      const re = new RegExp(`\\b([A-Z][A-Za-z0-9&'.-]{1,30}(?: [A-Z][A-Za-z0-9&'.-]{1,30}){0,2}),?\\s+${LEGAL}(?![A-Za-z])`, 'g');
+      let m;
+      while ((m = re.exec(text))) {
+        const before = text.slice(Math.max(0, m.index - 160), m.index);
+        const bill = before.search(/\b(?:bill(?:ed)?\s*to|customer|sold\s*to|ship\s*to)\b/i), from = before.search(/\bfrom\b/i);
+        if (bill >= 0 && bill > from) continue;
+        merchant = m[1].trim();
+        break;
+      }
+    }
+    if (/^(from|bill to|billed to|invoice)\b/i.test(merchant)) merchant = merchant.replace(/^(from|bill to|billed to|invoice)\s+/i, '');
+    if (!merchant) merchant = knownVendor(text);
     return {
       invoiceNo,
       merchant,
@@ -113,7 +158,7 @@
     return canvas;
   }
 
-  const api = { readPdf, renderFirstPage, parseStripe, findInvoiceNo };
+  const api = { readPdf, renderFirstPage, parseStripe, findInvoiceNo, labelledInvoiceNo, isoFromLong };
   root.Receipts = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
