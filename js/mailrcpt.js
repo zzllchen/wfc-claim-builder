@@ -28,7 +28,7 @@
     const from = Math.floor(new Date(y, mo - 1, 1).getTime() / 1000), to = Math.floor(new Date(y, mo, 1).getTime() / 1000);
     const subj = SUBJECT_WORDS.map((w) => (/[\s-]/.test(w) ? `"${w}"` : w)).join(' OR ');
     const from_ = KNOWN.join(' OR ');
-    return `after:${from} before:${to} -in:spam -in:trash -in:chats (subject:(${subj}) OR from:(${from_}) OR filename:(receipt OR invoice OR resit OR inbois))`;
+    return `after:${from} before:${to} -in:spam -in:trash -in:chats -in:sent -in:drafts (subject:(${subj}) OR from:(${from_}) OR filename:(receipt OR invoice OR resit OR inbois))`;
   }
 
   /* ---------- reading one message (Gmail API format=full) ---------- */
@@ -139,6 +139,7 @@
   function connect(clientId, email) {
     return new Promise((resolve, reject) => {
       if (connected() && g.email === (email || '')) { resolve(true); return; }
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) { reject(new Error('Gmail needs internet, and there is no signal right now. Try again when you are connected.')); return; }
       const gis = root.google && root.google.accounts && root.google.accounts.oauth2;
       if (!gis) { reject(new Error('Google sign-in is still loading - try again in a moment.')); return; }
       gis.initTokenClient({

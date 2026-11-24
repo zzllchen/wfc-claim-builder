@@ -2133,7 +2133,7 @@
     foot.hidden = true; foot.textContent = '';
     const show = (...kids) => { body.textContent = ''; body.append(...kids.filter(Boolean)); };
     const note = (text, kind) => h('p', { class: 'snapst ' + (kind || 'wait'), text });
-    const intro = () => show(
+    const intro = () => window.Pwa && !Pwa.online() ? show(note('No signal. Gmail needs internet, so this will work when you are connected again.', 'warn')) : show(
       h('p', { text: `Flow will look in your Gmail for emails from ${monthLabel(mp)} that look like receipts or invoices: AI tools, Grab, flights, hotels and so on.` }),
       h('ul', { class: 'mailtrust' },
         h('li', { text: 'It only opens emails that look like receipts. Nothing else is read.' }),

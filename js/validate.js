@@ -17,7 +17,7 @@
     leaveForm: 'This is a WFC leave form, not a receipt. Leave forms are made on the Leave application tab – attach receipts or invoices here.',
     photoUnreadable: "Couldn't read any text on this photo – it is too blurry or dark, or it isn't a receipt. Please re-attach a clearer photo.",
     pdfUnreadable: "No readable text in this PDF (it may be a poor scan). Please re-attach the original PDF or a clearer copy.",
-    noAmount: "No amount found – this looks like the wrong file, or the amount is too blurry or cut off to read. Attach the receipt or invoice, or a clearer copy of it.",
+    noAmount: "No amount found – this looks like the wrong file, the receipt may be in a language Flow can't read on its own, or the amount is too blurry or cut off. Attach a clearer copy, or add it anyway and type the details.",
     notReceipt: "This PDF doesn't look like a receipt or invoice (no receipt / invoice wording). Attach the receipt or invoice instead.",
     mc: "This is a medical certificate (MC), not a receipt, so it can't go on the expense claim. Add it on the Leave application tab, or attach the clinic's official receipt here instead.",
     notMc: "This doesn't look like a medical certificate (no \"Medical Certificate\" wording found). Attach the MC itself, or a clearer photo of it.",

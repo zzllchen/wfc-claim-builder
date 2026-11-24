@@ -27,6 +27,7 @@ const quiet = html('m7', 'Friend <friend@mail.example>', 'Lunch on Friday?', '<p
     assert.ok(q.includes(`after:${a} before:${b}`), q);
     assert.ok(/subject:\(.*receipt.*invoice.*\)/.test(q) && /from:\(.*grab\.com.*anthropic\.com.*\)/.test(q) && /filename:\(receipt OR invoice/.test(q));
     assert.ok(q.includes('-in:spam') && q.includes('-in:trash'));
+    assert.ok(q.includes('-in:sent') && q.includes('-in:drafts'), 'your own sent mail and drafts are never listed');
     assert.ok(q.includes('"tax invoice"'), 'phrases are quoted');
     assert.strictEqual(M.buildQuery('2026-12').includes(`before:${Math.floor(new Date(2027, 0, 1).getTime() / 1000)}`), true, 'December ends on 1 January');
     assert.throws(() => M.buildQuery(''), /claim month/);

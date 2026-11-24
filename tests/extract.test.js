@@ -192,4 +192,113 @@ ok('"Invoiced To" is the customer; a bare "No." or "Transaction number" is the n
   assert.deepStrictEqual(pick(paid, ['total', 'number', 'paymentMethod']), { total: 60.7, number: '9800001', paymentMethod: "Touch 'n Go eWallet" });
 });
 
+/* figures that contradict each other are marked "check" (a poor scan can lose a digit or a decimal point), never silently trusted */
+ok('a total below its own subtotal (75.00 read as 0.75) is marked for review, not trusted', () => {
+  const r = X.read(`AEON CO. (M) BHD
+Receipt No: 1042
+Date: 06/03/2026
+Sub Total 75.00
+Total 0.75
+Cash 100.00`, ctx);
+  assert.strictEqual(r.total, 0.75, 'the reading itself is not changed');
+  assert.ok(r.confidence.total < 0.7 && r.needsReview.includes('total'), JSON.stringify(r.confidence));
+  assert.ok(/less than the subtotal/.test(r.why.total), r.why.total);
+});
+ok('tax bigger than the total is marked for review', () => {
+  const r = X.read(`SYARIKAT PERNIAGAAN GIN KEE
+Invoice No: CS00011955
+Date: 02/11/2026
+Tax Amount 14.84
+Total 7.00
+Cash 10.00`, ctx);
+  assert.ok(r.needsReview.includes('total') && /tax is bigger/.test(r.why.total), r.why.total);
+});
+ok('a normal receipt whose parts add up is still trusted; a real discount with a clear total is not disturbed when the parts agree', () => {
+  const r = X.read(`KEDAI RUNCIT MAJU
+Receipt No: 3301
+Date: 21/11/2026
+Subtotal 100.00
+SST 6% 6.00
+Total 106.00`, ctx);
+  assert.ok(r.confidence.total >= 0.9 && !r.needsReview.includes('total'));
+});
+ok('a GST summary table repeats the tax and its amount: the tax is counted once, so a right total is not flagged', () => {
+  const r = X.read(`C W KHOO HARDWARE SDN BHD
+Tax Invoice
+Invoice No: CR1803/0064
+Date: 01/03/2018
+5 Item(s) Total (MYR): 20.00
+GST @ 6% : 1.20
+Net Total (MYR) : 21.20
+Cash 21.20
+GST Summary Item Amount (MYR) GST (MYR) SR @ 6% 1 20.00 1.20`, ctx);
+  assert.strictEqual(r.total, 21.2);
+  assert.strictEqual(r.tax, 1.2, 'once, not 1.20 + 20.00 + 1.20');
+  assert.ok(!r.needsReview.includes('total'), JSON.stringify(r.confidence));
+});
+ok('"Total Sales (Excluding GST)" is the subtotal, not what was paid: with the GST it is the amount', () => {
+  const r = X.read(`SYARIKAT PERNIAGAAN GIN KEE
+Tax Invoice
+Invoice No: CS00011955
+Date: 02/12/2017
+Total Sales (Excluding GST) 7.00
+Total GST 0.42
+Cash 10.00`, ctx);
+  assert.strictEqual(r.subtotal, 7, 'the excluding-GST figure is the subtotal');
+  assert.strictEqual(r.total, 7.42);
+  assert.ok(/subtotal plus the tax/.test(r.why.total), r.why.total);
+});
+ok('a GST receipt with a summary table: the line that says "Inclusive of GST" is the total, not the summary table\'s total row', () => {
+  const r = X.read(`SYARIKAT PERNIAGAAN GIN KEE
+SIMPLIFIED TAX INVOICE
+Doc No. : CS00011955 Date: 02/12/2017
+Total Sales (Excluding GST) 7.00
+Total GST . 0.42
+Rounding . 0.00
+Total Sales (Inclusive of GST) : ( 7.42)
+CASH : 7.42
+GST SUMMARY
+Tax Code % Amt(RM) Tax (RM)
+Total 7.00 0.42`, ctx);
+  assert.strictEqual(r.total, 7.42);
+  assert.ok(r.confidence.total >= 0.7, JSON.stringify(r.confidence));
+});
+ok('a total worked out from subtotal and tax (none printed) is marked for a check, since rounding can make it a few sen off', () => {
+  const r = X.read(`CAFE ONE
+Receipt No: 77
+Date: 21/11/2026
+Subtotal 21.95
+Service tax 1.32`, ctx);
+  assert.strictEqual(r.total, 23.27);
+  assert.ok(r.needsReview.includes('total'));
+});
+ok('a scrap of scan noise above the shop name is not taken for the name', () => {
+  const r = X.read(`SII -
+KEDAI RUNCIT MAJU
+Jalan Pasar Lama, Kajang
+Resit: 004127
+15/10/2026
+BERAS 5KG 21.90
+JUMLAH 21.90`, ctx);
+  assert.strictEqual(r.vendor, 'KEDAI RUNCIT MAJU');
+});
+ok('a cough medicine on a grocery bill does not make it Medical; a clinic still is', () => {
+  const grocery = X.read(`KEDAI RUNCIT MAJU
+Resit: 004127
+15/10/2026
+BERAS 5KG 21.90
+SABUN BASUH 8.90
+UBAT BATUK 6.40
+JUMLAH 37.20
+TUNAI 50.00`, ctx);
+  assert.notStrictEqual(grocery.category, 'Medical');
+  const clinic = X.read(`KLINIK PUTRA CARE
+Receipt No: 118
+15/10/2026
+Consultation 40.00
+Ubat 18.00
+Total RM 58.00`, ctx);
+  assert.strictEqual(clinic.category, 'Medical');
+});
+
 console.log('extract tests passed');

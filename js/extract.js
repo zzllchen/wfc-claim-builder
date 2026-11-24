@@ -39,17 +39,18 @@
         const before = line.slice(Math.max(0, m.index - 40), m.index), after = line.slice(m.index + m[0].length, m.index + m[0].length + 8);
         // the label: the words in front on this line, or (labels and values in two columns) the line before
         let label = before.replace(/[\s:=.-]+$/, '');
-        if (!/[A-Za-z一-鿿]{3,}/.test(label) && li > 0) label = lines[li - 1] + ' ' + label;
+        let inherited = false;
+        if (!/[A-Za-z一-鿿]{3,}/.test(label) && li > 0) { label = lines[li - 1] + ' ' + label; inherited = true; }
         let currency = '';
         for (const [code, re] of CUR) if (re.test(before.slice(-8)) || re.test(after)) { currency = code; break; }
-        out.push({ value, currency, label: label.slice(-60), line: li, text: line });
+        out.push({ value, currency, label: label.slice(-60), line: li, text: line, inherited });
       }
     });
     return out;
   }
   const L_TOTAL = /\b(grand\s*total|total\s*(?:amount|payable|paid|due|charged|price|incl\.?|including|\(?rm\)?|\(?myr\)?)?|amount\s*(?:paid|due|payable|charged)|net\s*(?:total|amount)|jumlah(?:\s*(?:besar|keseluruhan|bayaran|perlu\s*dibayar))?|charged|you\s*paid|total\s*bayaran|bayaran)\b|合计|总计|总额|实付|应付|付款金额|總計|合計/i;
-  const L_NOT_TOTAL = /\b(sub\s*-?\s*total|subtotal|jumlah\s*kecil|before|savings?|discount|diskaun|change|baki|cash|tunai|tendered|rounding|pembundaran|deposit|points?|balance|previous|unit\s*price|qty|quantity|each)\b|小计|找零|找赎|现金|折扣/i;
-  const L_SUB = /\b(sub\s*-?\s*total|subtotal|jumlah\s*kecil|total\s*(?:excl|before\s*tax))\b|小计|小計/i;
+  const L_NOT_TOTAL = /\b(sub\s*-?\s*total|subtotal|jumlah\s*kecil|before|excl(?:uding|usive)?|total\s*(?:gst|sst|vat|tax|cukai)|(?:gst|sst|vat|tax)\s*total|savings?|discount|diskaun|change|baki|cash|tunai|tendered|rounding|pembundaran|deposit|points?|balance|previous|unit\s*price|qty|quantity|each)\b|小计|找零|找赎|现金|折扣/i;
+  const L_SUB = /\b(sub\s*-?\s*total|subtotal|jumlah\s*kecil|total\s*(?:sales\s*)?\(?\s*(?:excl\w*|before\s*tax))\b|小计|小計/i;
   const L_TAX = /\b(sst|service\s*tax|sales\s*tax|gst|vat|tax|cukai(?:\s*(?:jualan|perkhidmatan))?)\b|税|稅/i;
   const taxTypeOf = (l) => (/\bsst\b|cukai\s*jualan/i.test(l) ? 'SST' : /\bgst\b/i.test(l) ? 'GST' : /\bvat\b/i.test(l) ? 'VAT' : /service\s*tax|cukai\s*perkhidmatan/i.test(l) ? 'service tax' : 'tax');
 
@@ -59,27 +60,40 @@
     const labelled = (re, not) => pos.filter((m) => re.test(m.label) && !(not && not.test(m.label)));
     const totals = labelled(L_TOTAL, L_NOT_TOTAL);
     const subs = labelled(L_SUB);
-    const taxes = labelled(L_TAX, /\b(incl|inclusive|termasuk|no\.?|reg|id|rate|%)\b/i).filter((m) => !L_TOTAL.test(m.label) || /tax\s*amount|amount\s*of\s*tax/i.test(m.label));
+    const taxes = labelled(L_TAX, /\b(incl|inclusive|termasuk|no\.?|reg|id|rate|%)\b/i).filter((m) => !L_TOTAL.test(m.label) || /tax\s*amount|amount\s*of\s*tax|total\s*(?:gst|sst|vat|tax)\b/i.test(m.label));
+    const subtotal = subs.length ? subs[subs.length - 1].value : null;
+    // the tax: the amounts on lines that name a tax themselves (a column header above a table row does not count unless nothing else names one), the last amount on a
+    // line (a GST summary row lists the amount, then the tax), each figure once (the same tax is printed again in the summary)
+    const own = taxes.filter((m) => !m.inherited), usable = own.length ? own : taxes, byLine = new Map();
+    usable.forEach((m) => byLine.set(m.line, m));
+    const tax = byLine.size ? r2(Array.from(new Set(Array.from(byLine.values()).map((m) => m.value))).reduce((t, v) => t + v, 0)) : null;
     let total = null, why = '', conf = 0;
     if (totals.length) {
       // the strongest label wins; among equals, the last one on the page (a grand total sits below the lines)
-      const rank = (m) => (/grand\s*total|jumlah\s*(?:besar|keseluruhan)|总计|合计|總計|合計/i.test(m.label) ? 3 : /amount\s*paid|total\s*paid|charged|you\s*paid|实付|jumlah\s*bayaran/i.test(m.label) ? 3 : /total/i.test(m.label) ? 2 : 1);
+      const rank = (m) => (/grand\s*total|jumlah\s*(?:besar|keseluruhan)|总计|合计|總計|合計/i.test(m.label) ? 3 : /amount\s*paid|total\s*paid|charged|you\s*paid|实付|jumlah\s*bayaran|net\s*total|total\s*payable|incl(?:usive|uding|\.)?\s*(?:of\s*)?(?:gst|sst|tax|vat)/i.test(m.label) ? 3 : /total/i.test(m.label) ? 2 : 1);
       total = totals.slice().sort((a, b) => rank(b) - rank(a) || b.line - a.line)[0];
       why = `labelled "${(total.label.match(L_TOTAL) || [''])[0].trim()}"`;
       conf = rank(total) >= 2 ? 0.85 : 0.7;
     } else if (labelled(/\bamount\s*[:=]?\s*(?:\(?(?:rm|myr|usd)\)?)?$/i, L_NOT_TOTAL).length === 1) {
       total = labelled(/\bamount\s*[:=]?\s*(?:\(?(?:rm|myr|usd)\)?)?$/i, L_NOT_TOTAL)[0];          // a payment slip: "Amount : MYR 60.70", the only amount so labelled
       why = 'labelled "Amount"'; conf = 0.75;
+    } else if (subtotal != null && tax != null && tax > 0 && tax < subtotal) {
+      total = { value: r2(subtotal + tax), currency: '', label: '', line: -1 };
+      why = 'the subtotal plus the tax (no total line found)'; conf = 0.6;
     } else if (pos.length) {
       total = pos.reduce((a, b) => (b.value > a.value ? b : a));
       why = 'the largest amount (no total label found)';
       conf = 0.4;
     }
-    const subtotal = subs.length ? subs[subs.length - 1].value : null;
-    const tax = taxes.length ? r2(taxes.reduce((t, m) => t + m.value, 0)) : null;
     // the parts add up: more sure
-    if (total && subtotal != null && Math.abs(r2(subtotal + (tax || 0)) - total.value) < 0.06) { conf = Math.max(conf, 0.95); why += '; subtotal and tax add up to it'; }
+    if (total && total.line !== -1 && subtotal != null && Math.abs(r2(subtotal + (tax || 0)) - total.value) < 0.06) { conf = Math.max(conf, 0.95); why += '; subtotal and tax add up to it'; }
     if (total && subtotal != null && tax == null && Math.abs(subtotal - total.value) < 0.01) conf = Math.max(conf, 0.9);
+    // the figures contradict each other, so a digit or a decimal point was probably misread: a total below its own subtotal (75.00 read as 0.75), or tax bigger than the total.
+    // Not wrong for sure (a discount line is real), so it is only marked "check", never changed.
+    if (total && conf < 0.9) {
+      const small = subtotal != null && subtotal > 0 && total.value < subtotal - 0.06, taxBig = tax != null && tax > total.value + 0.06;
+      if (small || taxBig) { conf = Math.min(conf, 0.5); why += small ? '; the total is less than the subtotal' : '; the tax is bigger than the total'; }
+    }
     return {
       total: total ? r2(total.value) : null, currency: (total && total.currency) || cur || '', subtotal, tax,
       taxType: taxes.length ? taxTypeOf(taxes[0].label) : '', confTotal: conf, whyTotal: why,
@@ -234,12 +248,15 @@
       if (m) { const v = (m[1] || lines[li + 1] || '').trim(); if (/[A-Za-z一-鿿]{3,}/.test(v) && !self.test(v)) return { vendor: v.slice(0, 60), conf: 0.75, why: 'beside its From label' }; }
     }
     // 4. the heading: the first line near the top with letters that is not a document title, an address, a date or money
+    const heads = [];
     for (const l of lines.slice(0, 6)) {
       if (!/[A-Za-z一-鿿]{3,}/.test(l) || l.length > 50) continue;
       if (/\b(receipt|invoice|resit|invois|tax|official|bill|statement|copy|duplicate|welcome|thank|page|date|tarikh|tel|phone|fax|email|www|http)\b|收据|发票/i.test(l)) continue;
       if (ADDRESS.test(l) || /\d[\d.,/-]{4,}/.test(l) || self.test(l)) continue;
-      return { vendor: l, conf: 0.55, why: 'the heading at the top' };
+      heads.push(l);
     }
+    const word = heads.find((l) => /[A-Za-z]{4,}|[一-鿿]{2,}/.test(l)) || heads[0];          // a short scrap of noise at the very top ("SII -") is not the name
+    if (word) return { vendor: word, conf: 0.55, why: 'the heading at the top' };
     return { vendor: '', conf: 0, why: '' };
   }
 
@@ -271,7 +288,7 @@
     ['Petrol', /\b(petronas|shell|caltex|petron|bhpetrol|ron\s?9[57]|diesel|primax|v-power|budi\s?95|litres?|liters?|pump\s*no)\b/i, 3],
     ['Toll', /\b(toll|plaza\s*tol|smart\s*tag|plus\s*malaysia)\b/i, 2],
     ['Parking', /\b(parking|letak\s*kereta|car\s*park|flexi\s*parking|mbsj|mbpj|dbkl|parkir)\b|停车/i, 2],
-    ['Medical', /\b(klinik|clinic|poliklinik|hospital|pharmacy|farmasi|consultation|dental|pergigian|medical|doctor|ubat)\b|诊所|医院|药/i, 2],
+    ['Medical', /\b(klinik|clinic|poliklinik|hospital|pharmacy|farmasi|consultation|dental|pergigian|medical|doctor)\b|诊所|医院/i, 2],          // the place, not a product: a cough medicine on a grocery bill ("ubat batuk") does not make it Medical
     ['Accommodation', /\b(hotel|resort|inn|motel|homestay|guest\s*house|check[\s-]?in|check[\s-]?out|room\s*(?:no|rate|night)|nights?|airbnb|agoda|booking\.com|penginapan)\b|酒店|住宿/i, 2],
     ['Travel', /\b(airline|airlines|airasia|firefly|batik\s*air|flight|boarding|e-?ticket|itinerary|pnr|passenger|depart|ktm|ets|bus\s*ticket|easybook|redbus|ferry|tiket\s*penerbangan)\b|机票|航班/i, 3],
     ['Transport', /\b(grab(?:car|taxi)?|e-?hailing|taxi|teksi|ride|trip\s*fare|pick[\s-]?up|drop[\s-]?off|indrive|mycar|maxim)\b/i, 2],
