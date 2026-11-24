@@ -19,6 +19,15 @@ The first page is a **Sign in** page with two buttons, **Continue with Google** 
 - **Windows, quickest:** double-click `Start.bat` (needs Python) and the page opens at http://localhost:8080/.
 - **For all staff:** put this whole folder on any static host (Netlify Drop, GitHub Pages, a company web server, SharePoint site). No server code, no build step.
 
+## On the phone: home-screen app, no signal needed
+
+Flow is an installable web app (`manifest.webmanifest`, display *standalone*, plus `sw.js`, the service worker, and `js/pwa.js`).
+
+- **Put it on the home screen** (iPhone: Safari, Share, *Add to Home Screen*; Android: Chrome menu, *Install app*). A slim bar and the account menu entry **Put Flow on my phone** show these steps on phones that have not done it yet. On iPhone this matters twice: only a home-screen app has storage Safari will not clear after a week without a visit, and only a home-screen app can get notifications. An icon added before this change opens Safari (the old manifest said *minimal-ui*, which iPhone treats as a bookmark): remove it and add it again.
+- **No signal:** the first visit saves the page, its scripts and the receipt-reading engine (about 17 MB, fetched quietly a few seconds after the page settles, never on a data saver or 2G). After that **Snap a receipt** works with no signal at all: the photo is checked, kept in the app (IndexedDB) and read on the phone (Claude is not asked while offline). A slim bar says *No signal* and, when the signal returns, *You are back online*; if the person signed in with Google and snapped receipts that are only on the phone, it offers **Copy now** (one tap: Google needs a click to connect Drive) and copies them to their own Google Drive folder *WFC Receipts*. Drive stays optional.
+- **How the saved copy is kept right** (`sw.js`): the page itself is always fetched from the internet first (5 s, then the saved copy), so an update is never missed. Script, style and library addresses carry `?v=NNN`, so a saved copy of an address is always the right one: **bump the `?v=` number in `index.html` with every change** (the old copies are dropped by the service worker). It never touches Google, Microsoft, the dashboard or Claude. Test: `node tests/sw.test.js`.
+- To test offline in the preview: open the page once, wait ten seconds, stop the local server and reload; the page, a snap and its reading still work.
+
 ## A refresh does not lose your claim
 
 The unfinished claim (the form boxes, the TNG statement, every line with its files, the ticks and typed-over amounts, and the step you were on) is kept on this computer, in the browser, a moment after every change (`js/draft.js`). Refresh, close the tab or come back tomorrow and it is put back, with a note at the top. **Start over** (top bar, or in that note) removes everything on the page and the kept copy, and sets the page to the first visit (the claimant name stays). The kept copy is removed after 30 days. Nothing leaves the computer. Photos that were still being read when the page closed are read again.

@@ -688,7 +688,8 @@
       msg(opening); busy(true);                  // start() must run in this same click: it opens the sign-in popup
       let p;
       try { p = start(); } catch (e) { p = Promise.reject(e); }
-      p.then(done, (e) => msg(String((e && e.message) || e), true)).then(() => busy(false));
+      const hint = window.Pwa && Pwa.standalone() && Pwa.isIos() ? ' If Google\'s window did not open, tap "Continue without signing in": everything still works.' : '';
+      p.then(done, (e) => msg(String((e && e.message) || e) + hint, true)).then(() => busy(false));
     };
     $('#btnGoogle').addEventListener('click', () => {
       if (!gmailClientId()) { msg('Google sign-in is not set up yet. Use "Continue without signing in" for now.', true); return; }
@@ -1866,6 +1867,7 @@
     if (!window.Wallet) return null;
     if (!canDrive()) return h('p', { class: 'driveline', text: S.user && S.user.provider === 'google' ? 'Kept on this device.' : 'Kept on this device. Sign in with Google to keep a copy in your own Google Drive.' });
     if (Wallet.connected()) return h('p', { class: 'driveline ok', text: 'Kept on this device and in your Google Drive (folder "WFC Receipts").' });
+    if (window.Pwa && !Pwa.online()) return h('p', { class: 'driveline', text: 'Saved on this phone. You can copy it to your Google Drive when you are back online.' });
     return h('p', { class: 'driveline' }, 'Kept on this device. ',
       h('button', { class: 'link', type: 'button', text: 'Keep a copy in my Google Drive', onclick: () => driveConnect(after) }));
   }
@@ -1911,7 +1913,7 @@
     refreshWalletBar();
     const r = rec.reading || {};
     show(pic,
-      h('p', { class: 'snapst ' + (refused ? 'bad' : 'ok'), text: refused ? `Saved, but it could not be read as a receipt: ${refused.replace(/ Attach the receipt itself.*$/, '')}` : 'Saved to My receipts.' }),
+      h('p', { class: 'snapst ' + (refused ? 'bad' : 'ok'), text: refused ? `Saved, but it could not be read as a receipt: ${refused.replace(/ Attach the receipt itself.*$/, '')}` : window.Pwa && !Pwa.online() ? 'Saved on your phone. No signal needed: it waits in My receipts.' : 'Saved to My receipts.' }),
       refused ? null : readingRows(r),
       !refused && r.review && r.review.length ? h('p', { class: 'snapst warn', text: 'Please check ' + plainList(r.review.map((k) => FIELD_WORD[k] || k)) + ' when you claim it.' }) : null,
       driveLine(() => onSnappedDone(rec)),
@@ -2026,6 +2028,78 @@
     $('#walletClose').addEventListener('click', () => $('#walletDlg').close());
   }
 
+  /* ---------- Flow on the phone: works with no signal, sits on the home screen (js/pwa.js, sw.js) ----------
+     Snapping needs no signal: the photo is checked, kept and read on the phone. When the signal is back, receipts that are only on the phone
+     can be copied to the person's own Google Drive (one tap: Google asks for a click, so it cannot happen by itself). */
+  const svgIcon = (inner) => { const s = document.createElement('span'); s.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>'; return s; };   // fixed icon markup only
+  const ICON_SHARE = '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 5 21h14a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 19 11h-1"/>';
+  const ICON_PLUS = '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/>';
+  const ICON_DOTS = '<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>';
+  const HIDE_KEY = 'wfc-install-hide', HIDE_DAYS = 14;
+  async function backOnline() {
+    if (!window.Wallet || !canDrive()) return;
+    let list = [];
+    try { list = await Wallet.localAll(owner()); } catch (e) { return; }
+    const waiting = list.filter((r) => !r.removed && !r.driveId && r.file).length;
+    if (!waiting) return;
+    const plural = `${waiting} receipt${waiting > 1 ? 's' : ''}`;
+    if (Wallet.connected()) {
+      Wallet.sync(owner()).then((res) => { W.list = res.list; refreshWalletBar(); Pwa.bar(res.sent ? `Copied ${res.sent} receipt${res.sent > 1 ? 's' : ''} to your Google Drive.` : '', { kind: 'on', seconds: 6 }); }).catch(() => {});
+      return;
+    }
+    Pwa.bar(`You are back online. ${plural} snapped without signal can be copied to your Google Drive.`, { kind: 'on', action: { label: 'Copy now', run: () => driveConnect(() => Pwa.bar(`Copied to your Google Drive.`, { kind: 'on', seconds: 5 })) } });
+  }
+  async function showInstall() {
+    const body = $('#installBody'), dlg = $('#installDlg');
+    body.textContent = '';
+    const ios = Pwa.isIos(), steps = [];
+    if (Pwa.inAppBrowser()) body.append(h('p', { class: 'howtip warn', text: 'You are inside another app (WhatsApp, Gmail, Facebook...). Open this page in ' + (ios ? 'Safari' : 'Chrome') + ' first: tap the menu (… or ⋮) and choose "Open in browser".' }));
+    if (ios) {
+      steps.push(h('li', {}, h('span', {}, 'Tap the ', h('b', { text: 'Share' }), ' button ', svgIcon(ICON_SHARE), ' at the bottom of Safari (top right on an iPad).')));
+      steps.push(h('li', {}, h('span', {}, 'Scroll down and tap ', h('b', { text: 'Add to Home Screen' }), ' ', svgIcon(ICON_PLUS), '.')));
+      steps.push(h('li', {}, h('span', {}, 'Tap ', h('b', { text: 'Add' }), '. From now on open ', h('b', { text: 'Flow' }), ' from its new icon.')));
+    } else if (Pwa.canPrompt()) {
+      steps.push(h('li', {}, h('span', {}, 'Tap ', h('b', { text: 'Install Flow' }), ' below, then ', h('b', { text: 'Install' }), '.')));
+      steps.push(h('li', {}, h('span', {}, 'Open ', h('b', { text: 'Flow' }), ' from its new icon on your home screen.')));
+    } else {
+      steps.push(h('li', {}, h('span', {}, 'Tap the menu ', svgIcon(ICON_DOTS), ' at the top right of Chrome.')));
+      steps.push(h('li', {}, h('span', {}, 'Tap ', h('b', { text: 'Install app' }), ' (or ', h('b', { text: 'Add to Home screen' }), '), then ', h('b', { text: 'Install' }), '.')));
+      steps.push(h('li', {}, h('span', {}, 'Open ', h('b', { text: 'Flow' }), ' from its new icon.')));
+    }
+    body.append(h('p', { class: 'muted', text: 'It opens like an app, works with no signal, keeps your snapped receipts safe and can remind you when claims are due.' }), h('ol', { class: 'howto' }, steps));
+    if (!ios && Pwa.canPrompt()) body.append(h('div', { class: 'snapacts' }, h('button', { class: 'primary', type: 'button', text: 'Install Flow', onclick: async () => { const ok = await Pwa.prompt(); if (ok) dlg.close(); } })));
+    if (ios) body.append(h('p', { class: 'howtip warn', text: 'Added Flow before? That old icon opens Safari. Press and hold it, tap Remove App, then follow the steps again.' }));
+    let n = 0;
+    try { n = window.Wallet ? (await Wallet.localAll(owner())).filter((r) => !r.removed && !r.driveId && r.file).length : 0; } catch (e) { n = 0; }
+    if (n) {
+      const many = n > 1, what = `${n} snapped receipt${many ? 's' : ''}`;
+      body.append(h('p', { class: 'howtip', text: canDrive()
+        ? `You have ${what} that ${many ? 'are' : 'is'} only in this browser. Copy ${many ? 'them' : 'it'} to your Google Drive first (My receipts > Keep a copy in my Google Drive). ${many ? 'They come' : 'It comes'} back in the new app once you connect Drive there.`
+        : `You have ${what} in this browser. ${many ? 'They' : 'It'} will not be in the new app, so add ${many ? 'them' : 'it'} to your claim first.` }));
+    }
+    if (!dlg.open) dlg.showModal();
+  }
+  function wirePhone() {
+    if (!window.Pwa) return;
+    const hidden = () => { const t = Number(store.get(HIDE_KEY, 0)); return t && Date.now() - t < HIDE_DAYS * 864e5; };
+    const paintInstall = () => {
+      const can = Pwa.installable();
+      $('#btnInstall').hidden = !can;
+      $('#installBar').hidden = !(can && !hidden() && Pwa.online());          // no signal: one slim bar is enough
+    };
+    $('#btnInstall').addEventListener('click', showInstall);
+    $('#btnInstallShow').addEventListener('click', showInstall);
+    $('#btnInstallHide').addEventListener('click', () => { store.set(HIDE_KEY, Date.now()); paintInstall(); });
+    Pwa.on('installable', paintInstall); Pwa.on('installed', paintInstall); Pwa.on('offline', paintInstall); Pwa.on('online', paintInstall);
+    paintInstall();
+    Pwa.on('online', (e) => { if (e && e.back) backOnline(); });
+    // "Works without signal" once the page and the reading engine are saved on this phone
+    const note = h('p', { class: 'offnote', id: 'offNote', hidden: true, text: 'Works without signal ✓' });
+    $('#acMenu').append(note);
+    const mark = () => Pwa.haveEngine().then((ok) => { note.hidden = !ok; });
+    Pwa.on('ready', mark); mark();
+  }
+
   function init() {
     S.restoring = true;       // until the saved draft has been looked for, nothing may overwrite it
     ClaimPdf.croppedLogo().then((l) => { $('#brandLogo').src = l.url; $('#loginLogo').src = l.url; }).catch(() => { $('#brandLogo').remove(); $('#loginLogo').remove(); });
@@ -2046,6 +2120,7 @@
     $('#signature').addEventListener('input', () => { cfg.signature = $('#signature').value; saveCfg(); updateSummary(); });
     $('#month').addEventListener('input', () => { S.touched.month = true; renderLines(); refreshWalletBar(); });
     wireWallet();
+    wirePhone();
     $('#daysOff').addEventListener('input', renderLines);
     $('#toEmail').addEventListener('input', () => { cfg.toEmail = $('#toEmail').value; saveCfg(); renderSteps(); });
     $('#subject').addEventListener('input', () => { S.touched.subject = true; renderSteps(); });

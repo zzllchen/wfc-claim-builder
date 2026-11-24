@@ -58,7 +58,7 @@
   // when Claude reads: 'first' = camera photos go to Claude first, 'backup' = only when the reader on this PC fails or doubts, 'off' = never
   const mode = () => { const m = ls.get(MODE); return m === 'backup' || m === 'off' || m === 'first' ? m : 'backup'; };          // default: only when the reader on this PC is unsure
   const setMode = (m) => { ls.set(MODE, m); ls.set(FIRST, ''); };
-  const available = () => (!!apiKey() || team.on) && mode() !== 'off' && calls < MAX_CALLS;
+  const available = () => (!!apiKey() || team.on) && mode() !== 'off' && calls < MAX_CALLS && !(typeof navigator !== 'undefined' && navigator.onLine === false);      // no signal: nothing can be asked
   // Claude reads every photo first (the default once a key is saved); switched off, it is only asked when the reader on this PC fails or doubts
   const first = () => mode() === 'first';
 
