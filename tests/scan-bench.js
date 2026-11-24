@@ -4,7 +4,8 @@
    Served by the local server (http://localhost:5199/WFC%20Claim%20Builder/tests/scan-bench.html), which also serves /scan-tests/. */
 (function () {
   'use strict';
-  const ROOT = '/scan-tests/';
+  // ?root=/scan-tests/online-set/ runs another sample set (a folder of scan-tests with its own samples/ and labels.json)
+  const ROOT = (() => { const r = new URLSearchParams(location.search).get('root'); return r && /^\/scan-tests\/[\w-]+\/$/.test(r) ? r : '/scan-tests/'; })();
   const $ = (s) => document.querySelector(s);
   const B = window.BENCH = { results: {}, report: null, log: [], running: false };
   const say = (t) => { B.log.push(t); const el = $('#log'); if (el) { el.textContent = B.log.slice(-14).join('\n'); } };
