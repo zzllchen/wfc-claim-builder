@@ -43,7 +43,9 @@
     return r ? { myr: Math.round(amount * r.rate * 100) / 100, rate: r.rate, date: r.date, code, amount } : null;
   }
 
-  const note = (c) => `Converted from ${c.code} ${c.amount.toFixed(2)} at 1 ${c.code} = ${c.rate.toFixed(4)} MYR (${c.date}) – check it against your card statement`;
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? `${+iso.slice(8)} ${MON[+iso.slice(5, 7) - 1]}` : iso);
+  const note = (c) => `${c.code} ${c.amount.toFixed(2)} at ${c.rate.toFixed(4)} (rate of ${day(c.date)}). Check your card statement.`;
 
   root.Fx = { rate, toMyr, note };
 })(window);

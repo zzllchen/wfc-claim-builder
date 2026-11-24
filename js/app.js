@@ -205,7 +205,7 @@
       // photos that were still being read when the page closed are read again
       S.other.filter((o) => o.ocr === 'queued' || o.ocr === 'reading').forEach((o) => { o.ocr = 'queued'; if (cfg.ocr || PlanB.available()) readPhoto(o); });
       const bar = $('#resumeBar');
-      bar.querySelector('span').textContent = `Your unfinished claim from ${new Date(d.savedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${new Date(d.savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} is back. It is kept on this device only.`;
+      bar.querySelector('span').textContent = `Your unfinished claim from ${new Date(d.savedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${new Date(d.savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} is back.`;
       bar.hidden = false;
     } catch (e) { console.warn('Could not put the draft back', e); }
     S.restoring = false;
@@ -521,7 +521,7 @@
     const panel = h('div', { class: 'trips' + (S.showTrips ? ' open' : '') },
       h('div', { class: 'scroll' }, h('table', {},
         h('thead', {}, h('tr', {}, ['', 'Date', 'Time', 'Type', 'Plaza', 'RM', 'Why'].map((t, i) => h('th', { class: i === 5 ? 'amt' : '', text: t })))), tbody)),
-      h('p', { class: 'hint' }, 'Ticked trips go into the claim. Untick a trip you do not want to claim, or tick one the rules left out. ',
+      h('p', { class: 'hint' }, 'Untick a trip you don\'t claim, or tick one the rules left out. ',
         S.overrides.size ? h('button', { class: 'link', type: 'button', text: 'Reset my ticks', onclick: () => { S.overrides.clear(); renderLines(); } }) : null));
     return panel;
   }
@@ -726,7 +726,6 @@
     $('#toEmail').classList.toggle('need', !emailOk('#toEmail'));       // From is optional: it never waits for the person
     $('#month').classList.toggle('need', !monthParts());
     $('#dropAll').classList.toggle('need', !S.tng && !S.other.length);
-    $('#needHint').hidden = !document.querySelector('#viewClaim .pane:not([hidden]) .need');
   }
   function markNeededLeave() {
     ['#lName', '#lFrom', '#lTo', '#lReason', '#lSubject'].forEach((id) => $(id).classList.toggle('need', !$(id).value.trim()));
@@ -1680,25 +1679,6 @@
   const mailFields = () => ({ from: $('#fromEmail').value.trim(), to: $('#toEmail').value.trim(), subject: $('#subject').value, body: $('#body').value });
   const leaveMailFields = () => ({ from: $('#lFromEmail').value.trim(), to: $('#lToEmail').value.trim(), subject: $('#lSubject').value, body: $('#lBody').value });
 
-  /* "What to do next": a short, numbered guide under the saved claim, so nobody has to guess the order */
-  function nextSteps(kind, p) {
-    const claim = kind === 'claim';
-    const prov = S.user ? S.user.provider : 'none';
-    const steps = [
-      ['Send the email to the accountant', prov === 'microsoft'
-        ? (msClientId()
-          ? 'Press the blue "Create Outlook draft" button below, check the email, then press Send in Outlook.'
-          : 'Press the blue "Download email for Outlook" button below, double-click the file that downloads, check the email in Outlook, then press Send.')
-        : prov === 'google'
-          ? 'Press the blue "Create Gmail draft" button below, check the email, then press Send in Gmail.'
-          : 'Press the blue "Create Gmail draft" button below, check the email, then press Send in Gmail. Using Outlook? Open "Other ways to send", press "Download email file (.eml)", double-click the file, check it, then press Send.'],
-    ];
-    if (dashApi() && $('#sendDash') && $('#sendDash').checked) steps.push([`Your ${claim ? 'claim' : 'leave form'} also goes to the accountant's dashboard`, 'This happens when you save. Check the line above: if it says it could not, press "Try again".']);
-    steps.push(['Need to change something?', `Make the change, then press "${claim ? 'Save my claim' : 'Save my leave form'}" again. It replaces the earlier version.`]);
-    return h('div', { class: 'nextsteps' }, h('h4', { text: 'What to do next' }),
-      h('ol', {}, steps.map(([title, text], i) => h('li', {}, h('span', { class: 'n', text: String(i + 1) }), h('div', {}, h('b', { text: title }), h('span', { class: 's', text }))))));
-  }
-
   function renderPack(kind) {
     const p = S.packs[kind];
     const box = $(kind === 'claim' ? '#pack' : '#lPack');
@@ -1718,7 +1698,6 @@
       dashBox,
       p.stale ? h('div', { class: 'note warn', text: `You changed something after saving – save again before sending.` }) : null,
       p.blob.size / 1048576 > 24 ? h('div', { class: 'note warn', text: 'This is over 24 MB, which Gmail may refuse. Tick "Shrink photos" and save again, or send it by link.' }) : null,
-      nextSteps(kind, p),
       h('details', { class: 'zipfiles' }, h('summary', { text: `What is inside the zip (${p.entries.length} files)` }), h('ul', {}, p.entries.map((e) => h('li', { text: `${e.path} (${sizeText(e.size)})` }))))));
     const files = p.attachments.map((a) => new File([a.blob], a.name, { type: a.blob.type || 'application/octet-stream' }));
     const canShare = !!(navigator.canShare && navigator.canShare({ files }));
@@ -1793,14 +1772,10 @@
       outlook || clientId ? null : h('button', { class: 'link', type: 'button', text: `Set up a Gmail draft with the ${what} attached…`, onclick: openSettings }),
     ].filter(Boolean);
     const hint = fileOnly
-      ? `Downloads one email file. Double-click it and it opens in Outlook with the ${what} already attached. Nothing is sent until you press Send.`
+      ? `Double-click the email file and it opens in Outlook with the ${what} attached.`
       : hasDraft
-      ? (outlook
-        ? `Opens Outlook in a new tab with the ${what} attached. Nothing is sent until you press Send. Microsoft may ask you to allow access once (it calls this "read and write your mail", but this page only makes the draft).`
-        : `Opens Gmail in a new tab with the ${what} attached. Nothing is sent until you press Send. Google may ask you to allow access once.`)
-      : (outlook
-        ? `Outlook opens with the To, Subject and message filled in. A web link can't attach files, so drag the ${what} in from the saved folder, or use the email file below, which already has it attached.`
-        : `Gmail opens with the To, Subject and message filled in${fields().from ? ` (from ${fields().from})` : ''}. A web link can't attach files, so drag the ${what} in from the saved folder, or use the email file below, which already has it attached.`);
+      ? `Opens ${openName} with the ${what} attached. Nothing is sent until you press Send.`
+      : `${openName} opens with the email filled in. Attach the ${what} from the saved folder.`;
     box.append(h('div', { class: 'sendbox' },
       mainBtn,
       h('p', { class: 'hint sendhint', text: hint }),
@@ -1813,10 +1788,9 @@
     const handle = Folder.supported ? await Folder.getSaved() : null;
     document.querySelectorAll('.loc').forEach((box) => {
       box.textContent = '';
-      if (!Folder.supported) { box.append(h('span', { class: 'muted', text: "This browser can't save into a folder, so the zip downloads instead. Use Chrome or Edge to pick a save folder." })); return; }
+      if (!Folder.supported) { box.append(h('span', { class: 'muted', text: 'Saved to your Downloads.' })); return; }
       box.append(h('span', { text: 'Save to:' }), h('b', { text: handle ? handle.name : 'not chosen yet' }),
-        h('button', { class: 'link', type: 'button', text: handle ? 'Change folder' : 'Choose folder', onclick: changeFolder }),
-        handle ? '' : h('span', { class: 'muted', text: "You'll also be asked the first time you save." }));       // '' not null: append(null) would print the word "null"
+        h('button', { class: 'link', type: 'button', text: handle ? 'Change folder' : 'Choose folder', onclick: changeFolder }));
     });
     const sName = $('#sLocName');
     if (sName) sName.textContent = !Folder.supported ? "This browser can't save into a folder (use Chrome or Edge)." : handle ? handle.name : 'Not chosen yet';
@@ -1961,7 +1935,7 @@
     const body = $('#walletBody'), mp = monthParts();
     body.textContent = '';
     const open = W.list.filter((r) => r.status !== 'claimed');
-    body.append(h('p', { class: 'muted', text: 'Receipts you snapped, newest first. Tick the ones for this claim, then press Add.' }), driveLine(() => paintWallet(false)));
+    body.append(h('p', { class: 'muted', text: 'Tick the receipts for this claim.' }), driveLine(() => paintWallet(false)));
     if (loading) { body.append(h('p', { class: 'snapst wait', text: 'Opening your receipts…' })); return; }
     if (!W.list.length) body.append(h('div', { class: 'empty', text: 'No receipts yet. Use "Snap a receipt" right after you pay, and they will wait here until you claim them.' }));
     Wallet.byMonth(W.list).forEach((g) => {
@@ -2108,7 +2082,6 @@
       const first = S.inputs.find((i) => i._obj === item && i._key === 'category');
       if (first) { first.focus(); first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
     });
-    $('#btnHandLine').addEventListener('click', () => { go(3, true); $('#btnAddLine').click(); });
     $('#btnClearAll').addEventListener('click', clearAll);
     $('#btnBuild').addEventListener('click', buildPack);
     $('#btnSettings').addEventListener('click', openSettings);
