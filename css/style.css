@@ -610,3 +610,30 @@ dialog details.adv .sec + .sec { margin-top: 14px; }
 .offnote[hidden] { display: none; }
 @media (max-width: 640px) { .installbar { justify-content: flex-start; text-align: left; padding: 10px 16px; } .installbar .ibtns { width: 100%; } .installbar .chipbtn { flex: 1; justify-content: center; height: 42px; } }
 body.locked .installbar { display: none !important; }
+
+/* claim reminders */
+.remindbar { background: #fff8e8; border-bottom-color: #fbe4b0; }
+.remindfield { display: grid; gap: 6px; max-width: 420px; }
+.remindon { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--ok); }
+.remindon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.remindwhen { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14.5px; }
+.remindwhen li { display: grid; grid-template-columns: 74px 1fr; gap: 10px; }
+.remindwhen b { color: var(--blue); }
+.chipbtn[hidden] { display: none !important; }
+body:has(#remindBar:not([hidden])) #installBar { display: none !important; }      /* one slim bar at a time: the reminder wins while claims are open */
+
+/* e-receipts from Gmail */
+.mailist { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.mailist label { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: #fff; cursor: pointer; }
+.mailist label.on { border-color: var(--blue); background: var(--blue-50); }
+.mailist .mtext { display: grid; gap: 2px; min-width: 0; }
+.mailist .mtext b { font-size: 14.5px; overflow-wrap: anywhere; }
+.mailist .mtext span { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.mailist .mtext small { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.mailtag { padding: 1px 8px; border-radius: 999px; background: var(--blue-100); color: var(--blue-d); font-weight: 650; font-size: 11.5px; }
+.mailtag.email { background: var(--warn-bg); color: var(--warn); }
+.mailtrust { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 14.5px; }
+.mailtrust li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+.mailtrust li::before { content: "✓"; color: var(--ok); font-weight: 800; }
+.chipbtn[hidden] { display: none !important; }
+@media (max-width: 430px) { .fromphone #btnMail2 { flex: 1 1 100%; } }

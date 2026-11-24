@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="stylesheet" href="css/style.css?v=144">
+<link rel="stylesheet" href="css/style.css?v=147">
 </head>
 <body class="locked">
 <header class="top" id="top">
@@ -37,6 +37,7 @@
         <div class="acmenu" id="acMenu" role="menu" hidden>
           <div class="achead"><span class="avatar sm" aria-hidden="true"><span id="avatarText2">?</span></span><div class="acwho"><b id="whoName">Not signed in</b><span id="whoEmail"></span></div></div>
           <button role="menuitem" id="btnWallet" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3z"/><path d="M9 8h6M9 11.5h6M9 15h3.5"/></svg><span>My receipts</span><span class="mcount" id="walletCount" hidden></span></button>
+          <button role="menuitem" id="btnRemind" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Claim reminders</span></button>
           <button role="menuitem" id="btnInstall" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M12 8v6M9.5 11.5 12 14l2.5-2.5"/></svg><span>Put Flow on my phone</span></button>
           <button role="menuitem" id="btnSettings" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
           <button role="menuitem" id="btnStartOver" type="button" title="Clear the claim and the leave application on this page and begin again"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Start over</button>
@@ -51,6 +52,11 @@
 <div class="installbar" id="installBar" hidden>
   <span><b>Put Flow on your home screen.</b> It opens like an app, works with no signal and keeps your receipts safe.</span>
   <span class="ibtns"><button class="chipbtn" id="btnInstallShow" type="button">Show me how</button><button class="link subtle" id="btnInstallHide" type="button">Not now</button></span>
+</div>
+
+<div class="installbar remindbar" id="remindBar" role="status" hidden>
+  <span id="remindText"></span>
+  <span class="ibtns"><button class="chipbtn" id="btnRemindOn" type="button" hidden>Turn on reminders</button><button class="link subtle" id="btnRemindLater" type="button">Not now</button></span>
 </div>
 
 <section class="login" id="login" aria-labelledby="loginTitle">
@@ -118,6 +124,7 @@
         <span class="fptext">Receipts you snapped</span>
         <button class="chipbtn" id="btnSnap2" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.2-1.8A1.5 1.5 0 0 1 10.5 3.5h3a1.5 1.5 0 0 1 1.2.7L15.9 6h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.3" r="3.4"/></svg><span>Snap</span></button>
         <button class="chipbtn" id="btnWallet2" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3z"/><path d="M9 8h6M9 11.5h6M9 15h3.5"/></svg><span>My receipts</span><span class="count" id="walletCount2" hidden></span></button>
+        <button class="chipbtn" id="btnMail2" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 8l9 6 9-6"/></svg><span>Find e-receipts in Gmail</span></button>
       </div>
       <p class="wallethint" id="walletHint" hidden></p>
       <div class="notes" id="fileNotes"></div>
@@ -210,6 +217,19 @@
     <div class="sheetbody" id="snapBody"></div>
   </div>
 </dialog>
+<dialog class="sheet" id="mailDlg" aria-labelledby="mailTitle">
+  <div class="sheetin">
+    <div class="sheethead"><h2 id="mailTitle">E-receipts from Gmail</h2><button class="link subtle" type="button" onclick="this.closest('dialog').close()">Close</button></div>
+    <div class="sheetbody" id="mailBody"></div>
+    <div class="sheetfoot" id="mailFoot" hidden></div>
+  </div>
+</dialog>
+<dialog class="sheet" id="remindDlg" aria-labelledby="remindTitle">
+  <div class="sheetin">
+    <div class="sheethead"><h2 id="remindTitle">Claim reminders</h2><button class="link subtle" type="button" onclick="this.closest('dialog').close()">Close</button></div>
+    <div class="sheetbody" id="remindBody"></div>
+  </div>
+</dialog>
 <dialog class="sheet" id="installDlg" aria-labelledby="installTitle">
   <div class="sheetin">
     <div class="sheethead"><h2 id="installTitle">Put Flow on your phone</h2><button class="link subtle" type="button" onclick="this.closest('dialog').close()">Close</button></div>
@@ -256,29 +276,31 @@
   </form>
 </dialog>
 
-<script defer src="js/pwa.js?v=144"></script>
-<script defer src="js/lazy.js?v=144"></script>
+<script defer src="js/pwa.js?v=147"></script>
+<script defer src="js/lazy.js?v=147"></script>
 <script defer src="assets/logo.js"></script>
-<script defer src="js/tng.js?v=144"></script>
-<script defer src="js/xlsx.js?v=144"></script>
-<script defer src="js/pdf.js?v=144"></script>
-<script defer src="js/receipts.js?v=144"></script>
+<script defer src="js/tng.js?v=147"></script>
+<script defer src="js/xlsx.js?v=147"></script>
+<script defer src="js/pdf.js?v=147"></script>
+<script defer src="js/receipts.js?v=147"></script>
 <script defer src="js/extract.js?v=5"></script>
 <script defer src="js/scan.js?v=3"></script>
 <script defer src="js/wallet.js?v=3"></script>
-<script defer src="js/mail.js?v=144"></script>
-<script defer src="js/gmail.js?v=144"></script>
-<script defer src="js/outlook.js?v=144"></script>
-<script defer src="js/auth.js?v=144"></script>
-<script defer src="js/accounts.js?v=144"></script>
-<script defer src="js/folder.js?v=144"></script>
-<script defer src="js/fx.js?v=144"></script>
-<script defer src="js/petrol.js?v=144"></script>
-<script defer src="js/validate.js?v=144"></script>
-<script defer src="js/ocr.js?v=144"></script>
-<script defer src="js/draft.js?v=144"></script>
-<script defer src="js/planb.js?v=144"></script>
-<script defer src="js/aipanel.js?v=144"></script>
-<script defer src="js/app.js?v=144"></script>
+<script defer src="js/remind.js?v=147"></script>
+<script defer src="js/mailrcpt.js?v=147"></script>
+<script defer src="js/mail.js?v=147"></script>
+<script defer src="js/gmail.js?v=147"></script>
+<script defer src="js/outlook.js?v=147"></script>
+<script defer src="js/auth.js?v=147"></script>
+<script defer src="js/accounts.js?v=147"></script>
+<script defer src="js/folder.js?v=147"></script>
+<script defer src="js/fx.js?v=147"></script>
+<script defer src="js/petrol.js?v=147"></script>
+<script defer src="js/validate.js?v=147"></script>
+<script defer src="js/ocr.js?v=147"></script>
+<script defer src="js/draft.js?v=147"></script>
+<script defer src="js/planb.js?v=147"></script>
+<script defer src="js/aipanel.js?v=147"></script>
+<script defer src="js/app.js?v=147"></script>
 </body>
 </html>

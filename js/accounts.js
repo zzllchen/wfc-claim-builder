@@ -91,7 +91,10 @@
   // receipts claimed before: { claimant, month, lines: [{ ref, category, date, name, receiptNo, amount }] } -> { matches: [{ ref, check, claims: [{ month, monthLabel, status, mine }] }] }
   const seen = (api, body) => post(api, Object.assign({ action: 'seen' }, body));
 
-  const api = { send, ping, seen, leaveDays, MAX_FILE };
+  // claim reminders: { op: 'key' | 'join' | 'leave' | 'status', endpoint, name, email }
+  const remind = (api, body) => post(api, Object.assign({ action: 'remind' }, body));
+
+  const api = { send, ping, seen, remind, leaveDays, MAX_FILE };
   root.Accounts = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

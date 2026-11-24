@@ -675,6 +675,8 @@
     applyUser();
     if (canDrive()) Gmail.preload().catch(() => {});          // so the Google Drive window can open straight from a click
     refreshWalletBar();
+    paintRemindBar();
+    if (window.MailReceipts) paintMail();
   }
   function wireLogin() {
     const msg = (text, bad) => { const m = $('#loginMsg'); m.textContent = text || ''; m.classList.toggle('bad', !!bad); };
@@ -1486,6 +1488,7 @@
       };
       renderPack('claim');
       walletClaimed(mp.key);                           // receipts picked from My receipts are now claimed in this month
+      if (window.Remind) { Remind.markClaimed(mp.key); if (remindReady) Remind.touch(remindPost, { name: claimant, email: owner() }); paintRemindBar(); }      // no more nudges for this month
       $('#pack').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       // the email is still how the zip travels; this also puts the claim on the accountant's dashboard
       pushToDashboard(S.packs.claim, {
@@ -1835,8 +1838,9 @@
      if the inbox is out of reach or has no key, nothing changes. A key pasted in the Claude panel still wins. */
   function linkTeamClaude() {
     const api = dashApi();
-    if (!api || !window.PlanB || !window.Accounts) return;
-    Accounts.ping(api).then((j) => { if (j && j.claude) { PlanB.useTeam(api); if (window.AiPanel) AiPanel.refresh(); } }).catch(() => { /* stay as before */ });
+    if (!api || !window.Accounts) return;
+    if (!window.PlanB) { Accounts.ping(api).then(remindServerReady).catch(() => {}); return; }
+    Accounts.ping(api).then((j) => { remindServerReady(j); if (j && j.claude) { PlanB.useTeam(api); if (window.AiPanel) AiPanel.refresh(); } }).catch(() => { /* stay as before */ });
   }
 
   /* the tick box under Save my claim only exists when there is a dashboard to send to */
@@ -2100,6 +2104,143 @@
     Pwa.on('ready', mark); mark();
   }
 
+  /* ---------- e-receipts from Gmail (js/mailrcpt.js) ----------
+     "Find e-receipts in Gmail" (step 2, for people signed in with Google): the page looks only at emails of the claim month that look like receipts,
+     lists them, and the ticked ones go into the claim exactly like dropped files (an email with no attachment is printed to a one-page PDF). */
+  const canMail = () => !!(window.MailReceipts && S.user && S.user.provider === 'google' && S.user.email && gmailClientId());
+  const paintMail = () => { $('#btnMail2').hidden = !canMail(); };
+  async function emailToPdf(m, text) {                         // proof for an email that has no attachment: one clean page (or more) of its text
+    await Lazy.need('jspdf');
+    const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true }), W = 595, M = 48;
+    let y = 56;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.text('Email receipt', M, y); y += 24;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    [['From', `${m.from.name} <${m.from.email}>`], ['Date', new Date(m.date).toLocaleString('en-GB')], ['Subject', m.subject]].forEach(([k, v]) => {
+      const lines = doc.splitTextToSize(`${k}: ${MailReceipts.printable(v) || v}`, W - 2 * M); doc.text(lines, M, y); y += lines.length * 13;
+    });
+    y += 6; doc.setDrawColor(200); doc.line(M, y, W - M, y); y += 18;
+    doc.setFontSize(10.5);
+    for (const line of doc.splitTextToSize(text, W - 2 * M)) { if (y > 790) { doc.addPage(); y = 56; } doc.text(line, M, y); y += 14; }
+    y += 10; if (y > 790) { doc.addPage(); y = 56; }
+    doc.setFontSize(8.5); doc.setTextColor(120); doc.text('Printed by Flow from the email above, received ' + new Date(m.date).toLocaleDateString('en-GB') + '.', M, y);
+    return new File([doc.output('blob')], MailReceipts.printedName(m), { type: 'application/pdf' });
+  }
+  async function openMail() {
+    if (!canMail()) return;
+    const mp = monthParts();
+    const dlg = $('#mailDlg'), body = $('#mailBody'), foot = $('#mailFoot');
+    if (!mp) { fileNote('warn', 'Pick the claim month in step 1 first, so Flow knows which month to look at.'); return; }
+    foot.hidden = true; foot.textContent = '';
+    const show = (...kids) => { body.textContent = ''; body.append(...kids.filter(Boolean)); };
+    const note = (text, kind) => h('p', { class: 'snapst ' + (kind || 'wait'), text });
+    const intro = () => show(
+      h('p', { text: `Flow will look in your Gmail for emails from ${monthLabel(mp)} that look like receipts or invoices: AI tools, Grab, flights, hotels and so on.` }),
+      h('ul', { class: 'mailtrust' },
+        h('li', { text: 'It only opens emails that look like receipts. Nothing else is read.' }),
+        h('li', { text: 'You choose which ones to add. Nothing is kept or sent anywhere.' }),
+        h('li', { text: 'Google asks you once to allow "view your email". View only: Flow cannot send, change or delete anything.' })),
+      h('div', { class: 'snapacts' }, h('button', { class: 'primary', type: 'button', text: 'Look in my Gmail', onclick: go })));
+    function go() {
+      MailReceipts.connect(gmailClientId(), owner())            // first, still inside the click (the Google window)
+        .then(() => { show(note('Looking in your Gmail…')); return MailReceipts.search(mp.key, (p) => show(note(`Looking in your Gmail… ${p.done} of ${p.total}`))); })
+        .then(list, (e) => show(note(e.message || String(e), 'bad'), h('div', { class: 'snapacts' }, h('button', { class: 'ghost', type: 'button', text: 'Try again', onclick: intro }))));
+    }
+    function list(res) {
+      const items = res.list, on = new Set(items.filter((m) => m.rank.tick).map((m) => m.id));
+      if (!items.length) { show(note(`No receipts found in your Gmail for ${monthLabel(mp)}${res.found ? ' (' + res.found + ' emails looked at, none like a receipt)' : ''}. Check you are signed in with the Gmail the receipts went to.`, 'warn')); return; }
+      const paint = () => {
+        show(h('p', { class: 'muted', text: `${items.length} email${items.length > 1 ? 's' : ''} from ${monthLabel(mp)} look like receipts. Tick the ones for this claim.` }),
+          h('ul', { class: 'mailist' }, items.map((m) => h('li', {}, h('label', { class: on.has(m.id) ? 'on' : '' },
+            h('input', { type: 'checkbox', checked: on.has(m.id), onchange: (e) => { if (e.target.checked) on.add(m.id); else on.delete(m.id); paint(); } }),
+            h('div', { class: 'mtext' }, h('b', { text: m.from.name }), h('span', { text: m.subject || '(no subject)' }),
+              h('small', {}, niceDate(localIso(new Date(m.date))), h('span', { class: 'mailtag' + (m.rank.kind === 'email' ? ' email' : ''), text: m.rank.kind === 'pdf' ? 'PDF attached' : m.rank.kind === 'photo' ? 'Photo attached' : 'Email only: printed as a PDF' }))))))));
+        foot.hidden = false; foot.textContent = '';
+        const add = h('button', { class: 'primary', type: 'button', text: on.size ? `Add ${on.size} to my claim` : 'Add to my claim', disabled: !on.size, onclick: () => addChosen(items.filter((m) => on.has(m.id))) });
+        foot.append(h('button', { class: 'ghost', type: 'button', text: 'Close', onclick: () => dlg.close() }), add);
+      };
+      paint();
+    }
+    async function addChosen(chosen) {
+      foot.hidden = true;
+      const files = [], failed = [];
+      for (let i = 0; i < chosen.length; i++) {
+        show(note(`Getting your receipts… ${i + 1} of ${chosen.length}`));
+        try { files.push(...(await MailReceipts.filesOf(chosen[i], emailToPdf))); } catch (e) { failed.push(`${chosen[i].from.name}: ${e.message || e}`); }
+      }
+      dlg.close();
+      if (files.length) await routeFiles(files);
+      failed.forEach((t) => fileNote('warn', 'Not added. ' + t));
+    }
+    intro();
+    if (!dlg.open) dlg.showModal();
+  }
+  function wireMail() {
+    if (!window.MailReceipts) return;
+    $('#btnMail2').addEventListener('click', openMail);
+    paintMail();
+  }
+
+  /* ---------- claim reminders (js/remind.js; the sender is the claims inbox, see its README) ----------
+     A slim bar on the 1st-15th until last month's claim is saved, for everyone. And, once the inbox knows about reminders, a push notification
+     on the 1st, 8th, 13th and 15th, which the person turns on once in "Claim reminders" in the account menu. */
+  let remindReady = false;                         // the inbox answers to reminders (its ping says so)
+  const remindPost = (body) => Accounts.remind(dashApi(), body);
+  const remindWho = () => ({ name: ($('#claimant').value || (S.user && S.user.name) || '').trim(), email: owner() });
+  async function paintRemindBar() {
+    const bar = $('#remindBar');
+    const t = window.Remind && Remind.needsNudge();
+    if (!t || document.body.classList.contains('locked')) { bar.hidden = true; return; }
+    $('#remindText').textContent = t.daysLeft <= 0 ? `Last day for ${t.label} claims.` : `${t.label} claims are open until ${t.due} (${t.daysLeft} day${t.daysLeft > 1 ? 's' : ''} left).`;
+    bar.hidden = false;
+    const st = remindReady ? await Remind.state() : '';
+    $('#btnRemindOn').hidden = !(st === 'off' || st === 'needs-install');
+  }
+  async function showRemind() {
+    const dlg = $('#remindDlg'), body = $('#remindBody');
+    const st = await Remind.state();
+    body.textContent = '';
+    const msg = h('p', { class: 'snapst', hidden: true });
+    const say = (text, kind) => { msg.hidden = !text; msg.className = 'snapst ' + (kind || 'wait'); msg.textContent = text || ''; };
+    body.append(h('p', { class: 'muted', text: 'A friendly reminder, with your phone\'s notification sound, to make last month\'s claim. We keep it to four a month and stop as soon as your claim is in.' }),
+      h('ul', { class: 'remindwhen' },
+        h('li', {}, h('b', { text: '1st' }), h('span', { text: 'Claims are open.' })), h('li', {}, h('b', { text: '8th' }), h('span', { text: 'A friendly nudge.' })),
+        h('li', {}, h('b', { text: '13th' }), h('span', { text: 'Two days left.' })), h('li', {}, h('b', { text: '15th' }), h('span', { text: 'Last day.' }))));
+    if (st === 'on') {
+      body.append(h('div', { class: 'remindon' }, svgIcon('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/>'), h('span', { text: 'Reminders are on for this phone.' })),
+        h('div', { class: 'snapacts' },
+          h('button', { class: 'ghost', type: 'button', text: 'Send me a test now', onclick: async () => { try { await Remind.test(); say('Sent. You should hear and see it in a moment.', 'ok'); } catch (e) { say('The test could not be shown: ' + (e.message || e), 'bad'); } } }),
+          h('button', { class: 'ghost', type: 'button', text: 'Turn off', onclick: async () => { await Remind.disable(remindPost); paintRemindBar(); showRemind(); } })), msg);
+    } else if (st === 'needs-install') {
+      body.append(h('p', { class: 'snapst warn', text: 'On an iPhone, reminders come from the home-screen app. Put Flow on your home screen first, open it from there, then turn reminders on.' }),
+        h('div', { class: 'snapacts' }, h('button', { class: 'primary', type: 'button', text: 'Show me how', onclick: () => { dlg.close(); showInstall(); } })));
+    } else if (st === 'blocked') {
+      body.append(h('p', { class: 'snapst warn', text: 'Notifications are blocked for Flow. iPhone: Settings > Notifications > Flow > Allow. Android: press and hold the Flow icon > App info > Notifications. Then come back here.' }));
+    } else if (st === 'unsupported') {
+      body.append(h('p', { class: 'snapst warn', text: 'This browser cannot show reminders. Use Flow from your phone\'s home screen, or the page below will still remind you whenever you open it.' }));
+    } else {
+      const name = h('input', { type: 'text', id: 'remindName', value: remindWho().name, placeholder: 'Full name, as on your IC', autocomplete: 'name' });
+      const go = h('button', { class: 'primary', type: 'button', text: 'Turn on reminders' });
+      go.addEventListener('click', async () => {
+        go.disabled = true; say('Turning on…');
+        try {
+          await Remind.enable(remindPost, { name: name.value, email: owner() });
+          try { await Remind.test(); } catch (e) { /* the test is only a bonus */ }
+          paintRemindBar(); showRemind();
+        } catch (e) { say(e.message || String(e), 'bad'); go.disabled = false; }
+      });
+      body.append(h('label', { class: 'f remindfield' }, 'Your name, as on your claims', name), h('div', { class: 'snapacts' }, go), msg);
+    }
+    if (!dlg.open) dlg.showModal();
+  }
+  function wireRemind() {
+    if (!window.Remind) return;
+    $('#btnRemind').addEventListener('click', showRemind);
+    $('#btnRemindOn').addEventListener('click', showRemind);
+    $('#btnRemindLater').addEventListener('click', () => { Remind.snoozeToday(); paintRemindBar(); });
+    paintRemindBar();
+  }
+  const remindServerReady = (j) => { remindReady = !!(j && j.remind); if (window.Remind) { $('#btnRemind').hidden = !remindReady; paintRemindBar(); } };
+
   function init() {
     S.restoring = true;       // until the saved draft has been looked for, nothing may overwrite it
     ClaimPdf.croppedLogo().then((l) => { $('#brandLogo').src = l.url; $('#loginLogo').src = l.url; }).catch(() => { $('#brandLogo').remove(); $('#loginLogo').remove(); });
@@ -2121,6 +2262,8 @@
     $('#month').addEventListener('input', () => { S.touched.month = true; renderLines(); refreshWalletBar(); });
     wireWallet();
     wirePhone();
+    wireRemind();
+    wireMail();
     $('#daysOff').addEventListener('input', renderLines);
     $('#toEmail').addEventListener('input', () => { cfg.toEmail = $('#toEmail').value; saveCfg(); renderSteps(); });
     $('#subject').addEventListener('input', () => { S.touched.subject = true; renderSteps(); });

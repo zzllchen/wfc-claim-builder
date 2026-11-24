@@ -28,6 +28,25 @@ Flow is an installable web app (`manifest.webmanifest`, display *standalone*, pl
 - **How the saved copy is kept right** (`sw.js`): the page itself is always fetched from the internet first (5 s, then the saved copy), so an update is never missed. Script, style and library addresses carry `?v=NNN`, so a saved copy of an address is always the right one: **bump the `?v=` number in `index.html` with every change** (the old copies are dropped by the service worker). It never touches Google, Microsoft, the dashboard or Claude. Test: `node tests/sw.test.js`.
 - To test offline in the preview: open the page once, wait ten seconds, stop the local server and reload; the page, a snap and its reading still work.
 
+## Claim reminders (push notifications)
+
+A friendly notification, with the phone's normal notification sound, on the **1st, 8th, 13th and 15th** of each month at about 9 am (Malaysia time), until the person has sent last month's claim. Never more than four a month. Words (set in `sw.js`, mirrored in `js/remind.js`, kept equal by `tests/remind.test.js`): 1st-7th *Time to claim your October expenses*; 8th-12th *Friendly reminder: October claim*; 13th-14th *October claims close in 2 days*; 15th *Last day for October claims*.
+
+- **Setup per person:** account menu, **Claim reminders**, type the name used on claims, **Turn on reminders**, allow notifications. A test notification is shown at once. On an iPhone this only works from the home-screen app (iOS 16.4 or newer); the dialog says so and opens the install steps.
+- **The sender** is the accountant dashboard's Google script (`WFC Claims Dashboard/backend/Code.gs`, version 7 or newer): the phone's push address and name go to its *Reminders* sheet; a daily trigger pings people whose claim for last month is not in the inbox. Until that script is updated and `setupReminders` has been run once (steps in the dashboard README), the **Claim reminders** menu item stays hidden (the inbox's ping has no `remind: true`).
+- **For everyone, no setup:** on the 1st-15th a slim bar says *October claims are open until 15 November (6 days left)* until a claim for that month has been saved on this device. *Not now* hides it for the day. (`Remind.markClaimed` on Save; `Remind.needsNudge`.)
+- A web page cannot pick its own notification sound or schedule a notification by itself; the sound is whatever the phone uses for notifications, and the push has to come from a server, which is why the inbox sends it.
+
+## E-receipts from Gmail (Find e-receipts in Gmail)
+
+Step 2 has **Find e-receipts in Gmail** for people signed in with Google. One tap, Google asks once to let Flow *view* email (`gmail.readonly`), then `js/mailrcpt.js`:
+
+1. searches only the claim month for emails that look like receipts (receipt/invoice/booking/itinerary/resit/收据 words in the subject, a known sender such as Grab, Shopee, AirAsia, Agoda, Anthropic, Runway, Stripe, or a PDF named receipt/invoice), 60 at most, opens up to 40;
+2. lists them (sender, subject, date, *PDF attached* / *Photo attached* / *Email only*), ticking the ones with a PDF or photo and the ones that say receipt or invoice; newsletters and shipping notices are left out;
+3. adds the ticked ones to the claim like dropped files: attached PDFs and photos as they are (an invoice and its receipt come together and join on one line), and an email with no attachment as a one-page PDF printed from its text (`Email receipt`, named `2026-10-12 Grab - Your Grab E-Receipt.pdf`).
+
+Everything happens in the browser; the access token is kept in memory for about an hour; nothing is stored or sent except what any receipt goes through (the optional Claude backup may read a file Flow cannot). Not for the Chinese-language mail body (the PDF maker has no Chinese font): such an email is skipped with a note. Tests: `node tests/mailrcpt.test.js`. **Setup note:** the Google client is in Testing mode, so only the listed test users can use it, and `gmail.readonly` is a restricted scope: more than 100 users would need Google's verification.
+
 ## A refresh does not lose your claim
 
 The unfinished claim (the form boxes, the TNG statement, every line with its files, the ticks and typed-over amounts, and the step you were on) is kept on this computer, in the browser, a moment after every change (`js/draft.js`). Refresh, close the tab or come back tomorrow and it is put back, with a note at the top. **Start over** (top bar, or in that note) removes everything on the page and the kept copy, and sets the page to the first visit (the claimant name stays). The kept copy is removed after 30 days. Nothing leaves the computer. Photos that were still being read when the page closed are read again.
